@@ -10,6 +10,12 @@ import { useConfig } from './config'
 import { createDb, type Db } from './db/client'
 import { googleOAuth } from './mail/oauth/google'
 import { microsoftOAuth } from './mail/oauth/microsoft'
+import { accountService } from './accounts/service'
+import { connectImap } from './mail/imap/session'
+import { ImapMailProvider } from './mail/imap/provider'
+import { testSmtp } from './mail/send/smtp-test'
+import { loadTokens } from './mail/oauth/connect'
+import { forUser } from './repos'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -44,8 +50,26 @@ export const useAuditor = () => auditorFor(useDb())
 /** Provider token revokers register here as accounts connect (T042, T043). */
 export const tokenRevokers: { name: string; revoke(userId: string): Promise<void> }[] = []
 
-export const useLifecycle = () =>
-  accountLifecycle({ db: useDb(), revokers: tokenRevokers, auditor: auditorFor(useDb()) })
+export const useLifecycle = () => {
+  registerRevokers()
+  return accountLifecycle({ db: useDb(), revokers: tokenRevokers, auditor: auditorFor(useDb()) })
+}
+
+/** Revokes Google grants when a whole user account is deleted. */
+function registerRevokers() {
+  if (tokenRevokers.some((r) => r.name === 'google')) return
+  tokenRevokers.push({
+    name: 'google',
+    async revoke(userId) {
+      for (const a of (await forUser(useDb(), userId).accounts.list()).filter(
+        (x) => x.type === 'gmail',
+      )) {
+        const t = await loadTokens(useDb(), tokenKek(), userId, a.id)
+        if (t) await useGoogleOAuth().revoke(t)
+      }
+    },
+  })
+}
 
 let hub: EventHub | undefined
 /** The event hub; cross-instance delivery uses Postgres LISTEN/NOTIFY. */
@@ -82,5 +106,21 @@ export function useMicrosoftOAuth() {
     authority: c.microsoft.authority,
     redirectUri: `${c.baseUrl}/api/accounts/microsoft/callback`,
     secret: c.sessionSecret,
+  }))
+}
+
+let accounts: ReturnType<typeof accountService> | undefined
+export function useAccounts() {
+  return (accounts ??= accountService({
+    db: useDb(),
+    ring: tokenKek(),
+    async imapProvider(s, cred) {
+      const session = await connectImap(s, cred)
+      return new ImapMailProvider(session, { accountEmail: cred.username, accountId: '' })
+    },
+    smtpTest: (s, cred) => testSmtp(s, cred),
+    async revoke(type, t) {
+      if (type === 'gmail') await useGoogleOAuth().revoke(t)
+    },
   }))
 }

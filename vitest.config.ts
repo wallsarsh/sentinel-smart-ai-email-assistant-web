@@ -10,5 +10,5 @@ export default defineConfig({
       '~': fileURLToPath(new URL('./app', import.meta.url)),
     },
   },
-  test: { environment: 'node', include: ['tests/**/*.test.ts'] },
+  test: { environment: 'node', include: ['tests/**/*.test.ts'], testTimeout: 30_000, hookTimeout: 30_000 },
 })

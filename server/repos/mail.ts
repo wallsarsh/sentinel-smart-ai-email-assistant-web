@@ -28,6 +28,18 @@ export const mailRepo = (s: Scope) => ({
     }
   },
 
+  /** Chooses which folders Sentinel reads: exactly [providerIds] are processed. */
+  async setProcessed(accountId: string, providerIds: string[]) {
+    if (!(await ownsAccount(s, accountId))) throw new Error('forbidden')
+    const where = and(eq(folders.userId, s.userId), eq(folders.accountId, accountId))
+    await s.db.update(folders).set({ processed: false }).where(where)
+    if (providerIds.length)
+      await s.db
+        .update(folders)
+        .set({ processed: true })
+        .where(and(where, inArray(folders.providerId, providerIds)))
+  },
+
   listFolders: (accountId: string) =>
     s.db
       .select()

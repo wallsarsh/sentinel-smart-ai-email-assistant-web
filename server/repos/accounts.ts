@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { accounts } from '../db/schema'
+import { accounts, imapSettings } from '../db/schema'
 import type { Scope } from './scope'
 
 export type NewAccount = Pick<
@@ -41,6 +41,25 @@ export const accountsRepo = (s: Scope) => ({
       .where(and(eq(accounts.userId, s.userId), eq(accounts.id, id)))
       .returning()
     return row ?? null
+  },
+
+  async getImap(accountId: string) {
+    const [row] = await s.db
+      .select()
+      .from(imapSettings)
+      .where(and(eq(imapSettings.userId, s.userId), eq(imapSettings.accountId, accountId)))
+    return row ?? null
+  },
+
+  async putImap(
+    accountId: string,
+    v: Omit<typeof imapSettings.$inferInsert, 'userId' | 'accountId'>,
+  ) {
+    if (!(await this.get(accountId))) throw new Error('forbidden')
+    await s.db
+      .insert(imapSettings)
+      .values({ ...v, accountId, userId: s.userId })
+      .onConflictDoUpdate({ target: imapSettings.accountId, set: v })
   },
 
   async remove(id: string) {
