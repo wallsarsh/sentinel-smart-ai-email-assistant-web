@@ -3,6 +3,7 @@
 import { authService } from './auth/service'
 import { mfaService } from './auth/mfa'
 import { auditorFor } from './audit/audit'
+import { accountLifecycle } from './account/lifecycle'
 import { useConfig } from './config'
 import { createDb, type Db } from './db/client'
 import { createSystemMailer } from './mail/send/system-mailer'
@@ -35,3 +36,9 @@ export function useMfa() {
 }
 
 export const useAuditor = () => auditorFor(useDb())
+
+/** Provider token revokers register here as accounts connect (T042, T043). */
+export const tokenRevokers: { name: string; revoke(userId: string): Promise<void> }[] = []
+
+export const useLifecycle = () =>
+  accountLifecycle({ db: useDb(), revokers: tokenRevokers, auditor: auditorFor(useDb()) })
