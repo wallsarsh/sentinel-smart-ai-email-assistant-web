@@ -9,6 +9,7 @@ import { createPgBridge } from './sse/pg-bridge'
 import { useConfig } from './config'
 import { createDb, type Db } from './db/client'
 import { googleOAuth } from './mail/oauth/google'
+import { microsoftOAuth } from './mail/oauth/microsoft'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -68,6 +69,18 @@ export function useGoogleOAuth() {
     clientId: c.google.clientId,
     clientSecret: c.google.clientSecret,
     redirectUri: `${c.baseUrl}/api/accounts/google/callback`,
+    secret: c.sessionSecret,
+  }))
+}
+
+let microsoft: ReturnType<typeof microsoftOAuth> | undefined
+export function useMicrosoftOAuth() {
+  const c = useConfig()
+  return (microsoft ??= microsoftOAuth({
+    clientId: c.microsoft.clientId,
+    clientSecret: c.microsoft.clientSecret,
+    authority: c.microsoft.authority,
+    redirectUri: `${c.baseUrl}/api/accounts/microsoft/callback`,
     secret: c.sessionSecret,
   }))
 }
