@@ -236,10 +236,52 @@
       "given": "You allowed this on {when}."
     },
     "routes": {
-      "title": "Task routes"
+      "title": "Task routes",
+      "intro": "Choose which provider and model handle each job. If the first fails, the next one is tried. Changes apply to the next request.",
+      "task": {
+        "default": "Everything else (default)",
+        "triage": "Sorting and summaries",
+        "brief": "Daily brief",
+        "draft": "Drafting replies",
+        "repair": "Fixing invalid output"
+      },
+      "hint": {
+        "default": "Used when a job has no route of its own.",
+        "triage": "Runs on every new message. A small, fast model is usually enough.",
+        "brief": "Runs once per brief.",
+        "draft": "Runs when you ask for a draft.",
+        "repair": "Runs only when an answer was malformed."
+      },
+      "primary": "First choice",
+      "fallback": "Fallback {n}",
+      "provider": "Provider",
+      "model": "Model",
+      "maxTokens": "Max tokens",
+      "temperature": "Temperature",
+      "up": "Move up",
+      "down": "Move down",
+      "remove": "Remove",
+      "add": "Add fallback",
+      "saved": "Saved."
     },
     "usage": {
-      "title": "Usage"
+      "title": "Usage",
+      "today": "Today",
+      "todayLine": "{tokens} tokens, about {cost} so far today (UTC).",
+      "caps": "Daily limits",
+      "tokenCap": "Token limit per day (0 = none)",
+      "costCap": "Cost limit per day in USD (0 = none)",
+      "capHint": "When a limit is reached, AI processing pauses until the next UTC day. Mail keeps syncing.",
+      "perDay": "Last 30 days",
+      "perModel": "By model",
+      "day": "Day",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "price": "Price per 1M tokens (USD)",
+      "priceIn": "In",
+      "priceOut": "Out",
+      "priceHint": "Sentinel ships no price list. Enter the prices from your provider to see costs.",
+      "unpriced": "no price set"
     },
     "bench": {
       "title": "Test bench"

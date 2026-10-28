@@ -236,10 +236,52 @@
       "given": "[Yöü állöwéd thíš öñ {when}. one two]"
     },
     "routes": {
-      "title": "[Tášk röütéš one]"
+      "title": "[Tášk röütéš one]",
+      "intro": "[Chööšé whíçh prövídér áñd mödél háñdlé éáçh jöb. Íf thé fíršt fáílš, thé ñéxt öñé íš tríéd. Cháñgéš ápplý tö thé ñéxt réqüéšt. one two three four]",
+      "task": {
+        "default": "[Évérýthíñg élšé (défáült) one two]",
+        "triage": "[Šörtíñg áñd šümmáríéš one two]",
+        "brief": "[Dáílý bríéf one]",
+        "draft": "[Dráftíñg réplíéš one]",
+        "repair": "[Fíxíñg íñválíd öütpüt one two]"
+      },
+      "hint": {
+        "default": "[Üšéd whéñ á jöb háš ñö röüté öf ítš öwñ. one two]",
+        "triage": "[Rüñš öñ évérý ñéw méššágé. Á šmáll, fášt mödél íš üšüállý éñöügh. one two three four]",
+        "brief": "[Rüñš öñçé pér bríéf. one]",
+        "draft": "[Rüñš whéñ ýöü ášk för á dráft. one two]",
+        "repair": "[Rüñš öñlý whéñ áñ áñšwér wáš málförméd. one two]"
+      },
+      "primary": "[Fíršt çhöíçé one]",
+      "fallback": "[Fállbáçk {n} one]",
+      "provider": "[Prövídér one]",
+      "model": "[Mödél one]",
+      "maxTokens": "[Máx tökéñš one]",
+      "temperature": "[Témpérátüré one]",
+      "up": "[Mövé üp one]",
+      "down": "[Mövé döwñ one]",
+      "remove": "[Rémövé one]",
+      "add": "[Ádd fállbáçk one]",
+      "saved": "[Šávéd. one]"
     },
     "usage": {
-      "title": "[Üšágé one]"
+      "title": "[Üšágé one]",
+      "today": "[Tödáý one]",
+      "todayLine": "[{tokens} tökéñš, áböüt {cost} šö fár tödáý (ÜTC). one two three]",
+      "caps": "[Dáílý límítš one]",
+      "tokenCap": "[Tökéñ límít pér dáý (0 = ñöñé) one two]",
+      "costCap": "[Cöšt límít pér dáý íñ ÜŠD (0 = ñöñé) one two]",
+      "capHint": "[Whéñ á límít íš réáçhéd, ÁÍ pröçéššíñg páüšéš üñtíl thé ñéxt ÜTC dáý. Máíl kéépš šýñçíñg. one two three four]",
+      "perDay": "[Lášt 30 dáýš one]",
+      "perModel": "[Bý mödél one]",
+      "day": "[Dáý one]",
+      "tokens": "[Tökéñš one]",
+      "cost": "[Cöšt one]",
+      "price": "[Príçé pér 1M tökéñš (ÜŠD) one two]",
+      "priceIn": "[Íñ one]",
+      "priceOut": "[Öüt one]",
+      "priceHint": "[Šéñtíñél šhípš ñö príçé líšt. Éñtér thé príçéš fröm ýöür prövídér tö šéé çöštš. one two three four]",
+      "unpriced": "[ñö príçé šét one]"
     },
     "bench": {
       "title": "[Téšt béñçh one]"

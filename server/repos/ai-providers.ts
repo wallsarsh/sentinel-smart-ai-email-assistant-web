@@ -58,6 +58,31 @@ export const aiProvidersRepo = (s: Scope) => {
         .where(and(eq(usageRecords.userId, s.userId), gte(usageRecords.createdAt, since)))
       return { tokens: r?.tokens ?? 0, costMicros: r?.cost ?? 0 }
     },
+    /** Usage grouped by UTC day, provider, model and task since [since]. */
+    async usageBreakdown(since: Date) {
+      const day = sql<string>`to_char(${usageRecords.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`
+      return s.db
+        .select({
+          day,
+          providerId: usageRecords.providerId,
+          model: usageRecords.model,
+          task: usageRecords.task,
+          calls: sql<number>`count(*)::int`,
+          inputTokens: sql<number>`coalesce(sum(${usageRecords.inputTokens}), 0)::bigint`.mapWith(
+            Number,
+          ),
+          outputTokens: sql<number>`coalesce(sum(${usageRecords.outputTokens}), 0)::bigint`.mapWith(
+            Number,
+          ),
+          costMicros: sql<number>`coalesce(sum(${usageRecords.costMicros}), 0)::bigint`.mapWith(
+            Number,
+          ),
+        })
+        .from(usageRecords)
+        .where(and(eq(usageRecords.userId, s.userId), gte(usageRecords.createdAt, since)))
+        .groupBy(day, usageRecords.providerId, usageRecords.model, usageRecords.task)
+        .orderBy(day)
+    },
     routes: () =>
       s.db
         .select()
