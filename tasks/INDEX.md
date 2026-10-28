@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 86/111 done · ready now: T009, T010, T011, T124, T127, T140, T141, T142, T143, T154, T155
+**Progress:** 87/111 done · ready now: T009, T010, T011, T125, T126, T127, T140, T141, T142, T143, T151, T154, T155
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -119,7 +119,7 @@ flowchart LR
     T121["T121"]:::done
     T122["T122"]:::done
     T123["T123"]:::done
-    T124["T124"]:::todo
+    T124["T124"]:::done
     T125["T125"]:::todo
     T126["T126"]:::todo
     T127["T127"]:::todo
@@ -492,7 +492,7 @@ flowchart LR
 | ✅ | [T121](items/T121-mail-check-job.md) | Mail-check job | M | code | T120, T061, T091 | claude |
 | ✅ | [T122](items/T122-web-push-service.md) | Web push service | L | code | T033, T008 | claude |
 | ✅ | [T123](items/T123-notification-rules-and-quiet-hours.md) | Notification rules and quiet hours | M | code | T122, T121 | claude |
-| ⬜ | [T124](items/T124-daily-brief-generator.md) | Daily brief generator | L | code | T081, T091, T080 |  |
+| ✅ | [T124](items/T124-daily-brief-generator.md) | Daily brief generator | L | code | T081, T091, T080 | claude |
 | ⬜ | [T125](items/T125-brief-ui.md) | Brief UI | M | code | T124, T008 |  |
 | ⬜ | [T126](items/T126-brief-scheduling.md) | Brief scheduling | S | code | T124, T121, T123 |  |
 | ⬜ | [T127](items/T127-retention-job.md) | Retention job | S | code | T033 |  |
