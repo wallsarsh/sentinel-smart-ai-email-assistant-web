@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 95/111 done · ready now: T009, T010, T011, T144, T150, T151, T152, T153, T154, T155, T159
+**Progress:** 96/111 done · ready now: T009, T010, T011, T150, T151, T152, T153, T154, T155, T159
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -130,7 +130,7 @@ flowchart LR
     T141["T141"]:::done
     T142["T142"]:::done
     T143["T143"]:::done
-    T144["T144"]:::todo
+    T144["T144"]:::done
   end
   subgraph P9
     T150["T150"]:::todo
@@ -506,7 +506,7 @@ flowchart LR
 | ✅ | [T141](items/T141-settings-hub-and-privacy-and-data.md) | Settings hub and privacy and data | M | code | T030, T032, T031 | claude |
 | ✅ | [T142](items/T142-security-settings.md) | Security settings | M | code | T024, T026 | claude |
 | ✅ | [T143](items/T143-pwa-shell.md) | PWA shell | M | code | T008, T122 | claude |
-| ⬜ | [T144](items/T144-visual-regression-and-responsive-polish.md) | Visual regression and responsive polish | S | test | T125, T064, T102, T110 |  |
+| ✅ | [T144](items/T144-visual-regression-and-responsive-polish.md) | Visual regression and responsive polish | S | test | T125, T064, T102, T110 | claude |
 
 ## P9
 

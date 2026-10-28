@@ -7,3 +7,4 @@ coverage
 .env
 .env.*
 !.env.example
+tests/visual/__output__

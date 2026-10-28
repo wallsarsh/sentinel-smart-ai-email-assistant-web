@@ -48,7 +48,7 @@ async function save(body: { importance?: string; needsReply?: boolean }) {
       }}</span>
       <button
         type="button"
-        class="ml-auto rounded border px-2 py-0.5 text-xs"
+        class="ml-auto min-h-8 rounded border px-2 py-0.5 text-xs"
         :aria-expanded="open"
         @click="open = !open"
       >

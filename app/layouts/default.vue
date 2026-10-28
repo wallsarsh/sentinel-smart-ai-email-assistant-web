@@ -19,7 +19,7 @@ const items: NavItem[] = [
     >
       {{ $t('nav.skip') }}
     </a>
-    <AppNav :items="items" :current="route.path" />
+    <ShellAppNav :items="items" :current="route.path" />
     <main id="main" class="flex-1 p-4 pb-20 md:p-8 md:pb-8" tabindex="-1">
       <ShellOfflineBanner />
       <slot />

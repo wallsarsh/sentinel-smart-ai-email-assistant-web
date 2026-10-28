@@ -44,9 +44,9 @@ function toggleMuted(id: string, muted: boolean) {
 
 <template>
   <div class="space-y-6">
-    <fieldset class="space-y-3">
+    <fieldset class="min-w-0 space-y-3">
       <legend class="font-semibold">{{ $t('bg.checking') }}</legend>
-      <label class="flex items-center justify-between gap-3">
+      <label class="flex flex-wrap items-center justify-between gap-3">
         <span>{{ $t('bg.interval') }}</span>
         <select
           class="rounded border px-2 py-1"
@@ -78,12 +78,12 @@ function toggleMuted(id: string, muted: boolean) {
       </label>
     </fieldset>
 
-    <fieldset class="space-y-3">
+    <fieldset class="min-w-0 space-y-3">
       <legend class="font-semibold">{{ $t('bg.notify') }}</legend>
-      <label class="flex items-center justify-between gap-3">
+      <label class="flex flex-wrap items-center justify-between gap-3">
         <span>{{ $t('bg.mode') }}</span>
         <select
-          class="rounded border px-2 py-1"
+          class="max-w-full rounded border px-2 py-1"
           :value="settings['notify.mode']"
           data-testid="mode"
           @change="
@@ -155,9 +155,9 @@ function toggleMuted(id: string, muted: boolean) {
       </div>
     </fieldset>
 
-    <fieldset class="space-y-3">
+    <fieldset class="min-w-0 space-y-3">
       <legend class="font-semibold">{{ $t('bg.briefSection') }}</legend>
-      <label class="flex items-center justify-between gap-3">
+      <label class="flex flex-wrap items-center justify-between gap-3">
         <span>{{ $t('bg.briefTime') }}</span>
         <input
           type="time"

@@ -22,7 +22,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
 
 <template>
   <div class="space-y-6">
-    <fieldset class="space-y-3">
+    <fieldset class="min-w-0 space-y-3">
       <legend class="font-semibold">{{ $t('privacy.scope') }}</legend>
       <p class="text-sm" style="color: var(--muted)">{{ $t('privacy.scopeHint') }}</p>
       <label class="flex items-center gap-2">
@@ -45,7 +45,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
         >
         {{ $t('privacy.scopeSubject') }}
       </label>
-      <label class="flex items-center justify-between gap-3">
+      <label class="flex flex-wrap items-center justify-between gap-3">
         <span>{{ $t('privacy.maxChars') }}</span>
         <input
           type="number"
@@ -63,7 +63,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
       </label>
     </fieldset>
 
-    <fieldset class="space-y-2">
+    <fieldset class="min-w-0 space-y-2">
       <legend class="font-semibold">{{ $t('privacy.redact') }}</legend>
       <p class="text-sm" style="color: var(--muted)">{{ $t('privacy.redactHint') }}</p>
       <label v-for="k in REDACT" :key="k" class="flex items-center gap-2">
@@ -79,7 +79,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
       </label>
     </fieldset>
 
-    <fieldset v-if="accounts.length" class="space-y-2">
+    <fieldset v-if="accounts.length" class="min-w-0 space-y-2">
       <legend class="font-semibold">{{ $t('privacy.exclude') }}</legend>
       <p class="text-sm" style="color: var(--muted)">{{ $t('privacy.excludeHint') }}</p>
       <label v-for="a in accounts" :key="a.id" class="flex items-center gap-2">
@@ -95,9 +95,9 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
       </label>
     </fieldset>
 
-    <fieldset class="space-y-2">
+    <fieldset class="min-w-0 space-y-2">
       <legend class="font-semibold">{{ $t('privacy.retention') }}</legend>
-      <label class="flex items-center justify-between gap-3">
+      <label class="flex flex-wrap items-center justify-between gap-3">
         <span>{{ $t('privacy.keepMail') }}</span>
         <select
           class="rounded border px-2 py-1"

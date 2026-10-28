@@ -37,7 +37,7 @@ const remove = (a: string) =>
         {{ a }}
         <button
           type="button"
-          class="px-1"
+          class="min-h-8 min-w-8 px-1"
           :aria-label="$t('composer.removeRecipient', { address: a })"
           @click="remove(a)"
         >
