@@ -2,8 +2,8 @@
 id: T002
 title: "CI pipeline"
 phase: P0
-status: todo
-owner: ""
+status: done
+owner: "claude-sonnet-5-5"
 type: config
 size: S
 deps: [T001]
@@ -19,9 +19,12 @@ updated: 2026-10-28
 GitHub Actions: install, lint, typecheck, unit tests, build, send-gate check, audit.
 
 ## Acceptance
-- [ ] CI runs on PR and main; fails on any check
-- [ ] npm cache enabled
-- [ ] Dependency audit step with allowlist file
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] CI runs on PR and main; fails on any check
+- [x] npm cache enabled
+- [x] Dependency audit step with allowlist file
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 10:24Z claimed by claude-sonnet-5-5
+- 2026-10-28 10:24Z CI: check, build, audit gate with expiring allowlist (npm cache on); audit gate unit-tested
+- 2026-10-28 10:24Z status -> done
