@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 33/111 done · ready now: T009, T010, T011, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 34/111 done · ready now: T009, T010, T011, T050, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -56,7 +56,7 @@ flowchart LR
     T046["T046"]:::done
     T047["T047"]:::done
     T048["T048"]:::done
-    T049["T049"]:::todo
+    T049["T049"]:::done
     T050["T050"]:::todo
     T051["T051"]:::todo
     T052["T052"]:::todo
@@ -414,7 +414,7 @@ flowchart LR
 | ✅ | [T046](items/T046-gmail-drafts.md) | Gmail drafts | M | code | T045, T041 | claude |
 | ✅ | [T047](items/T047-graphmailprovider-read-and-sync.md) | GraphMailProvider: read and sync | L | code | T040, T044, T029 | claude |
 | ✅ | [T048](items/T048-graph-drafts.md) | Graph drafts | M | code | T047, T041 | claude |
-| ⬜ | [T049](items/T049-imap-smtp-autodiscovery.md) | IMAP/SMTP autodiscovery | M | code | T029 |  |
+| ✅ | [T049](items/T049-imap-smtp-autodiscovery.md) | IMAP/SMTP autodiscovery | M | code | T029 | claude |
 | ⬜ | [T050](items/T050-imapmailprovider-read-and-sync.md) | ImapMailProvider: read and sync | L | code | T040, T049, T022 |  |
 | ⬜ | [T051](items/T051-imap-drafts.md) | IMAP drafts | M | code | T050, T041 |  |
 | ⬜ | [T052](items/T052-smtp-connection-test.md) | SMTP connection test | S | code | T050 |  |
