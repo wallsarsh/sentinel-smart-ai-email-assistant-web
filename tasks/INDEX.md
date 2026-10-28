@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 3/111 done · ready now: T004, T005, T007, T009, T010, T011, T012
+**Progress:** 4/111 done · ready now: T005, T006, T007, T009, T010, T011, T012
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -19,7 +19,7 @@ flowchart LR
     T001["T001"]:::done
     T002["T002"]:::done
     T003["T003"]:::done
-    T004["T004"]:::todo
+    T004["T004"]:::done
     T005["T005"]:::todo
     T006["T006"]:::todo
     T007["T007"]:::todo
@@ -373,7 +373,7 @@ flowchart LR
 | ✅ | [T001](items/T001-nuxt-3-project-scaffold-and-tooling.md) | Nuxt 3 project scaffold and tooling | M | code | — | claude-sonnet-5-5 |
 | ✅ | [T002](items/T002-ci-pipeline.md) | CI pipeline | S | config | T001 | claude-sonnet-5-5 |
 | ✅ | [T003](items/T003-docker-dev-environment.md) | Docker dev environment | S | config | T001 | claude-sonnet-5-5 |
-| ⬜ | [T004](items/T004-typed-configuration.md) | Typed configuration | S | code | T001 |  |
+| ✅ | [T004](items/T004-typed-configuration.md) | Typed configuration | S | code | T001 | claude-sonnet-5-5 |
 | ⬜ | [T005](items/T005-shared-domain-types-result-and-error-model.md) | Shared domain types, Result and error model | M | code | T001 |  |
 | ⬜ | [T006](items/T006-logging-with-scrubbing.md) | Logging with scrubbing | S | code | T004 |  |
 | ⬜ | [T007](items/T007-i18n-scaffold.md) | i18n scaffold | S | code | T001 |  |

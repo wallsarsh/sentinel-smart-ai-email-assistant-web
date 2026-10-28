@@ -5,7 +5,7 @@ describe('repository hygiene', () => {
   it('.env.example holds placeholders only', () => {
     const text = readFileSync('.env.example', 'utf8')
     for (const line of text.split('\n')) {
-      const m = /^([A-Z_]+)=(.*)$/.exec(line)
+      const m = /^([A-Z0-9_]+)=(.*)$/.exec(line)
       if (!m) continue
       const [, key, value] = m
       if (/(CLIENT_SECRET|PRIVATE_KEY)$/.test(key!)) expect(value, key).toBe('')
