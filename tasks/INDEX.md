@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 77/111 done · ready now: T009, T010, T011, T109, T120, T122, T124, T127, T141, T142, T154
+**Progress:** 78/111 done · ready now: T009, T010, T011, T110, T120, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -108,7 +108,7 @@ flowchart LR
     T106["T106"]:::done
     T107["T107"]:::done
     T108["T108"]:::done
-    T109["T109"]:::todo
+    T109["T109"]:::done
     T110["T110"]:::todo
     T111["T111"]:::todo
     T112["T112"]:::todo
@@ -478,7 +478,7 @@ flowchart LR
 | ✅ | [T106](items/T106-gmailmailsender.md) | GmailMailSender | M | code | T105, T046 | claude |
 | ✅ | [T107](items/T107-graphmailsender.md) | GraphMailSender | M | code | T105, T048 | claude |
 | ✅ | [T108](items/T108-imapsmtpmailsender.md) | ImapSmtpMailSender | L | code | T105, T051, T052 | claude |
-| ⬜ | [T109](items/T109-send-records-and-reconcile.md) | Send records and reconcile | M | code | T106, T107, T108 |  |
+| ✅ | [T109](items/T109-send-records-and-reconcile.md) | Send records and reconcile | M | code | T106, T107, T108 | claude |
 | ⬜ | [T110](items/T110-send-confirmation-ui-and-api.md) | Send confirmation UI and API | L | code | T105, T102, T109 |  |
 | ⬜ | [T111](items/T111-undo-window.md) | Undo window | M | code | T110 |  |
 | ⬜ | [T112](items/T112-sending-settings-and-sent-log.md) | Sending settings and sent log | S | code | T111, T031 |  |
