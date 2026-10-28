@@ -2,8 +2,8 @@
 id: T046
 title: "Gmail drafts"
 phase: P2
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T045, T041]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 Create/update/delete reply drafts via raw MIME with threadId and deterministic Message-ID lookup for idempotency.
 
 ## Acceptance
-- [ ] Retry creates no duplicates (test)
-- [ ] Only Sentinel-created drafts are updated or deleted
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Retry creates no duplicates (test)
+- [x] Only Sentinel-created drafts are updated or deleted
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 12:50Z claimed by claude
+- 2026-10-28 12:50Z Gmail drafts: raw MIME with threadId, deterministic Message-ID lookup for idempotent create, ownership check before update/delete (implemented with T045 provider; tests in gmail-provider.test.ts)
+- 2026-10-28 12:50Z status -> done
