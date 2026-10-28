@@ -10,5 +10,69 @@
     "settings": "Settings",
     "skip": "Skip to content",
     "main": "Main navigation"
+  },
+  "failure": {
+    "network": "We couldn't reach the server. Check your connection and try again.",
+    "auth": {
+      "needs_reauth": "This account needs to be reconnected.",
+      "invalid_credentials": "The username or password was not accepted.",
+      "admin_consent_required": "Your organisation requires an administrator to approve Sentinel before you can connect this account.",
+      "consent_required": "More permission is needed. Reconnect the account to grant it.",
+      "generic": "Please sign in again."
+    },
+    "provider": {
+      "resync": "Your mailbox changed on the server, so Sentinel is syncing it again.",
+      "unavailable": "The mail provider is not available right now. Try again in a moment.",
+      "generic": "The mail provider returned an error."
+    },
+    "ai": {
+      "refusal": "The AI declined to answer this one. Nothing was changed.",
+      "truncated": "The AI response was cut off. Try again.",
+      "empty": "The AI returned nothing. Try again.",
+      "invalid": "The AI response could not be used. Try again."
+    },
+    "ai_consent": "Turn on AI processing for this account in AI settings first.",
+    "cap": {
+      "cost": "The monthly AI cost limit has been reached.",
+      "tokens": "The monthly AI token limit has been reached."
+    },
+    "rate_limited": "Too many requests. Please wait {seconds} seconds.",
+    "storage": "Your data could not be saved. Try again.",
+    "validation": {
+      "limit_reached": "You have reached the maximum number of connected accounts.",
+      "already_connected": "This account is already connected.",
+      "private_address": "That server address is not allowed.",
+      "tls_failed": "A secure connection to the server could not be made. Check the security setting and port.",
+      "unknown_folder": "One of the selected folders does not exist.",
+      "generic": "Please check the highlighted fields."
+    },
+    "forbidden": "You don't have permission to do that.",
+    "not_found": "That item no longer exists.",
+    "send": {
+      "not_confirmed": "Confirm the message before sending.",
+      "expired": "The confirmation expired. Review and confirm again.",
+      "already_used": "This message was already sent.",
+      "revoked": "The confirmation was cancelled.",
+      "content_changed": "The message changed after you confirmed it. Review and confirm again.",
+      "no_recipients": "Add at least one recipient.",
+      "empty_body": "The message is empty.",
+      "placeholders": "Replace the placeholders in the message first.",
+      "daily_limit": "The daily sending limit has been reached.",
+      "step_up_required": "Confirm your identity to send.",
+      "unknown": "The message was not sent."
+    },
+    "unknown": "Something went wrong. Try again.",
+    "action": {
+      "retry": "Try again",
+      "reconnect": "Reconnect",
+      "open_accounts": "Open accounts",
+      "open_ai_settings": "Open AI settings",
+      "fix_input": "Review details",
+      "wait": "Wait",
+      "sign_in": "Sign in",
+      "step_up": "Confirm identity",
+      "admin_help": "How to get approval",
+      "none": "OK"
+    }
   }
 }

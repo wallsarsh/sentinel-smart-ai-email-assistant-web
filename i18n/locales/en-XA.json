@@ -1,14 +1,78 @@
 {
   "app": {
-    "name": "[Šéñtíñél one two]",
-    "tagline": "[Ýöür ÁÍ émáíl ássístáñt. Ñöthíñg ís séñt wíthöüt ýöür cöñfírmátíöñ. one two three]"
+    "name": "[Šéñtíñél one]",
+    "tagline": "[Yöür ÁÍ émáíl áššíštáñt. Ñöthíñg íš šéñt wíthöüt ýöür çöñfírmátíöñ. one two three four]"
   },
   "nav": {
     "brief": "[Bríéf one]",
-    "inbox": "[Íñbóx one]",
-    "actions": "[Áctíóñs one]",
-    "settings": "[Séttíñgs one]",
-    "skip": "[Skíp tó cóñtéñt one two]",
-    "main": "[Máíñ ñávígátíóñ one]"
+    "inbox": "[Íñböx one]",
+    "actions": "[Áçtíöñš one]",
+    "settings": "[Šéttíñgš one]",
+    "skip": "[Škíp tö çöñtéñt one]",
+    "main": "[Máíñ ñávígátíöñ one]"
+  },
+  "failure": {
+    "network": "[Wé çöüldñ't réáçh thé šérvér. Chéçk ýöür çöññéçtíöñ áñd trý ágáíñ. one two three four]",
+    "auth": {
+      "needs_reauth": "[Thíš áççöüñt ñéédš tö bé réçöññéçtéd. one two]",
+      "invalid_credentials": "[Thé üšérñámé ör páššwörd wáš ñöt áççéptéd. one two three]",
+      "admin_consent_required": "[Yöür örgáñíšátíöñ réqüíréš áñ ádmíñíštrátör tö ápprövé Šéñtíñél béföré ýöü çáñ çöññéçt thíš áççöüñt. one two three four]",
+      "consent_required": "[Möré pérmíššíöñ íš ñéédéd. Réçöññéçt thé áççöüñt tö gráñt ít. one two three four]",
+      "generic": "[Pléášé šígñ íñ ágáíñ. one two]"
+    },
+    "provider": {
+      "resync": "[Yöür máílböx çháñgéd öñ thé šérvér, šö Šéñtíñél íš šýñçíñg ít ágáíñ. one two three four]",
+      "unavailable": "[Thé máíl prövídér íš ñöt áváíláblé ríght ñöw. Trý ágáíñ íñ á möméñt. one two three four]",
+      "generic": "[Thé máíl prövídér rétürñéd áñ érrör. one two]"
+    },
+    "ai": {
+      "refusal": "[Thé ÁÍ déçlíñéd tö áñšwér thíš öñé. Ñöthíñg wáš çháñgéd. one two three]",
+      "truncated": "[Thé ÁÍ réšpöñšé wáš çüt öff. Trý ágáíñ. one two]",
+      "empty": "[Thé ÁÍ rétürñéd ñöthíñg. Trý ágáíñ. one two]",
+      "invalid": "[Thé ÁÍ réšpöñšé çöüld ñöt bé üšéd. Trý ágáíñ. one two three]"
+    },
+    "ai_consent": "[Türñ öñ ÁÍ pröçéššíñg för thíš áççöüñt íñ ÁÍ šéttíñgš fíršt. one two three]",
+    "cap": {
+      "cost": "[Thé möñthlý ÁÍ çöšt límít háš bééñ réáçhéd. one two three]",
+      "tokens": "[Thé möñthlý ÁÍ tökéñ límít háš bééñ réáçhéd. one two three]"
+    },
+    "rate_limited": "[Töö máñý réqüéštš. Pléášé wáít {seconds} šéçöñdš. one two three]",
+    "storage": "[Yöür dátá çöüld ñöt bé šávéd. Trý ágáíñ. one two]",
+    "validation": {
+      "limit_reached": "[Yöü hávé réáçhéd thé máxímüm ñümbér öf çöññéçtéd áççöüñtš. one two three]",
+      "already_connected": "[Thíš áççöüñt íš álréádý çöññéçtéd. one two]",
+      "private_address": "[Thát šérvér áddréšš íš ñöt állöwéd. one two]",
+      "tls_failed": "[Á šéçüré çöññéçtíöñ tö thé šérvér çöüld ñöt bé mádé. Chéçk thé šéçürítý šéttíñg áñd pört. one two three four]",
+      "unknown_folder": "[Öñé öf thé šéléçtéd földérš döéš ñöt éxíšt. one two three]",
+      "generic": "[Pléášé çhéçk thé híghlíghtéd fíéldš. one two]"
+    },
+    "forbidden": "[Yöü döñ't hávé pérmíššíöñ tö dö thát. one two]",
+    "not_found": "[Thát ítém ñö löñgér éxíštš. one two]",
+    "send": {
+      "not_confirmed": "[Cöñfírm thé méššágé béföré šéñdíñg. one two]",
+      "expired": "[Thé çöñfírmátíöñ éxpíréd. Révíéw áñd çöñfírm ágáíñ. one two three]",
+      "already_used": "[Thíš méššágé wáš álréádý šéñt. one two]",
+      "revoked": "[Thé çöñfírmátíöñ wáš çáñçélléd. one two]",
+      "content_changed": "[Thé méššágé çháñgéd áftér ýöü çöñfírméd ít. Révíéw áñd çöñfírm ágáíñ. one two three four]",
+      "no_recipients": "[Ádd át léášt öñé réçípíéñt. one two]",
+      "empty_body": "[Thé méššágé íš émptý. one two]",
+      "placeholders": "[Répláçé thé pláçéhöldérš íñ thé méššágé fíršt. one two three]",
+      "daily_limit": "[Thé dáílý šéñdíñg límít háš bééñ réáçhéd. one two three]",
+      "step_up_required": "[Cöñfírm ýöür ídéñtítý tö šéñd. one two]",
+      "unknown": "[Thé méššágé wáš ñöt šéñt. one two]"
+    },
+    "unknown": "[Šöméthíñg wéñt wröñg. Trý ágáíñ. one two]",
+    "action": {
+      "retry": "[Trý ágáíñ one]",
+      "reconnect": "[Réçöññéçt one]",
+      "open_accounts": "[Öpéñ áççöüñtš one]",
+      "open_ai_settings": "[Öpéñ ÁÍ šéttíñgš one]",
+      "fix_input": "[Révíéw détáílš one]",
+      "wait": "[Wáít one]",
+      "sign_in": "[Šígñ íñ one]",
+      "step_up": "[Cöñfírm ídéñtítý one]",
+      "admin_help": "[Höw tö gét ápprövál one]",
+      "none": "[ÖK one]"
+    }
   }
 }

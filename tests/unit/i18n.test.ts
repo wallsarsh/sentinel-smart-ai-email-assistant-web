@@ -20,3 +20,10 @@ describe('locales', () => {
     expect(xa.app.tagline.length).toBeGreaterThan(en.app.tagline.length * 1.2)
   })
 })
+
+describe('pseudo-locale generation', () => {
+  it('en-XA is up to date with en.json (run `npm run i18n:pseudo`)', async () => {
+    const { build } = await import('../../tools/pseudo.mjs')
+    expect(load('en-XA')).toEqual(build())
+  })
+})
