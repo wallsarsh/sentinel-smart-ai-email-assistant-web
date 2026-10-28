@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 91/111 done · ready now: T009, T010, T011, T140, T141, T142, T143, T144, T151, T154, T155
+**Progress:** 92/111 done · ready now: T009, T010, T011, T141, T142, T143, T144, T150, T151, T152, T153, T154, T155, T159
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -126,7 +126,7 @@ flowchart LR
     T128["T128"]:::done
   end
   subgraph P8
-    T140["T140"]:::todo
+    T140["T140"]:::done
     T141["T141"]:::todo
     T142["T142"]:::todo
     T143["T143"]:::todo
@@ -502,7 +502,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T140](items/T140-onboarding-flow.md) | Onboarding flow | M | code | T054, T077, T078, T122 |  |
+| ✅ | [T140](items/T140-onboarding-flow.md) | Onboarding flow | M | code | T054, T077, T078, T122 | claude |
 | ⬜ | [T141](items/T141-settings-hub-and-privacy-and-data.md) | Settings hub and privacy and data | M | code | T030, T032, T031 |  |
 | ⬜ | [T142](items/T142-security-settings.md) | Security settings | M | code | T024, T026 |  |
 | ⬜ | [T143](items/T143-pwa-shell.md) | PWA shell | M | code | T008, T122 |  |

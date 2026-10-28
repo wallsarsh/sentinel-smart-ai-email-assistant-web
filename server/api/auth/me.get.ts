@@ -1,4 +1,5 @@
-import { useMfa } from '../../container'
+import { useDb, useMfa } from '../../container'
+import { forUser } from '../../repos'
 import { requireUser } from '../../utils/require-user'
 
 export default defineEventHandler(async (event) => {
@@ -10,5 +11,6 @@ export default defineEventHandler(async (event) => {
     timezone: user.timezone,
     locale: user.locale,
     mfaEnabled: await useMfa().isEnabled(user.id),
+    onboarded: (await forUser(useDb(), user.id).settings.get('onboarding.complete')) as boolean,
   }
 })

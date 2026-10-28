@@ -594,5 +594,74 @@
       "running": "Running"
     },
     "reload": "Reload"
+  },
+  "auth": {
+    "email": "Email",
+    "password": "Password",
+    "newPassword": "New password",
+    "forgot": "Forgot your password?",
+    "login": {
+      "title": "Sign in",
+      "submit": "Sign in",
+      "toSignup": "Create an account"
+    },
+    "signup": {
+      "title": "Create your account",
+      "submit": "Create account",
+      "toLogin": "I already have an account",
+      "passwordHint": "Use at least 12 characters. A long phrase is better than a clever one."
+    },
+    "mfa": {
+      "title": "Two-step verification",
+      "hint": "Enter the code from your authenticator app, or a recovery code.",
+      "code": "Code",
+      "submit": "Verify"
+    },
+    "reset": {
+      "title": "Reset your password",
+      "submit": "Send reset link",
+      "sent": "If that address has an account, a reset link is on its way.",
+      "confirmTitle": "Choose a new password",
+      "confirmSubmit": "Set password",
+      "done": "Your password was changed."
+    }
+  },
+  "onboarding": {
+    "progress": "Step {n} of {total}",
+    "next": "Continue",
+    "back": "Back",
+    "skip": "Skip setup for now",
+    "finish": "Finish",
+    "resume": "Pick up where you left off.",
+    "welcome": {
+      "title": "Welcome to Sentinel",
+      "body": "Sentinel reads your mail, sorts what matters, writes a short daily brief and drafts replies for you to review. It takes about two minutes to set up, and you can skip any step."
+    },
+    "privacy": {
+      "title": "You stay in control",
+      "p1": "Sentinel never sends an email without showing you the exact message and waiting for your confirmation.",
+      "p2": "The AI sees only what it needs, with card numbers and similar details removed. Your provider keys are stored encrypted.",
+      "p3": "You choose the AI provider, can exclude any account from AI, and can delete your data at any time."
+    },
+    "accounts": {
+      "title": "Connect your email",
+      "body": "Connect Gmail, Outlook or any IMAP mailbox. Sentinel asks only for what it needs and never gets your send permission without your confirmation.",
+      "connected": "Connected: {n}",
+      "none": "No account connected yet.",
+      "open": "Connect an account"
+    },
+    "ai": {
+      "title": "Choose your AI",
+      "body": "Sentinel works with the AI provider you choose. Add one and review what it may see before turning on summaries.",
+      "ready": "An AI provider is set up.",
+      "none": "No AI provider yet. You can add one later.",
+      "open": "Set up AI",
+      "consent": "Review what the AI may see"
+    },
+    "brief": {
+      "title": "Your daily brief",
+      "body": "Pick when your brief is written and whether to be told when it is ready.",
+      "allowPush": "Browser notifications"
+    }
   }
 }

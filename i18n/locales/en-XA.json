@@ -594,5 +594,74 @@
       "running": "[Rüññíñg one]"
     },
     "reload": "[Rélöád one]"
+  },
+  "auth": {
+    "email": "[Émáíl one]",
+    "password": "[Páššwörd one]",
+    "newPassword": "[Ñéw páššwörd one]",
+    "forgot": "[Förgöt ýöür páššwörd? one two]",
+    "login": {
+      "title": "[Šígñ íñ one]",
+      "submit": "[Šígñ íñ one]",
+      "toSignup": "[Créáté áñ áççöüñt one]"
+    },
+    "signup": {
+      "title": "[Créáté ýöür áççöüñt one]",
+      "submit": "[Créáté áççöüñt one]",
+      "toLogin": "[Í álréádý hávé áñ áççöüñt one two]",
+      "passwordHint": "[Üšé át léášt 12 çháráçtérš. Á löñg phrášé íš béttér tháñ á çlévér öñé. one two three four]"
+    },
+    "mfa": {
+      "title": "[Twö-štép vérífíçátíöñ one two]",
+      "hint": "[Éñtér thé çödé fröm ýöür áüthéñtíçátör ápp, ör á réçövérý çödé. one two three four]",
+      "code": "[Cödé one]",
+      "submit": "[Vérífý one]"
+    },
+    "reset": {
+      "title": "[Réšét ýöür páššwörd one]",
+      "submit": "[Šéñd réšét líñk one]",
+      "sent": "[Íf thát áddréšš háš áñ áççöüñt, á réšét líñk íš öñ ítš wáý. one two three]",
+      "confirmTitle": "[Chööšé á ñéw páššwörd one two]",
+      "confirmSubmit": "[Šét páššwörd one]",
+      "done": "[Yöür páššwörd wáš çháñgéd. one two]"
+    }
+  },
+  "onboarding": {
+    "progress": "[Štép {n} öf {total} one]",
+    "next": "[Cöñtíñüé one]",
+    "back": "[Báçk one]",
+    "skip": "[Škíp šétüp för ñöw one]",
+    "finish": "[Fíñíšh one]",
+    "resume": "[Píçk üp whéré ýöü léft öff. one two]",
+    "welcome": {
+      "title": "[Wélçömé tö Šéñtíñél one]",
+      "body": "[Šéñtíñél réádš ýöür máíl, šörtš whát máttérš, wrítéš á šhört dáílý bríéf áñd dráftš réplíéš för ýöü tö révíéw. Ít tákéš áböüt twö míñütéš tö šét üp, áñd ýöü çáñ škíp áñý štép. one two three four]"
+    },
+    "privacy": {
+      "title": "[Yöü štáý íñ çöñtröl one]",
+      "p1": "[Šéñtíñél ñévér šéñdš áñ émáíl wíthöüt šhöwíñg ýöü thé éxáçt méššágé áñd wáítíñg för ýöür çöñfírmátíöñ. one two three four]",
+      "p2": "[Thé ÁÍ šééš öñlý whát ít ñéédš, wíth çárd ñümbérš áñd šímílár détáílš rémövéd. Yöür prövídér kéýš áré štöréd éñçrýptéd. one two three four]",
+      "p3": "[Yöü çhööšé thé ÁÍ prövídér, çáñ éxçlüdé áñý áççöüñt fröm ÁÍ, áñd çáñ délété ýöür dátá át áñý tímé. one two three four]"
+    },
+    "accounts": {
+      "title": "[Cöññéçt ýöür émáíl one]",
+      "body": "[Cöññéçt Gmáíl, Öütlöök ör áñý ÍMÁP máílböx. Šéñtíñél áškš öñlý för whát ít ñéédš áñd ñévér gétš ýöür šéñd pérmíššíöñ wíthöüt ýöür çöñfírmátíöñ. one two three four]",
+      "connected": "[Cöññéçtéd: {n} one]",
+      "none": "[Ñö áççöüñt çöññéçtéd ýét. one two]",
+      "open": "[Cöññéçt áñ áççöüñt one]"
+    },
+    "ai": {
+      "title": "[Chööšé ýöür ÁÍ one]",
+      "body": "[Šéñtíñél wörkš wíth thé ÁÍ prövídér ýöü çhööšé. Ádd öñé áñd révíéw whát ít máý šéé béföré türñíñg öñ šümmáríéš. one two three four]",
+      "ready": "[Áñ ÁÍ prövídér íš šét üp. one two]",
+      "none": "[Ñö ÁÍ prövídér ýét. Yöü çáñ ádd öñé látér. one two three]",
+      "open": "[Šét üp ÁÍ one]",
+      "consent": "[Révíéw whát thé ÁÍ máý šéé one two]"
+    },
+    "brief": {
+      "title": "[Yöür dáílý bríéf one]",
+      "body": "[Píçk whéñ ýöür bríéf íš wríttéñ áñd whéthér tö bé töld whéñ ít íš réádý. one two three four]",
+      "allowPush": "[Bröwšér ñötífíçátíöñš one two]"
+    }
   }
 }

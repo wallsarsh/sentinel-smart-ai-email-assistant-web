@@ -30,7 +30,7 @@ async function save(patch: Partial<BgSettings>) {
     <h1 class="text-2xl font-semibold">{{ $t('bg.title') }}</h1>
     <p style="color: var(--muted)">{{ $t('bg.limits') }}</p>
     <FailureBanner v-if="failed" :failure="{ kind: 'network' }" />
-    <BackgroundSettings
+    <SettingsBackgroundSettings
       v-if="settings"
       :settings="settings"
       :accounts="status?.accounts ?? []"
@@ -39,10 +39,10 @@ async function save(patch: Partial<BgSettings>) {
     />
     <section aria-labelledby="bg-push">
       <h2 id="bg-push" class="font-semibold">{{ $t('bg.pushTitle') }}</h2>
-      <PushPermission />
+      <SettingsPushPermission />
     </section>
     <div v-if="status">
-      <RunHistory :runs="status.runs" :accounts="status.accounts" />
+      <SettingsRunHistory :runs="status.runs" :accounts="status.accounts" />
       <button type="button" class="mt-2 rounded border px-3 py-1" @click="reloadStatus()">
         {{ $t('bg.reload') }}
       </button>
