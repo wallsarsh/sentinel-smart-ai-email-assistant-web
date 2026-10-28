@@ -28,6 +28,15 @@ import { draftSaver } from './drafts/save'
 import { providerFactory } from './mail/provider-factory'
 import { sendConfirmation } from './mail/send/confirmation'
 import { sendGate } from './mail/send/send-gate'
+import { googleTransport } from './mail/gmail/http'
+import { graphTransport } from './mail/graph/http'
+import { tokenSource } from './mail/oauth/token-source'
+import { gmailSender } from './mail/send/gmail'
+import { graphSender } from './mail/send/graph'
+import { sendScheduler } from './mail/send/scheduler'
+import { smtpSender } from './mail/send/smtp'
+import type { MailSender } from './mail/send/support'
+import { secretStoreFor } from './security/secret-store'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -179,3 +188,78 @@ export const useDraftSaver = () =>
 export const useSendGate = () => sendGate({ db: useDb(), ring: tokenKek() })
 export const useSendConfirmation = () =>
   sendConfirmation({ db: useDb(), gate: useSendGate(), saver: useDraftSaver() })
+
+let senders: Record<'gmail' | 'microsoft_graph' | 'imap', MailSender> | undefined
+/** The only place that builds mail senders. Everything here talks to providers with the user's own credentials. */
+export function useSenders() {
+  const db = useDb()
+  const ring = tokenKek()
+  return (senders ??= {
+    gmail: gmailSender({
+      db,
+      apiFor: (userId, accountId) =>
+        googleTransport(
+          tokenSource({
+            db,
+            ring,
+            userId,
+            accountId,
+            refresher: (t) => useGoogleOAuth().refresh(t),
+          }),
+        ),
+    }),
+    microsoft_graph: graphSender({
+      db,
+      apiFor: (userId, accountId) =>
+        graphTransport(
+          tokenSource({
+            db,
+            ring,
+            userId,
+            accountId,
+            refresher: (t) => useMicrosoftOAuth().refresh(t),
+          }),
+        ),
+    }),
+    imap: smtpSender({
+      db,
+      async targetFor(userId, accountId) {
+        const repos = forUser(db, userId)
+        const s = await repos.accounts.getImap(accountId)
+        const store = secretStoreFor(db, userId, ring)
+        const password =
+          (await store.get(`smtp:${accountId}`)) ?? (await store.get(`imap:${accountId}`))
+        if (!s || !password) throw new Error('imap_credentials_missing')
+        return {
+          host: s.smtpHost,
+          port: s.smtpPort,
+          security: s.smtpSecurity,
+          username: s.smtpUsername ?? s.username,
+          password,
+          serverSavesSent: s.serverSavesSent,
+        }
+      },
+      async imapFor(userId, accountId) {
+        const repos = forUser(db, userId)
+        const s = await repos.accounts.getImap(accountId)
+        const password = await secretStoreFor(db, userId, ring).get(`imap:${accountId}`)
+        if (!s || !password) throw new Error('imap_credentials_missing')
+        return connectImap(s, { username: s.username, password })
+      },
+    }),
+  })
+}
+
+let scheduler: ReturnType<typeof sendScheduler> | undefined
+/** Releases confirmed sends after their undo window. Runs in the web process only (the worker has no send capability). */
+export function useSendScheduler() {
+  return (scheduler ??= sendScheduler({
+    db: useDb(),
+    gate: useSendGate(),
+    senderFor: (type) => useSenders()[type],
+    notify: (userId, e) =>
+      void useHub()
+        .publish(userId, { type: 'send.status', data: { ref: e.ref, state: e.state } })
+        .catch(() => undefined),
+  }))
+}

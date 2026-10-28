@@ -108,6 +108,17 @@ export const sendRepo = (s: Scope) => ({
     return r?.n ?? 0
   },
 
+  /** The newest record with this content hash (links a released authorization to its outcome). */
+  async latestByHash(contentHash: string): Promise<RecordRow | null> {
+    const [r] = await s.db
+      .select()
+      .from(sendRecords)
+      .where(and(eq(sendRecords.userId, s.userId), eq(sendRecords.contentHash, contentHash)))
+      .orderBy(sql`${sendRecords.approvedAt} desc`)
+      .limit(1)
+    return r ?? null
+  },
+
   async beginRecord(
     v: Omit<typeof sendRecords.$inferInsert, 'userId' | 'status'>,
   ): Promise<RecordRow> {
