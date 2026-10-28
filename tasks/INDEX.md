@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 57/111 done · ready now: T009, T010, T011, T077, T081, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 58/111 done · ready now: T009, T010, T011, T077, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -87,7 +87,7 @@ flowchart LR
     T078["T078"]:::todo
     T079["T079"]:::todo
     T080["T080"]:::done
-    T081["T081"]:::todo
+    T081["T081"]:::done
     T082["T082"]:::todo
   end
   subgraph P5
@@ -451,7 +451,7 @@ flowchart LR
 | ⬜ | [T078](items/T078-ai-consent-flow-ui.md) | AI consent flow UI | M | code | T074, T077 |  |
 | ⬜ | [T079](items/T079-task-routes-and-usage-ui.md) | Task routes and usage UI | M | code | T075, T076, T077 |  |
 | ✅ | [T080](items/T080-prompt-registry-and-builder.md) | Prompt registry and builder | M | code | T030, T005 | claude |
-| ⬜ | [T081](items/T081-structured-output-validation-and-repair.md) | Structured output validation and repair | M | code | T080, T070 |  |
+| ✅ | [T081](items/T081-structured-output-validation-and-repair.md) | Structured output validation and repair | M | code | T080, T070 | claude |
 | ⬜ | [T082](items/T082-ai-test-bench.md) | AI test bench | M | code | T079, T080 |  |
 
 ## P5
