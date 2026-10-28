@@ -45,6 +45,18 @@ export function authService(d: AuthDeps) {
       return ok({ userId: user.id, token: await sessions.create(user.id, input.userAgent) })
     },
 
+    /** Checks email and password only; no session is created. */
+    async verifyCredentials(
+      email: string,
+      password: string,
+    ): Promise<Result<{ userId: string }, AppFailure>> {
+      const user = await repo.userByEmail(email.trim())
+      const good = await verifyPassword(user?.passwordHash ?? (await dummyHash()), password)
+      return !user || !good ? err(invalid()) : ok({ userId: user.id })
+    },
+
+    startSession: (userId: string, userAgent?: string) => sessions.create(userId, userAgent),
+
     async login(input: {
       email: string
       password: string
