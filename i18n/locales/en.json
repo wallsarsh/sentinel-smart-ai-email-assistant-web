@@ -74,5 +74,62 @@
       "admin_help": "How to get approval",
       "none": "OK"
     }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "accounts": {
+    "title": "Mail accounts",
+    "empty": "No accounts connected yet.",
+    "connected": "Account connected.",
+    "connectGoogle": "Connect Gmail",
+    "connectMicrosoft": "Connect Microsoft 365 / Outlook",
+    "connectImap": "Connect another account (IMAP)",
+    "reconnect": "Reconnect",
+    "remove": "Remove",
+    "aiExcluded": "Never send this account's mail to AI",
+    "type": {
+      "gmail": "Gmail",
+      "microsoft_graph": "Microsoft",
+      "imap": "IMAP"
+    },
+    "connectError": {
+      "denied": "Access was not granted, so nothing was connected.",
+      "expired": "The sign-in took too long. Please try again.",
+      "bad_state": "The sign-in could not be verified. Please try again.",
+      "scope_missing": "Sentinel needs permission to read mail and save drafts. Please allow all requested permissions.",
+      "no_refresh_token": "The provider did not allow ongoing access. Remove Sentinel from your account's connected apps and try again.",
+      "generic": "The account could not be connected."
+    },
+    "adminHelp": {
+      "title": "Your organisation must approve Sentinel",
+      "step1": "Send your IT administrator the link to this app and ask them to approve it for your organisation.",
+      "step2": "They can grant consent in the Microsoft Entra admin centre under Enterprise applications.",
+      "step3": "Once approved, come back here and connect again."
+    },
+    "imap": {
+      "title": "Connect an IMAP account",
+      "email": "Email address",
+      "password": "Password",
+      "appPassword": "This provider needs an app-specific password. Create one in your account's security settings and use it here.",
+      "incoming": "Incoming mail (IMAP)",
+      "outgoing": "Outgoing mail (SMTP)",
+      "host": "Server",
+      "port": "Port",
+      "security": "Security",
+      "tls": "SSL/TLS",
+      "starttls": "STARTTLS",
+      "username": "Username",
+      "continue": "Continue",
+      "test": "Test connection",
+      "save": "Connect",
+      "testOk": "Connection works."
+    },
+    "folders": {
+      "manage": "Folders",
+      "title": "Folders to process",
+      "hint": "Sentinel only reads the folders you tick."
+    }
   }
 }

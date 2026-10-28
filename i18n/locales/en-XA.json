@@ -74,5 +74,62 @@
       "admin_help": "[Höw tö gét ápprövál one]",
       "none": "[ÖK one]"
     }
+  },
+  "common": {
+    "cancel": "[Cáñçél one]",
+    "save": "[Šávé one]"
+  },
+  "accounts": {
+    "title": "[Máíl áççöüñtš one]",
+    "empty": "[Ñö áççöüñtš çöññéçtéd ýét. one two]",
+    "connected": "[Áççöüñt çöññéçtéd. one]",
+    "connectGoogle": "[Cöññéçt Gmáíl one]",
+    "connectMicrosoft": "[Cöññéçt Míçröšöft 365 / Öütlöök one two]",
+    "connectImap": "[Cöññéçt áñöthér áççöüñt (ÍMÁP) one two]",
+    "reconnect": "[Réçöññéçt one]",
+    "remove": "[Rémövé one]",
+    "aiExcluded": "[Ñévér šéñd thíš áççöüñt'š máíl tö ÁÍ one two]",
+    "type": {
+      "gmail": "[Gmáíl one]",
+      "microsoft_graph": "[Míçröšöft one]",
+      "imap": "[ÍMÁP one]"
+    },
+    "connectError": {
+      "denied": "[Áççéšš wáš ñöt gráñtéd, šö ñöthíñg wáš çöññéçtéd. one two three]",
+      "expired": "[Thé šígñ-íñ töök töö löñg. Pléášé trý ágáíñ. one two three]",
+      "bad_state": "[Thé šígñ-íñ çöüld ñöt bé vérífíéd. Pléášé trý ágáíñ. one two three]",
+      "scope_missing": "[Šéñtíñél ñéédš pérmíššíöñ tö réád máíl áñd šávé dráftš. Pléášé állöw áll réqüéštéd pérmíššíöñš. one two three four]",
+      "no_refresh_token": "[Thé prövídér díd ñöt állöw öñgöíñg áççéšš. Rémövé Šéñtíñél fröm ýöür áççöüñt'š çöññéçtéd áppš áñd trý ágáíñ. one two three four]",
+      "generic": "[Thé áççöüñt çöüld ñöt bé çöññéçtéd. one two]"
+    },
+    "adminHelp": {
+      "title": "[Yöür örgáñíšátíöñ müšt ápprövé Šéñtíñél one two]",
+      "step1": "[Šéñd ýöür ÍT ádmíñíštrátör thé líñk tö thíš ápp áñd ášk thém tö ápprövé ít för ýöür örgáñíšátíöñ. one two three four]",
+      "step2": "[Théý çáñ gráñt çöñšéñt íñ thé Míçröšöft Éñtrá ádmíñ çéñtré üñdér Éñtérpríšé ápplíçátíöñš. one two three four]",
+      "step3": "[Öñçé ápprövéd, çömé báçk héré áñd çöññéçt ágáíñ. one two three]"
+    },
+    "imap": {
+      "title": "[Cöññéçt áñ ÍMÁP áççöüñt one two]",
+      "email": "[Émáíl áddréšš one]",
+      "password": "[Páššwörd one]",
+      "appPassword": "[Thíš prövídér ñéédš áñ ápp-špéçífíç páššwörd. Créáté öñé íñ ýöür áççöüñt'š šéçürítý šéttíñgš áñd üšé ít héré. one two three four]",
+      "incoming": "[Íñçömíñg máíl (ÍMÁP) one]",
+      "outgoing": "[Öütgöíñg máíl (ŠMTP) one]",
+      "host": "[Šérvér one]",
+      "port": "[Pört one]",
+      "security": "[Šéçürítý one]",
+      "tls": "[ŠŠL/TLŠ one]",
+      "starttls": "[ŠTÁRTTLŠ one]",
+      "username": "[Üšérñámé one]",
+      "continue": "[Cöñtíñüé one]",
+      "test": "[Téšt çöññéçtíöñ one]",
+      "save": "[Cöññéçt one]",
+      "testOk": "[Cöññéçtíöñ wörkš. one]"
+    },
+    "folders": {
+      "manage": "[Földérš one]",
+      "title": "[Földérš tö pröçéšš one]",
+      "hint": "[Šéñtíñél öñlý réádš thé földérš ýöü tíçk. one two three]"
+    }
   }
 }

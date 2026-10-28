@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 39/111 done · ready now: T009, T010, T011, T054, T060, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 40/111 done · ready now: T009, T010, T011, T060, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -61,7 +61,7 @@ flowchart LR
     T051["T051"]:::done
     T052["T052"]:::done
     T053["T053"]:::done
-    T054["T054"]:::todo
+    T054["T054"]:::done
     T055["T055"]:::done
   end
   subgraph P3
@@ -419,7 +419,7 @@ flowchart LR
 | ✅ | [T051](items/T051-imap-drafts.md) | IMAP drafts | M | code | T050, T041 | claude |
 | ✅ | [T052](items/T052-smtp-connection-test.md) | SMTP connection test | S | code | T050 | claude |
 | ✅ | [T053](items/T053-accounts-api.md) | Accounts API | M | code | T042, T043, T050, T052 | claude |
-| ⬜ | [T054](items/T054-accounts-ui.md) | Accounts UI | L | code | T053, T008, T055 |  |
+| ✅ | [T054](items/T054-accounts-ui.md) | Accounts UI | L | code | T053, T008, T055 | claude |
 | ✅ | [T055](items/T055-failure-presenter.md) | Failure presenter | S | code | T005, T007 | claude |
 
 ## P3
