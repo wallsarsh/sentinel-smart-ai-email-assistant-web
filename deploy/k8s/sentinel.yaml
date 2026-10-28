@@ -18,13 +18,19 @@ spec:
       labels: { app.kubernetes.io/name: sentinel, app.kubernetes.io/component: migrate }
     spec:
       restartPolicy: Never
-      securityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+      securityContext:
+        { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: migrate
           image: IMAGE
           command: ['node', 'dist/migrate.mjs']
           envFrom: [{ secretRef: { name: sentinel-env } }]
-          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          securityContext:
+            {
+              allowPrivilegeEscalation: false,
+              readOnlyRootFilesystem: true,
+              capabilities: { drop: [ALL] },
+            }
           resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 500m, memory: 256Mi } }
 ---
 apiVersion: apps/v1
@@ -42,16 +48,29 @@ spec:
       labels: { app.kubernetes.io/name: sentinel, app.kubernetes.io/component: web }
     spec:
       terminationGracePeriodSeconds: 30
-      securityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+      securityContext:
+        { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: web
           image: IMAGE
           ports: [{ name: http, containerPort: 3000 }]
           envFrom: [{ secretRef: { name: sentinel-env } }]
-          readinessProbe: { httpGet: { path: /api/ready, port: http }, periodSeconds: 5, failureThreshold: 3 }
-          livenessProbe: { httpGet: { path: /api/health, port: http }, initialDelaySeconds: 15, periodSeconds: 10 }
-          startupProbe: { httpGet: { path: /api/health, port: http }, periodSeconds: 2, failureThreshold: 30 }
-          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          readinessProbe:
+            { httpGet: { path: /api/ready, port: http }, periodSeconds: 5, failureThreshold: 3 }
+          livenessProbe:
+            {
+              httpGet: { path: /api/health, port: http },
+              initialDelaySeconds: 15,
+              periodSeconds: 10,
+            }
+          startupProbe:
+            { httpGet: { path: /api/health, port: http }, periodSeconds: 2, failureThreshold: 30 }
+          securityContext:
+            {
+              allowPrivilegeEscalation: false,
+              readOnlyRootFilesystem: true,
+              capabilities: { drop: [ALL] },
+            }
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
           resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 512Mi } }
       volumes: [{ name: tmp, emptyDir: { sizeLimit: 64Mi } }]
@@ -72,13 +91,19 @@ spec:
       labels: { app.kubernetes.io/name: sentinel, app.kubernetes.io/component: worker }
     spec:
       terminationGracePeriodSeconds: 60
-      securityContext: { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
+      securityContext:
+        { runAsNonRoot: true, runAsUser: 1000, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: worker
           image: IMAGE
           command: ['node', 'dist/worker.mjs']
           envFrom: [{ secretRef: { name: sentinel-env } }]
-          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          securityContext:
+            {
+              allowPrivilegeEscalation: false,
+              readOnlyRootFilesystem: true,
+              capabilities: { drop: [ALL] },
+            }
           volumeMounts: [{ name: tmp, mountPath: /tmp }]
           resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
       volumes: [{ name: tmp, emptyDir: { sizeLimit: 64Mi } }]

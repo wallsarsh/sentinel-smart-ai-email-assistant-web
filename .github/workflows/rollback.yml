@@ -1,0 +1,48 @@
+name: Rollback
+
+# Re-deploys an earlier release. Run it from the Actions tab; production still needs the environment's approval.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to roll back
+        type: choice
+        options: [staging, production]
+        required: true
+      version:
+        description: Tag to roll back to, for example v1.3.2
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }} # the manifests and deploy script of that release
+      - name: The version must look like a release tag
+        run: echo "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$'
+        env:
+          VERSION: ${{ inputs.version }}
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+      - name: Deploy the earlier image
+        run: deploy/deploy.sh "$NAMESPACE" "ghcr.io/${GITHUB_REPOSITORY,,}:$VERSION"
+        env:
+          NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          VERSION: ${{ inputs.version }}
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do curl -sf "$BASE_URL/api/ready" | grep -q '"ready":true' && exit 0; sleep 5; done
+          echo "not ready after rollback" >&2; exit 1
+        env:
+          BASE_URL: ${{ vars.BASE_URL }}

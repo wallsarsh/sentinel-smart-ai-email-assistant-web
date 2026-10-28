@@ -15,6 +15,13 @@ RUN --mount=type=secret,id=ca,required=false \
     npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build && node tools/build-worker.mjs
+# Source maps are kept out of the image and published privately by the release pipeline.
+RUN mkdir /maps && find .output dist -name '*.map' | tar -cf /maps/sourcemaps.tar -T - \
+ && find .output dist -name '*.map' -delete
+
+# `docker build --target sourcemaps --output type=local,dest=maps .` writes maps/sourcemaps.tar.
+FROM scratch AS sourcemaps
+COPY --from=build /maps/ /
 
 FROM ${NODE_IMAGE} AS prod-deps
 WORKDIR /app

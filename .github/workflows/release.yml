@@ -1,0 +1,110 @@
+name: Release
+
+# Push a tag like v1.4.0 (release candidates: v1.4.0-rc.1). The tag runs every check, builds and pushes the image,
+# publishes source maps as a private artifact, deploys to staging, and waits for a person to approve production.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+', 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+
+  image:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.ref.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag must point at a commit on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "tag $GITHUB_REF_NAME is not on main"; exit 1; }
+      - id: ref
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push (version tag only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.ref.outputs.image }}
+          provenance: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Extract source maps (they are not in the image)
+        run: docker buildx build --target sourcemaps --output type=local,dest=maps .
+      - name: Store source maps privately (repository members only, 90 days)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sourcemaps-${{ github.ref_name }}
+          path: maps/sourcemaps.tar
+          retention-days: 90
+
+  staging:
+    needs: image
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+      - name: Deploy to staging
+        run: deploy/deploy.sh "$NAMESPACE" "$IMAGE"
+        env:
+          NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          IMAGE: ${{ needs.image.outputs.image }}
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do curl -sf "$BASE_URL/api/ready" | grep -q '"ready":true' && exit 0; sleep 5; done
+          echo "staging is not ready" >&2; exit 1
+        env:
+          BASE_URL: ${{ vars.BASE_URL }}
+
+  production:
+    # Release candidates stop at staging. Production waits for the reviewers configured on the `production` environment.
+    if: ${{ !contains(github.ref_name, '-rc.') }}
+    needs: [image, staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+      - name: Deploy to production
+        run: deploy/deploy.sh "$NAMESPACE" "$IMAGE"
+        env:
+          NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+          IMAGE: ${{ needs.image.outputs.image }}
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do curl -sf "$BASE_URL/api/ready" | grep -q '"ready":true' && exit 0; sleep 5; done
+          echo "production is not ready; roll back with the Rollback workflow" >&2; exit 1
+        env:
+          BASE_URL: ${{ vars.BASE_URL }}

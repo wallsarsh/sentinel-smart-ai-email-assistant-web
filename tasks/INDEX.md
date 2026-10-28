@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 103/111 done · ready now: T009, T010, T011, T157, T158, T159, T160
+**Progress:** 104/111 done · ready now: T009, T010, T011, T158, T159, T160
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -140,7 +140,7 @@ flowchart LR
     T154["T154"]:::done
     T155["T155"]:::done
     T156["T156"]:::done
-    T157["T157"]:::todo
+    T157["T157"]:::done
     T158["T158"]:::todo
     T159["T159"]:::todo
     T160["T160"]:::todo
@@ -518,7 +518,7 @@ flowchart LR
 | ✅ | [T154](items/T154-observability.md) | Observability | S | code | T006, T033 | claude |
 | ✅ | [T155](items/T155-security-review-pass-and-headers-audit.md) | Security review pass and headers audit | M | test | T113, T025 | claude |
 | ✅ | [T156](items/T156-production-image-and-deployment.md) | Production image and deployment | M | config | T002 | claude |
-| ⬜ | [T157](items/T157-release-pipeline.md) | Release pipeline | S | config | T156 |  |
+| ✅ | [T157](items/T157-release-pipeline.md) | Release pipeline | S | config | T156 | claude |
 | ⬜ | [T158](items/T158-backup-restore-and-runbook.md) | Backup, restore and runbook | S | docs | T156 |  |
 | ⬜ | [T159](items/T159-privacy-policy-terms-and-provider-reviews.md) | Privacy policy, terms and provider reviews | M | manual | T140 |  |
 | ⬜ | [T160](items/T160-staging-verification-with-real-accounts.md) | Staging verification with real accounts | M | manual | T150, T156 |  |
