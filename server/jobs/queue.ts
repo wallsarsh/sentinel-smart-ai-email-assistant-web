@@ -93,6 +93,30 @@ export function jobQueue(db: Db, now: () => Date = () => new Date()) {
       return 'queued'
     },
 
+    /** Jobs per name and status, and the age in seconds of the oldest queued job per name (for gauges). */
+    async stats(): Promise<{
+      byStatus: { name: string; status: string; n: number }[]
+      oldestQueued: { name: string; seconds: number }[]
+    }> {
+      const a = await db.execute(
+        sql`select name, status, count(*)::int as n from jobs group by name, status`,
+      )
+      const b = await db.execute(sql`
+        select name, extract(epoch from (${now().toISOString()}::timestamptz - min(run_at)))::float as seconds
+        from jobs where status = 'queued' and run_at <= ${now().toISOString()} group by name`)
+      return {
+        byStatus: a.rows.map((r) => ({
+          name: String(r.name),
+          status: String(r.status),
+          n: Number(r.n),
+        })),
+        oldestQueued: b.rows.map((r) => ({
+          name: String(r.name),
+          seconds: Math.max(0, Number(r.seconds)),
+        })),
+      }
+    },
+
     /** Deletes finished jobs older than [before]. */
     async purge(before: Date): Promise<number> {
       const r = await db.execute(

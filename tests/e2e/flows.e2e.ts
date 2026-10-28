@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { authRepo } from '../../server/repos/auth'
 import { forUser } from '../../server/repos'
-import { PASSWORD, signIn, signUp, startStack, type Stack } from './harness'
+import { METRICS_TOKEN, PASSWORD, signIn, signUp, startStack, type Stack } from './harness'
 
 let s: Stack
 beforeAll(async () => {
@@ -248,5 +248,38 @@ describe('wipe', () => {
     await again.page.waitForSelector('[role=alert]')
     await again.ctx.close()
     await ctx.close()
+  })
+})
+
+describe('observability', () => {
+  it('readiness is 200 on a migrated database; health is plain', async () => {
+    const r = await fetch(`${s.url}/api/ready`)
+    expect(r.status).toBe(200)
+    expect(await r.json()).toEqual({ ready: true, checks: { database: true, migrations: true } })
+    expect((await fetch(`${s.url}/api/health`)).status).toBe(200)
+  })
+
+  it('metrics need the bearer token, and expose route patterns, status classes and queue gauges only', async () => {
+    expect((await fetch(`${s.url}/api/metrics`)).status).toBe(401)
+    expect(
+      (await fetch(`${s.url}/api/metrics`, { headers: { authorization: 'Bearer wrong' } })).status,
+    ).toBe(401)
+    const id = await uid('first@e2e.test')
+    await fetch(`${s.url}/api/messages/${id}`) // an id-shaped path and a 401, as an attacker might probe
+    await fetch(`${s.url}/api/search?q=alice@example.test`)
+    const r = await fetch(`${s.url}/api/metrics`, {
+      headers: { authorization: `Bearer ${METRICS_TOKEN}` },
+    })
+    expect(r.status).toBe(200)
+    expect(r.headers.get('content-type')).toContain('text/plain')
+    const text = await r.text()
+    expect(text).toContain(
+      'sentinel_http_requests_total{method="GET",route="/api/messages/:id",status="4xx"}',
+    )
+    expect(text).toContain('sentinel_process_uptime_seconds')
+    expect(text).toContain('sentinel_job_queue_jobs')
+    expect(text).not.toContain(id)
+    expect(text).not.toMatch(/@|alice|first@e2e|[0-9a-f]{8}-[0-9a-f]{4}-/)
+    expect(text.split('\n').length).toBeLessThan(400)
   })
 })

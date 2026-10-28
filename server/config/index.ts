@@ -27,6 +27,10 @@ const schema = z
     VAPID_SUBJECT: z.string().default('mailto:admin@localhost'),
     SYSTEM_SMTP_URL: z.string().default('smtp://localhost:1025'),
     SYSTEM_MAIL_FROM: z.string().default('Sentinel <no-reply@localhost>'),
+    // Observability. Both are off when empty.
+    METRICS_TOKEN: z.string().default(''),
+    ERROR_REPORT_URL: z.string().default(''),
+    BUILD_ID: z.string().max(60).default('unknown'),
   })
   .superRefine((v, ctx) => {
     if (v.NODE_ENV !== 'production') return
@@ -48,6 +52,12 @@ export type AppConfig = {
   microsoft: { clientId: string; clientSecret: string; authority: string }
   vapid: { publicKey: string; privateKey: string; subject: string }
   systemMail: { smtpUrl: string; from: string }
+  /** Bearer token for /api/metrics; empty disables the endpoint. */
+  metricsToken: string
+  /** Where scrubbed error reports go; empty disables reporting. */
+  errorReportUrl: string
+  /** Identifies the deployed build in error reports (a version or commit). */
+  buildId: string
 }
 
 export class ConfigError extends Error {
@@ -83,6 +93,9 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
       subject: v.VAPID_SUBJECT,
     },
     systemMail: { smtpUrl: v.SYSTEM_SMTP_URL, from: v.SYSTEM_MAIL_FROM },
+    metricsToken: v.METRICS_TOKEN,
+    errorReportUrl: v.ERROR_REPORT_URL,
+    buildId: v.BUILD_ID,
   }
 }
 

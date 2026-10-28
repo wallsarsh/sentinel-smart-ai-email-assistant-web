@@ -59,6 +59,7 @@ export async function startStack(): Promise<Stack> {
       SESSION_SECRET: 'e2e-only-session-secret-0123456789abcdef0123456789',
       KEK_BASE64: Buffer.alloc(32, 7).toString('base64'),
       SYSTEM_SMTP_URL: 'smtp://127.0.0.1:1',
+      METRICS_TOKEN: METRICS_TOKEN,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -99,6 +100,8 @@ async function pace() {
   }
   authCalls.push(Date.now())
 }
+
+export const METRICS_TOKEN = 'e2e-metrics-token-0123456789'
 
 export const PASSWORD = 'correct horse battery staple'
 
