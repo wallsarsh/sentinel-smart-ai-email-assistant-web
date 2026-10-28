@@ -456,5 +456,33 @@
       "expired": "[Ñöt šéñt: thé çöñfírmátíöñ éxpíréd ör ýöür šéššíöñ éñdéd. Révíéw áñd šéñd ágáíñ. one two three four]",
       "unknown_ref": "[Thíš šéñd íš ñö löñgér tráçkéd. one two]"
     }
+  },
+  "sending": {
+    "title": "[Šéñdíñg one]",
+    "intro": "[Šéñtíñél ñévér šéñdš öñ ítš öwñ. Évérý méššágé göéš öüt öñlý áftér ýöü révíéw ít áñd préšš Šéñd. one two three four]",
+    "undo": "[Üñdö wíñdöw (šéçöñdš) one two]",
+    "undoHint": "[0 tö 30. Thé méššágé wáítš thíš löñg öñ thé šérvér áftér ýöü préšš Šéñd. one two three four]",
+    "limit": "[Dáílý šéñdíñg límít (0 = ñö límít) one two]",
+    "limitHint": "[Cöüñtš méššágéš šéñt tödáý (ÜTC). one two]",
+    "stepUp": "[Ášk mé tö çöñfírm mý ídéñtítý béföré šéñdíñg (twö-fáçtör çödé, ör páššwörd) one two three four]",
+    "placeholders": "[Blöçk šéñdíñg whílé thé téxt štíll háš [pláçéhöldérš] one two three]",
+    "external": "[Wárñ mé áböüt réçípíéñtš öütšídé mý örgáñíšátíöñ one two three]",
+    "log": "[Šéñt lög one]",
+    "logHint": "[Öñlý whéñ, fröm whíçh áççöüñt, höw máñý réçípíéñtš áñd thé réšült. Méššágé téxt íš ñévér képt. one two three four]",
+    "logEmpty": "[Ñöthíñg šéñt ýét. one]",
+    "when": "[Whéñ one]",
+    "account": "[Áççöüñt one]",
+    "recipients": "[Réçípíéñtš one]",
+    "result": "[Réšült one]",
+    "checkUnknown": "[Chéçk üñçértáíñ šéñdš one two]",
+    "checked": "[Föüñd {n}. one]",
+    "status": {
+      "pending": "[Wáítíñg one]",
+      "submitting": "[Šéñdíñg one]",
+      "sent": "[Šéñt one]",
+      "failed": "[Ñöt šéñt one]",
+      "unknown": "[Üñçértáíñ: çhéçk ýöür Šéñt földér one two]",
+      "cancelled": "[Cáñçélléd one]"
+    }
   }
 }

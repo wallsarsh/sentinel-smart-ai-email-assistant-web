@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 80/111 done · ready now: T009, T010, T011, T112, T113, T120, T122, T124, T127, T141, T142, T154
+**Progress:** 81/111 done · ready now: T009, T010, T011, T113, T120, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -111,7 +111,7 @@ flowchart LR
     T109["T109"]:::done
     T110["T110"]:::done
     T111["T111"]:::done
-    T112["T112"]:::todo
+    T112["T112"]:::done
     T113["T113"]:::todo
   end
   subgraph P7
@@ -481,7 +481,7 @@ flowchart LR
 | ✅ | [T109](items/T109-send-records-and-reconcile.md) | Send records and reconcile | M | code | T106, T107, T108 | claude |
 | ✅ | [T110](items/T110-send-confirmation-ui-and-api.md) | Send confirmation UI and API | L | code | T105, T102, T109 | claude |
 | ✅ | [T111](items/T111-undo-window.md) | Undo window | M | code | T110 | claude |
-| ⬜ | [T112](items/T112-sending-settings-and-sent-log.md) | Sending settings and sent log | S | code | T111, T031 |  |
+| ✅ | [T112](items/T112-sending-settings-and-sent-log.md) | Sending settings and sent log | S | code | T111, T031 | claude |
 | ⬜ | [T113](items/T113-send-gate-integration-and-injection-tests.md) | Send-gate integration and injection tests | M | test | T111 |  |
 
 ## P7

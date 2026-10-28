@@ -456,5 +456,33 @@
       "expired": "Not sent: the confirmation expired or your session ended. Review and send again.",
       "unknown_ref": "This send is no longer tracked."
     }
+  },
+  "sending": {
+    "title": "Sending",
+    "intro": "Sentinel never sends on its own. Every message goes out only after you review it and press Send.",
+    "undo": "Undo window (seconds)",
+    "undoHint": "0 to 30. The message waits this long on the server after you press Send.",
+    "limit": "Daily sending limit (0 = no limit)",
+    "limitHint": "Counts messages sent today (UTC).",
+    "stepUp": "Ask me to confirm my identity before sending (two-factor code, or password)",
+    "placeholders": "Block sending while the text still has [placeholders]",
+    "external": "Warn me about recipients outside my organisation",
+    "log": "Sent log",
+    "logHint": "Only when, from which account, how many recipients and the result. Message text is never kept.",
+    "logEmpty": "Nothing sent yet.",
+    "when": "When",
+    "account": "Account",
+    "recipients": "Recipients",
+    "result": "Result",
+    "checkUnknown": "Check uncertain sends",
+    "checked": "Found {n}.",
+    "status": {
+      "pending": "Waiting",
+      "submitting": "Sending",
+      "sent": "Sent",
+      "failed": "Not sent",
+      "unknown": "Uncertain: check your Sent folder",
+      "cancelled": "Cancelled"
+    }
   }
 }

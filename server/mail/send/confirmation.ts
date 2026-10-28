@@ -120,6 +120,7 @@ export function sendConfirmation(d: {
       owner?.displayName ?? '',
     ]
     const own = domainOf(account.email)
+    const warnExternal = (await repos.settings.get('send.warnExternalRecipients')) as boolean
     return ok({
       content,
       preview: {
@@ -131,7 +132,9 @@ export function sendConfirmation(d: {
         placeholders: placeholders(content.bodyText),
         flags: {
           newRecipients: recipients.filter((a) => !participants.has(a)),
-          externalDomains: [...new Set(recipients.map(domainOf).filter((x) => x && x !== own))],
+          externalDomains: warnExternal
+            ? [...new Set(recipients.map(domainOf).filter((x) => x && x !== own))]
+            : [],
           foreign: scanForeignDetails(content.bodyText, known),
         },
         contentHash: contentHash(content),

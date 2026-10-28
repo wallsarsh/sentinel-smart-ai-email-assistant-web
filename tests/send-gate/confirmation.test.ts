@@ -250,3 +250,18 @@ describe('send confirmation: undo and status', () => {
     expect(await s.svc.status(s.user.id, b.value.nonce)).toMatchObject({ state: 'sending' })
   })
 })
+
+describe('send confirmation: settings', () => {
+  it('the external-recipient warning can be switched off', async () => {
+    const s = await setup()
+    const body = s.draft({ to: ['alex@acme.example', 'x@other.test'] })
+    const on = await s.svc.prepare(s.user.id, s.m.id, body)
+    if (!on.ok) throw new Error('x')
+    expect(on.value.flags.externalDomains.length).toBeGreaterThan(0)
+    await s.r.settings.setMany({ 'send.warnExternalRecipients': false })
+    const off = await s.svc.prepare(s.user.id, s.m.id, body)
+    if (!off.ok) throw new Error('x')
+    expect(off.value.flags.externalDomains).toEqual([])
+    expect(off.value.flags.newRecipients).toEqual(['x@other.test']) // new people are always flagged
+  })
+})
