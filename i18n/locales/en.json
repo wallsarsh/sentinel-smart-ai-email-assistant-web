@@ -234,7 +234,8 @@
       "control": "AI never sends email. Every reply stays a draft until you confirm it yourself.",
       "allow": "Allow",
       "revoke": "Revoke consent",
-      "given": "You allowed this on {when}."
+      "given": "You allowed this on {when}.",
+      "noProviderTitle": "AI data consent"
     },
     "routes": {
       "title": "Task routes",

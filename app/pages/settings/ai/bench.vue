@@ -65,7 +65,7 @@ async function run() {
           :list="`bench-models-${side}`"
           required
           class="w-full rounded border px-2 py-1"
-        >
+        />
         <datalist :id="`bench-models-${side}`">
           <option v-for="m in modelsFor(sel[side].providerId)" :key="m" :value="m" />
         </datalist>

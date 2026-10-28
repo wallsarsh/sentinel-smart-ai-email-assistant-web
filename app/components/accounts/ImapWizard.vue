@@ -101,7 +101,7 @@ async function save() {
         required
         class="mt-1 w-full rounded border px-2 py-1"
         :readonly="step === 'details'"
-      >
+      />
     </div>
 
     <template v-if="step === 'details'">
@@ -119,7 +119,7 @@ async function save() {
           autocomplete="off"
           required
           class="mt-1 w-full rounded border px-2 py-1"
-        >
+        />
       </div>
       <fieldset class="grid gap-2 md:grid-cols-3">
         <legend class="text-sm font-medium">{{ $t('accounts.imap.incoming') }}</legend>
@@ -130,7 +130,7 @@ async function save() {
             v-model="s.imapHost"
             required
             class="w-full rounded border px-2 py-1"
-          >
+          />
         </div>
         <div>
           <label for="imap-port" class="block text-sm">{{ $t('accounts.imap.port') }}</label
@@ -142,7 +142,7 @@ async function save() {
             max="65535"
             required
             class="w-full rounded border px-2 py-1"
-          >
+          />
         </div>
         <div>
           <label for="imap-sec" class="block text-sm">{{ $t('accounts.imap.security') }}</label>
@@ -158,7 +158,7 @@ async function save() {
             v-model="s.username"
             required
             class="w-full rounded border px-2 py-1"
-          >
+          />
         </div>
       </fieldset>
       <fieldset class="grid gap-2 md:grid-cols-3">
@@ -170,7 +170,7 @@ async function save() {
             v-model="s.smtpHost"
             required
             class="w-full rounded border px-2 py-1"
-          >
+          />
         </div>
         <div>
           <label for="smtp-port" class="block text-sm">{{ $t('accounts.imap.port') }}</label
@@ -182,7 +182,7 @@ async function save() {
             max="65535"
             required
             class="w-full rounded border px-2 py-1"
-          >
+          />
         </div>
         <div>
           <label for="smtp-sec" class="block text-sm">{{ $t('accounts.imap.security') }}</label>

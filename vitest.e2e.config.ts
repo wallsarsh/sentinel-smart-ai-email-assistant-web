@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/e2e/**/*.e2e.ts'],
+    include: ['tests/e2e/**/*.e2e.ts', 'tests/a11y/**/*.e2e.ts'],
     testTimeout: 60_000,
     hookTimeout: 120_000,
     fileParallelism: false,

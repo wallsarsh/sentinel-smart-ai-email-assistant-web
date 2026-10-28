@@ -234,7 +234,8 @@
       "control": "[ÁÍ ñévér šéñdš émáíl. Évérý réplý štáýš á dráft üñtíl ýöü çöñfírm ít ýöüršélf. one two three four]",
       "allow": "[Állöw one]",
       "revoke": "[Révöké çöñšéñt one]",
-      "given": "[Yöü állöwéd thíš öñ {when}. one two]"
+      "given": "[Yöü állöwéd thíš öñ {when}. one two]",
+      "noProviderTitle": "[ÁÍ dátá çöñšéñt one]"
     },
     "routes": {
       "title": "[Tášk röütéš one]",

@@ -55,7 +55,7 @@ const remove = (a: string) =>
       @keydown.enter.prevent="add"
       @blur="add"
       @keydown.,.prevent="add"
-    >
+    />
     <p v-if="invalid" :id="`${id}-err`" role="alert" class="text-sm">
       {{ $t('composer.badAddress') }}
     </p>

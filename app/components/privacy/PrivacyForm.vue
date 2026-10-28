@@ -32,7 +32,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
           :checked="!settings['privacy.subjectOnly']"
           data-testid="scope-body"
           @change="emit('save', { 'privacy.subjectOnly': false })"
-        >
+        />
         {{ $t('privacy.scopeBody') }}
       </label>
       <label class="flex items-center gap-2">
@@ -42,7 +42,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
           :checked="settings['privacy.subjectOnly']"
           data-testid="scope-subject"
           @change="emit('save', { 'privacy.subjectOnly': true })"
-        >
+        />
         {{ $t('privacy.scopeSubject') }}
       </label>
       <label class="flex flex-wrap items-center justify-between gap-3">
@@ -59,7 +59,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
           @change="
             emit('save', { 'privacy.maxChars': clamp(($event.target as HTMLInputElement).value) })
           "
-        >
+        />
       </label>
     </fieldset>
 
@@ -74,7 +74,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
           @change="
             emit('save', { [`privacy.redact${k}`]: ($event.target as HTMLInputElement).checked })
           "
-        >
+        />
         {{ $t(`privacy.redactKinds.${k.toLowerCase()}`) }}
       </label>
     </fieldset>
@@ -90,7 +90,7 @@ const clamp = (v: string) => Math.min(20000, Math.max(500, Math.round(Number(v) 
           @change="
             emit('exclude', { id: a.id, excluded: ($event.target as HTMLInputElement).checked })
           "
-        >
+        />
         {{ a.email }}
       </label>
     </fieldset>

@@ -139,7 +139,7 @@ function send() {
       </div>
 
       <label v-if="needsOverride" class="flex items-start gap-2 text-sm"
-        ><input v-model="override" type="checkbox" class="mt-1" >{{ $t('send.override') }}</label
+        ><input v-model="override" type="checkbox" class="mt-1" />{{ $t('send.override') }}</label
       >
       <div v-if="needsPassword">
         <label for="send-password" class="block text-sm font-medium">{{
@@ -151,7 +151,7 @@ function send() {
           type="password"
           autocomplete="current-password"
           class="w-full rounded border px-2 py-1"
-        >
+        />
       </div>
 
       <div class="flex gap-2">

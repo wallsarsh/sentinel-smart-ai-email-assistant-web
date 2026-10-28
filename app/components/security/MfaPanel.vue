@@ -115,7 +115,7 @@ const renew = () =>
           autocomplete="one-time-code"
           class="mt-1 w-full rounded border px-3 py-2"
           data-testid="mfa-code"
-        >
+        />
       </label>
       <button
         type="submit"
@@ -136,7 +136,7 @@ const renew = () =>
           autocomplete="one-time-code"
           class="mt-1 w-full rounded border px-3 py-2"
           data-testid="mfa-code"
-        >
+        />
       </label>
       <div class="flex flex-wrap gap-2">
         <button

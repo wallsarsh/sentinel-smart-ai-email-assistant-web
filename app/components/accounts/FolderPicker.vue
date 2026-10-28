@@ -39,7 +39,7 @@ async function save() {
       <p class="text-sm" style="color: var(--muted)">{{ $t('accounts.folders.hint') }}</p>
       <div v-for="f in folders" :key="f.providerId" class="mt-1">
         <label class="flex items-center gap-2">
-          <input v-model="chosen" type="checkbox" :value="f.providerId" >
+          <input v-model="chosen" type="checkbox" :value="f.providerId" />
           {{ f.name }}
         </label>
       </div>

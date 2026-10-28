@@ -39,7 +39,7 @@ async function submit() {
         autocomplete="one-time-code"
         class="mt-1 w-full rounded border px-3 py-2"
         data-testid="stepup-code"
-      >
+      />
     </label>
     <div class="flex gap-2">
       <button

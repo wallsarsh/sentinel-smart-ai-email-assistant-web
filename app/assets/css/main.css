@@ -26,9 +26,29 @@
   }
 }
 
+/* Lets the browser draw its own controls (date pickers, scrollbars, select arrows) for the active theme. */
+:root {
+  color-scheme: light dark;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
+}
+
+/* Form controls follow the theme tokens: left alone they keep the browser's light field colours under
+   inherited light text in dark mode, which fails contrast. */
+input,
+select,
+textarea {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+*,
+::before,
+::after {
+  border-color: var(--border);
 }
 
 :focus-visible {

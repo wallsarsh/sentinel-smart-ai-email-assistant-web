@@ -74,6 +74,9 @@ async function set(given: boolean) {
         </button>
       </div>
     </template>
-    <FailureBanner v-else :failure="{ kind: 'not_found' }" />
+    <template v-else>
+      <h1 class="text-2xl font-semibold">{{ $t('ai.consent.noProviderTitle') }}</h1>
+      <FailureBanner :failure="{ kind: 'not_found' }" />
+    </template>
   </section>
 </template>

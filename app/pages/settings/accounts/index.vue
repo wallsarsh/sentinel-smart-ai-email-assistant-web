@@ -72,7 +72,7 @@ const reconnectUrl = (a: Account) =>
         </div>
         <div class="mt-2 flex flex-wrap gap-2">
           <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" :checked="a.aiExcluded" @change="toggleAi(a)" >
+            <input type="checkbox" :checked="a.aiExcluded" @change="toggleAi(a)" />
             {{ $t('accounts.aiExcluded') }}
           </label>
           <a

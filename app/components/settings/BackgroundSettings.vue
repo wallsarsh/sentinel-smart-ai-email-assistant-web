@@ -69,9 +69,9 @@ function toggleMuted(id: string, muted: boolean) {
           :checked="settings['bg.aiEnabled']"
           data-testid="ai"
           @change="emit('save', { 'bg.aiEnabled': ($event.target as HTMLInputElement).checked })"
-        >
+        />
         <span
-          >{{ $t('bg.ai') }}<br ><span class="text-sm" style="color: var(--muted)">{{
+          >{{ $t('bg.ai') }}<br /><span class="text-sm" style="color: var(--muted)">{{
             $t('bg.aiHint')
           }}</span></span
         >
@@ -102,9 +102,9 @@ function toggleMuted(id: string, muted: boolean) {
           :checked="settings['notify.previews']"
           data-testid="previews"
           @change="emit('save', { 'notify.previews': ($event.target as HTMLInputElement).checked })"
-        >
+        />
         <span
-          >{{ $t('bg.previews') }}<br ><span class="text-sm" style="color: var(--muted)">{{
+          >{{ $t('bg.previews') }}<br /><span class="text-sm" style="color: var(--muted)">{{
             $t('bg.previewsHint')
           }}</span></span
         >
@@ -115,7 +115,7 @@ function toggleMuted(id: string, muted: boolean) {
           :checked="quietOn"
           data-testid="quiet"
           @change="setQuiet(($event.target as HTMLInputElement).checked)"
-        >
+        />
         {{ $t('bg.quiet') }}
       </label>
       <div v-if="quietOn" class="flex flex-wrap gap-4 pl-6">
@@ -127,7 +127,7 @@ function toggleMuted(id: string, muted: boolean) {
             :value="minutesToTime(settings['notify.quietStart']!)"
             data-testid="quiet-start"
             @change="setTime('notify.quietStart', ($event.target as HTMLInputElement).value)"
-          >
+          />
         </label>
         <label class="flex flex-col text-sm"
           >{{ $t('bg.quietTo') }}
@@ -137,7 +137,7 @@ function toggleMuted(id: string, muted: boolean) {
             :value="minutesToTime(settings['notify.quietEnd']!)"
             data-testid="quiet-end"
             @change="setTime('notify.quietEnd', ($event.target as HTMLInputElement).value)"
-          >
+          />
         </label>
         <p class="basis-full text-sm" style="color: var(--muted)">{{ $t('bg.quietHint') }}</p>
       </div>
@@ -149,7 +149,7 @@ function toggleMuted(id: string, muted: boolean) {
             :checked="settings['notify.mutedAccounts'].includes(a.id)"
             :data-testid="`mute-${a.id}`"
             @change="toggleMuted(a.id, ($event.target as HTMLInputElement).checked)"
-          >
+          />
           {{ a.email }}
         </label>
       </div>
@@ -165,7 +165,7 @@ function toggleMuted(id: string, muted: boolean) {
           :value="minutesToTime(settings['brief.minutes'])"
           data-testid="brief-time"
           @change="setTime('brief.minutes', ($event.target as HTMLInputElement).value)"
-        >
+        />
       </label>
       <label class="flex items-center gap-2">
         <input
@@ -173,7 +173,7 @@ function toggleMuted(id: string, muted: boolean) {
           :checked="settings['brief.notify']"
           data-testid="brief-notify"
           @change="emit('save', { 'brief.notify': ($event.target as HTMLInputElement).checked })"
-        >
+        />
         {{ $t('bg.briefNotify') }}
       </label>
     </fieldset>
