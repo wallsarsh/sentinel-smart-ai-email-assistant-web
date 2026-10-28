@@ -484,5 +484,20 @@
       "unknown": "[Üñçértáíñ: çhéçk ýöür Šéñt földér one two]",
       "cancelled": "[Cáñçélléd one]"
     }
+  },
+  "push": {
+    "title": "[Ñötífíçátíöñš öñ thíš dévíçé one two]",
+    "state": {
+      "unsupported": "[Thíš bröwšér çáññöt šhöw ñötífíçátíöñš. one two]",
+      "unconfigured": "[Thé šérvér háš ñö ñötífíçátíöñ kéýš šét üp, šö ñötífíçátíöñš áré ñöt áváíláblé. one two three four]",
+      "denied": "[Ñötífíçátíöñš áré blöçkéd för thíš šíté. Állöw thém íñ ýöür bröwšér'š šíté šéttíñgš, théñ çömé báçk. one two three four]",
+      "off": "[Ñötífíçátíöñš áré öff öñ thíš dévíçé. one two]",
+      "on": "[Ñötífíçátíöñš áré öñ för thíš dévíçé. one two]"
+    },
+    "turnOn": "[Türñ öñ ñötífíçátíöñš one two]",
+    "turnOff": "[Türñ öff one]",
+    "test": "[Šéñd á téšt one]",
+    "testSent": "[Téšt šéñt. one]",
+    "privacy": "[Ñötífíçátíöñš ñévér íñçlüdé thé téxt öf áñ émáíl, öñlý thát šöméthíñg ñéw árrívéd. Théír öñlý áçtíöñš áré Öpéñ áñd Márk döñé. one two three four]"
   }
 }

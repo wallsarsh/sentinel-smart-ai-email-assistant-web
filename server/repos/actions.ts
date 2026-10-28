@@ -43,6 +43,22 @@ export const actionsRepo = (s: Scope) => ({
     return r.length > 0
   },
 
+  /** Marks every open or snoozed action item of one message done. Returns how many changed. */
+  async completeForMessage(messageId: string): Promise<number> {
+    const r = await s.db
+      .update(actionItems)
+      .set({ status: 'done', snoozedUntil: null })
+      .where(
+        and(
+          eq(actionItems.userId, s.userId),
+          eq(actionItems.messageId, messageId),
+          ne(actionItems.status, 'done'),
+        ),
+      )
+      .returning({ id: actionItems.id })
+    return r.length
+  },
+
   async snooze(id: string, until: Date): Promise<boolean> {
     const r = await s.db
       .update(actionItems)

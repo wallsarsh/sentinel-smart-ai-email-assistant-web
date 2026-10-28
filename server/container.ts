@@ -37,6 +37,8 @@ import { sendScheduler } from './mail/send/scheduler'
 import { smtpSender } from './mail/send/smtp'
 import type { MailSender } from './mail/send/support'
 import { secretStoreFor } from './security/secret-store'
+import { pushService } from './push/service'
+import { webPushTransport } from './push/web-push-transport'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -262,4 +264,9 @@ export function useSendScheduler() {
         .publish(userId, { type: 'send.status', data: { ref: e.ref, state: e.state } })
         .catch(() => undefined),
   }))
+}
+
+let push: ReturnType<typeof pushService> | undefined
+export function usePush() {
+  return (push ??= pushService({ db: useDb(), transport: webPushTransport(useConfig().vapid) }))
 }

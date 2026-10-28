@@ -484,5 +484,20 @@
       "unknown": "Uncertain: check your Sent folder",
       "cancelled": "Cancelled"
     }
+  },
+  "push": {
+    "title": "Notifications on this device",
+    "state": {
+      "unsupported": "This browser cannot show notifications.",
+      "unconfigured": "The server has no notification keys set up, so notifications are not available.",
+      "denied": "Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
+      "off": "Notifications are off on this device.",
+      "on": "Notifications are on for this device."
+    },
+    "turnOn": "Turn on notifications",
+    "turnOff": "Turn off",
+    "test": "Send a test",
+    "testSent": "Test sent.",
+    "privacy": "Notifications never include the text of an email, only that something new arrived. Their only actions are Open and Mark done."
   }
 }
