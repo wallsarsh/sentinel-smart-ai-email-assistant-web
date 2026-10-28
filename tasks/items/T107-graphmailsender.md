@@ -2,8 +2,8 @@
 id: T107
 title: "GraphMailSender"
 phase: P6
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T105, T048]
@@ -19,7 +19,10 @@ updated: 2026-10-28
 PATCH draft then /send; never retries automatically.
 
 ## Acceptance
-- [ ] Recording-network tests
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Recording-network tests
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 15:51Z claimed by claude
+- 2026-10-28 15:56Z GraphMailSender: GET draft (Message-ID, quoted original) -> PATCH approved content -> single POST send; 4xx failed, 5xx/dropped unknown, refused failed, no retry, single-use proof; reconcile by internetMessageId in Sent Items; recording-network tests
+- 2026-10-28 15:56Z status -> done

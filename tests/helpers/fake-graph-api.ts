@@ -11,6 +11,11 @@ export class FakeGraphApi {
   down = false
   deltaGone = false
   pageSize = 100
+  /** Behaviour of POST /messages/{id}/send. */
+  sendStatus = 202
+  sendThrows: string | null = null
+  sent: { id: string; content: string; subject?: string }[] = []
+  sentItems: string[] = []
   calls: string[] = []
 
   seed(m: MailMessage) {
@@ -100,6 +105,23 @@ export class FakeGraphApi {
         json: { id: d.id, categories: [], body: { contentType: 'html', content: d.content } },
       }
     }
+    r = /^\/messages\/([^/]+)\/send$/.exec(p)
+    if (r && method === 'POST') {
+      if (this.sendThrows) throw Object.assign(new Error('boom'), { code: this.sendThrows })
+      const d = this.drafts.find((x) => x.id === decodeURIComponent(r![1]!))
+      if (!d) return nf
+      if (this.sendStatus >= 200 && this.sendStatus < 300) {
+        this.sent.push({ id: d.id, content: d.content, subject: d.subject })
+        this.sentItems.push(`<graph-${d.id}@x.test>`)
+        this.drafts = this.drafts.filter((x) => x !== d)
+        return { status: 202, json: null }
+      }
+      return { status: this.sendStatus, json: { error: { code: 'x' } } }
+    }
+    if (p === '/mailFolders/sentitems/messages') {
+      const mid = /'([^']+)'/.exec(o.query?.$filter ?? '')?.[1]
+      return ok({ value: this.sentItems.filter((x) => x === mid).map((id) => ({ id })) })
+    }
     r = /^\/messages\/([^/]+)$/.exec(p)
     if (r) {
       const id = decodeURIComponent(r[1]!)
@@ -108,6 +130,7 @@ export class FakeGraphApi {
         if (d)
           return ok({
             id: d.id,
+            internetMessageId: `<graph-${d.id}@x.test>`,
             categories: d.categories,
             body: { contentType: 'html', content: d.content },
           })
