@@ -1,6 +1,7 @@
 import type { Db } from '../db/client'
 import { accountsRepo } from './accounts'
 import { mailRepo } from './mail'
+import { secretsRepo } from './secrets'
 import { inTransaction, type Scope } from './scope'
 
 export type { Scope } from './scope'
@@ -15,6 +16,7 @@ export function forUser(db: Db, userId: string) {
     userId,
     accounts: accountsRepo(scope),
     mail: mailRepo(scope),
+    secrets: secretsRepo(scope),
     transaction: <T>(fn: (tx: ReturnType<typeof forUser>) => Promise<T>) =>
       inTransaction(scope, (tx) => fn(forUser(tx.db, userId))),
   }
