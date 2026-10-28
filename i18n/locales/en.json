@@ -300,5 +300,60 @@
       "valid": "Valid JSON",
       "invalid": "Invalid JSON"
     }
+  },
+  "triage": {
+    "priority": {
+      "p1_do_now": "P1 Do now",
+      "p2_today": "P2 Today",
+      "p3_this_week": "P3 This week",
+      "p4_fyi": "P4 FYI"
+    },
+    "priorityIcon": {
+      "p1_do_now": "!!",
+      "p2_today": "!",
+      "p3_this_week": "•",
+      "p4_fyi": "○"
+    },
+    "category": {
+      "direct_personal": "Personal",
+      "work_request": "Work request",
+      "meeting_calendar": "Meeting",
+      "finance_billing": "Finance",
+      "notification_automated": "Automated",
+      "newsletter_marketing": "Newsletter",
+      "social": "Social",
+      "security_account": "Security",
+      "other": "Other"
+    },
+    "importance": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "card": {
+      "title": "AI summary",
+      "byYou": "Set by you",
+      "correct": "Correct this",
+      "why": "Why: {reason}",
+      "mistakes": "AI can make mistakes. Check important details.",
+      "byRule": "Sorted by a rule, not by AI.",
+      "importance": "Importance",
+      "remember": "Your choice is remembered for this sender.",
+      "noReply": "No reply needed",
+      "needsReply": "Needs a reply"
+    },
+    "senders": {
+      "title": "Important and muted senders",
+      "intro": "Important (VIP) senders are always treated as high importance. Muted senders are filed as low importance and never sent to AI.",
+      "pattern": "Address or {'@'}domain",
+      "kind": "Type",
+      "vip": "Important (VIP)",
+      "mute": "Muted",
+      "vips": "Important senders",
+      "mutes": "Muted senders",
+      "add": "Add",
+      "none": "None yet.",
+      "removeFor": "Remove {pattern}"
+    }
   }
 }

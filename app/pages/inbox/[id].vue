@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Detail } from '~/components/message/MessageCard.vue'
+import type { Triage } from '~/components/triage/AiCard.vue'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
-const { data, error } = await useFetch<{
+const { data, error, refresh } = await useFetch<{
   message: Detail & { threadId: string | null }
   thread: Detail[]
+  triage: Triage | null
 }>(() => `/api/messages/${id.value}`)
 
 onMounted(async () => {
@@ -23,8 +25,12 @@ onMounted(async () => {
     <FailureBanner v-if="error" :failure="{ kind: 'not_found' }" />
     <template v-else-if="data">
       <h1 class="text-xl font-semibold">{{ data.message.subject || $t('inbox.noSubject') }}</h1>
-      <!-- Slot for the AI summary card (T094) -->
-      <slot name="ai" :message="data.message" />
+      <TriageAiCard
+        v-if="data.triage"
+        :message-id="data.message.id"
+        :triage="data.triage"
+        @changed="refresh()"
+      />
       <MessageCard
         v-for="m in data.thread"
         :key="m.id"

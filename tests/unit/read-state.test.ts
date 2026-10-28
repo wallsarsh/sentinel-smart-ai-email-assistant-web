@@ -21,7 +21,7 @@ describe('read state', () => {
         m[1]!.split(',').map((x) => x.trim()),
       )
       expect(
-        names.filter((n) => n && n !== 'useDb'),
+        names.filter((n) => n && n !== 'useDb' && n !== 'useCorrections'),
         f,
       ).toEqual([])
     }

@@ -21,6 +21,8 @@ import { catalog } from './ai/catalog'
 import { aiBench } from './ai/bench'
 import { aiGateway } from './ai/gateway'
 import { aiRouter } from './ai/router'
+import { triageCorrections } from './triage/corrections'
+import { triageService } from './triage/service'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -141,3 +143,14 @@ export const useAiGateway = () => aiGateway({ db: useDb(), providers: useAiProvi
 export const useAiRouter = () => aiRouter({ db: useDb(), gateway: useAiGateway() })
 
 export const useAiBench = () => aiBench({ gateway: useAiGateway() })
+
+export const useCorrections = () => triageCorrections(useDb())
+export const useTriage = () =>
+  triageService({
+    db: useDb(),
+    router: useAiRouter(),
+    onDone: (userId, count) =>
+      void useHub()
+        .publish(userId, { type: 'triage.done', data: { count } })
+        .catch(() => undefined),
+  })

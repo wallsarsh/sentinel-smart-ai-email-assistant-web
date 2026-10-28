@@ -41,6 +41,21 @@ export const triageRepo = (s: Scope) => ({
     return rows.map((r) => r.id)
   },
 
+  /** Changes fields of an existing result (user corrections). Action items are left alone. */
+  async update(
+    messageId: string,
+    patch: Partial<
+      Pick<typeof triageResults.$inferInsert, 'importance' | 'priority' | 'needsReply' | 'source'>
+    >,
+  ) {
+    const r = await s.db
+      .update(triageResults)
+      .set(patch)
+      .where(and(eq(triageResults.userId, s.userId), eq(triageResults.messageId, messageId)))
+      .returning({ id: triageResults.messageId })
+    return r.length > 0
+  },
+
   /** Writes the result and replaces the message's action items in one transaction. */
   async save(result: NewTriage, actions: NewAction[]) {
     await s.db.transaction(async (tx) => {

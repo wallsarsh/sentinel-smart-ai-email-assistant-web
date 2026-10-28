@@ -2,8 +2,8 @@
 id: T094
 title: "Triage UI"
 phase: P5
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: L
 deps: [T091, T093, T064, T065]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 AI card on messages (summary, priority, reason, correct menu, "AI can make mistakes"), priority chips with text, sender rules screen.
 
 ## Acceptance
-- [ ] Priority conveyed by text not colour only
-- [ ] Component tests
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Priority conveyed by text not colour only
+- [x] Component tests
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 15:01Z claimed by claude
+- 2026-10-28 15:05Z Triage UI: AI card on message detail (summary, written-out priority chip, reason, 'AI can make mistakes' / 'sorted by a rule', correct menu with sender memory), priority chips in inbox rows, senders page (VIP/mute add/remove), corrections service + API; component + axe tests
+- 2026-10-28 15:05Z status -> done

@@ -300,5 +300,60 @@
       "valid": "[Válíd JŠÖÑ one]",
       "invalid": "[Íñválíd JŠÖÑ one]"
     }
+  },
+  "triage": {
+    "priority": {
+      "p1_do_now": "[P1 Dö ñöw one]",
+      "p2_today": "[P2 Tödáý one]",
+      "p3_this_week": "[P3 Thíš wéék one]",
+      "p4_fyi": "[P4 FYÍ one]"
+    },
+    "priorityIcon": {
+      "p1_do_now": "[!! one]",
+      "p2_today": "[! one]",
+      "p3_this_week": "[• one]",
+      "p4_fyi": "[○ one]"
+    },
+    "category": {
+      "direct_personal": "[Péršöñál one]",
+      "work_request": "[Wörk réqüéšt one]",
+      "meeting_calendar": "[Méétíñg one]",
+      "finance_billing": "[Fíñáñçé one]",
+      "notification_automated": "[Áütömátéd one]",
+      "newsletter_marketing": "[Ñéwšléttér one]",
+      "social": "[Šöçíál one]",
+      "security_account": "[Šéçürítý one]",
+      "other": "[Öthér one]"
+    },
+    "importance": {
+      "high": "[Hígh one]",
+      "medium": "[Médíüm one]",
+      "low": "[Löw one]"
+    },
+    "card": {
+      "title": "[ÁÍ šümmárý one]",
+      "byYou": "[Šét bý ýöü one]",
+      "correct": "[Cörréçt thíš one]",
+      "why": "[Whý: {reason} one]",
+      "mistakes": "[ÁÍ çáñ máké míštákéš. Chéçk ímpörtáñt détáílš. one two three]",
+      "byRule": "[Šörtéd bý á rülé, ñöt bý ÁÍ. one two]",
+      "importance": "[Ímpörtáñçé one]",
+      "remember": "[Yöür çhöíçé íš rémémbéréd för thíš šéñdér. one two three]",
+      "noReply": "[Ñö réplý ñéédéd one]",
+      "needsReply": "[Ñéédš á réplý one]"
+    },
+    "senders": {
+      "title": "[Ímpörtáñt áñd mütéd šéñdérš one two]",
+      "intro": "[Ímpörtáñt (VÍP) šéñdérš áré álwáýš tréátéd áš hígh ímpörtáñçé. Mütéd šéñdérš áré fíléd áš löw ímpörtáñçé áñd ñévér šéñt tö ÁÍ. one two three four]",
+      "pattern": "[Áddréšš ör {'@'}dömáíñ one two]",
+      "kind": "[Týpé one]",
+      "vip": "[Ímpörtáñt (VÍP) one]",
+      "mute": "[Mütéd one]",
+      "vips": "[Ímpörtáñt šéñdérš one]",
+      "mutes": "[Mütéd šéñdérš one]",
+      "add": "[Ádd one]",
+      "none": "[Ñöñé ýét. one]",
+      "removeFor": "[Rémövé {pattern} one]"
+    }
   }
 }

@@ -10,5 +10,6 @@ export default defineEventHandler(async (event) => {
   const m = await r.getMessage(getRouterParam(event, 'id') ?? '')
   if (!m) return failWith(event, { kind: 'not_found' })
   const thread = m.threadId ? await r.threadMessages(m.threadId) : [m]
-  return { message: m, thread }
+  const triage = await forUser(useDb(), user.id).triage.resultFor(m.id)
+  return { message: m, thread, triage }
 })
