@@ -15,7 +15,7 @@ describe('read state', () => {
   it('routes under server/api/messages never import mail providers, OAuth or send code', () => {
     for (const f of walk('server/api/messages')) {
       const src = readFileSync(f, 'utf8')
-      expect(src, f).not.toMatch(/mail\/(gmail|graph|imap|oauth|send|provider)/)
+      expect(src, f).not.toMatch(/mail\/(gmail|graph|imap|oauth|send|provider)/) // mail/mime is pure formatting
       // The container is only for the database handle.
       const names = [...src.matchAll(/import \{([^}]*)\} from '[./]*container'/g)].flatMap((m) =>
         m[1]!.split(',').map((x) => x.trim()),

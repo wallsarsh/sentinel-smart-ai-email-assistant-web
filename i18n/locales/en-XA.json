@@ -381,5 +381,47 @@
     "styleNotes": "[Štýlé ñötéš one]",
     "signature": "[Šígñátüré one]",
     "signatureHint": "[Áddéd tö thé éñd öf dráftš bý Šéñtíñél, ñévér wríttéñ bý thé ÁÍ. one two three four]"
+  },
+  "composer": {
+    "tone": "[Töñé one]",
+    "intent": "[Whát dö ýöü wáñt tö šáý? one two]",
+    "instruction": "[Éxtrá íñštrüçtíöñš (öptíöñál) one two]",
+    "toneName": {
+      "professional": "[Pröféššíöñál one]",
+      "friendly": "[Fríéñdlý one]",
+      "concise": "[Cöñçíšé one]",
+      "formal": "[Förmál one]"
+    },
+    "intentName": {
+      "accept": "[Áççépt one]",
+      "decline": "[Déçlíñé one]",
+      "ask_for_info": "[Ášk för détáílš one]",
+      "acknowledge": "[Áçkñöwlédgé one]",
+      "custom": "[Cüštöm one]"
+    },
+    "mode": "[Réplý týpé one]",
+    "modeName": {
+      "reply": "[Réplý one]",
+      "reply_all": "[Réplý áll one]"
+    },
+    "to": "[Tö one]",
+    "cc": "[Cç one]",
+    "removeRecipient": "[Rémövé {address} one]",
+    "removeMark": "[x one]",
+    "badAddress": "[Éñtér á válíd émáíl áddréšš. one two]",
+    "body": "[Yöür réplý one]",
+    "generate": "[Wríté á dráft wíth ÁÍ one two]",
+    "stop": "[Štöp one]",
+    "writing": "[Wrítíñg… one]",
+    "check": "[Chéçk béföré šéñdíñg one]",
+    "checkHint": "[Híghlíghtéd pártš wéré ñöt íñ thé çöñvéršátíöñ ör štíll ñééd ýöür íñpüt. one two three four]",
+    "flag": {
+      "placeholder": "[Fíll íñ one]",
+      "link": "[Líñk ñöt íñ thé çöñvéršátíöñ one two]",
+      "email": "[Áddréšš ñöt íñ thé çöñvéršátíöñ one two]",
+      "phone": "[Ñümbér ñöt íñ thé çöñvéršátíöñ one two]"
+    },
+    "backToMessage": "[Báçk tö méššágé one]",
+    "neverSends": "[Ñöthíñg íš šéñt fröm héré. Yöü révíéw áñd çöñfírm évérý méššágé ýöüršélf. one two three four]"
   }
 }

@@ -381,5 +381,47 @@
     "styleNotes": "Style notes",
     "signature": "Signature",
     "signatureHint": "Added to the end of drafts by Sentinel, never written by the AI."
+  },
+  "composer": {
+    "tone": "Tone",
+    "intent": "What do you want to say?",
+    "instruction": "Extra instructions (optional)",
+    "toneName": {
+      "professional": "Professional",
+      "friendly": "Friendly",
+      "concise": "Concise",
+      "formal": "Formal"
+    },
+    "intentName": {
+      "accept": "Accept",
+      "decline": "Decline",
+      "ask_for_info": "Ask for details",
+      "acknowledge": "Acknowledge",
+      "custom": "Custom"
+    },
+    "mode": "Reply type",
+    "modeName": {
+      "reply": "Reply",
+      "reply_all": "Reply all"
+    },
+    "to": "To",
+    "cc": "Cc",
+    "removeRecipient": "Remove {address}",
+    "removeMark": "x",
+    "badAddress": "Enter a valid email address.",
+    "body": "Your reply",
+    "generate": "Write a draft with AI",
+    "stop": "Stop",
+    "writing": "Writing…",
+    "check": "Check before sending",
+    "checkHint": "Highlighted parts were not in the conversation or still need your input.",
+    "flag": {
+      "placeholder": "Fill in",
+      "link": "Link not in the conversation",
+      "email": "Address not in the conversation",
+      "phone": "Number not in the conversation"
+    },
+    "backToMessage": "Back to message",
+    "neverSends": "Nothing is sent from here. You review and confirm every message yourself."
   }
 }

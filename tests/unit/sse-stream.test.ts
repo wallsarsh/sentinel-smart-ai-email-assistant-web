@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { anthropicProvider } from '../../server/ai/anthropic'
 import { openAiProvider } from '../../server/ai/openai/adapter'
-import { parseSse } from '../../server/ai/sse-parser'
+import { parseSse } from '../../shared/sse-parser'
 import { AiStreamError, type AiHttp, type StreamEvent } from '../../server/ai/types'
 import { fakeAiHttp } from '../helpers/fake-ai-http'
 

@@ -1,7 +1,7 @@
 import { err, ok, type Result } from '../../shared/errors/result'
 import type { AppFailure } from '../../shared/errors/failure'
 import { failureForStatus, guardedHttp } from './http'
-import { parseSse } from './sse-parser'
+import { parseSse } from '../../shared/sse-parser'
 import {
   AiStreamError,
   type AiHttp,
