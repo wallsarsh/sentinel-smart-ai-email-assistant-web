@@ -9,6 +9,7 @@ import { mfaRepo } from './mfa'
 import { searchRepo } from './search'
 import { secretsRepo } from './secrets'
 import { senderRulesRepo } from './sender-rules'
+import { triageRepo } from './triage'
 import { settingsRepo } from './settings'
 import { inTransaction, type Scope } from './scope'
 
@@ -22,6 +23,7 @@ export type UserRepos = {
   search: ReturnType<typeof searchRepo>
   ai: ReturnType<typeof aiProvidersRepo>
   rules: ReturnType<typeof senderRulesRepo>
+  triage: ReturnType<typeof triageRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -44,6 +46,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     search: searchRepo(scope),
     ai: aiProvidersRepo(scope),
     rules: senderRulesRepo(scope),
+    triage: triageRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),

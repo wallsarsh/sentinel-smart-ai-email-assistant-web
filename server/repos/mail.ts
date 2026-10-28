@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from 'drizzle-orm'
 import { accounts, folders, messages, threads } from '../db/schema'
 import type { Scope } from './scope'
 
+export type MessageRow = typeof messages.$inferSelect
 export type NewMessage = Omit<typeof messages.$inferInsert, 'userId' | 'id'>
 export type NewFolder = Omit<typeof folders.$inferInsert, 'userId' | 'id'>
 

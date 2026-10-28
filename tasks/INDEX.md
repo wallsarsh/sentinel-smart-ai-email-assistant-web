@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 65/111 done · ready now: T009, T010, T011, T091, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 66/111 done · ready now: T009, T010, T011, T094, T095, T100, T105, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -92,7 +92,7 @@ flowchart LR
   end
   subgraph P5
     T090["T090"]:::done
-    T091["T091"]:::todo
+    T091["T091"]:::done
     T092["T092"]:::done
     T093["T093"]:::done
     T094["T094"]:::todo
@@ -459,7 +459,7 @@ flowchart LR
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
 | ✅ | [T090](items/T090-pre-filter-and-priority-matrix.md) | Pre-filter and priority matrix | M | code | T005 | claude |
-| ⬜ | [T091](items/T091-triage-service.md) | Triage service | L | code | T080, T081, T075, T060, T090 |  |
+| ✅ | [T091](items/T091-triage-service.md) | Triage service | L | code | T080, T081, T075, T060, T090 | claude |
 | ✅ | [T092](items/T092-due-date-resolver.md) | Due-date resolver | S | code | T005 | claude |
 | ✅ | [T093](items/T093-sender-rules-and-corrections.md) | Sender rules and corrections | M | code | T021 | claude |
 | ⬜ | [T094](items/T094-triage-ui.md) | Triage UI | L | code | T091, T093, T064, T065 |  |

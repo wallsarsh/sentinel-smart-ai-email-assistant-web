@@ -18,6 +18,8 @@ export const settingsSchema = {
   'send.warnExternalRecipients': bool(true),
   'send.dailyLimit': z.number().int().min(0).max(1000).default(50),
   // AI privacy
+  /** Also send newsletters and automated notifications to the AI (off: they are labelled by rules). */
+  'ai.processBulk': bool(false),
   'privacy.subjectOnly': bool(false),
   'privacy.maxChars': z.number().int().min(500).max(20000).default(6000),
   'privacy.redactCards': bool(true),
