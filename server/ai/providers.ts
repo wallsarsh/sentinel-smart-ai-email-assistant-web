@@ -188,6 +188,17 @@ export function aiProviderService(d: AiProviderDeps) {
       return ok(view(r!))
     },
 
+    /** Records or withdraws the user's consent for this provider. The gateway reads it on every call. */
+    async setConsent(
+      userId: string,
+      id: string,
+      given: boolean,
+      now = new Date(),
+    ): Promise<Result<ProviderView, AppFailure>> {
+      const r = await repos(userId).ai.update(id, { consentGivenAt: given ? now : null })
+      return r ? ok(view(r)) : err({ kind: 'not_found' })
+    },
+
     async remove(userId: string, id: string): Promise<Result<undefined, AppFailure>> {
       if (!(await repos(userId).ai.remove(id))) return err({ kind: 'not_found' })
       await store(userId).delete(keySecret(id))

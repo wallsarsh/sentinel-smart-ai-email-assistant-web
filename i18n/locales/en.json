@@ -219,7 +219,21 @@
     },
     "consent": {
       "review": "Review and allow",
-      "manage": "Manage consent"
+      "manage": "Manage consent",
+      "title": "Allow {name} to read your mail?",
+      "where": "If you allow this, Sentinel sends mail content to {host} so it can summarise and prioritise your mail and write draft replies.",
+      "sentTitle": "What is sent",
+      "sent1": "Sender, recipients, date, subject and the new text of each message (quoted history and signatures are removed).",
+      "sent2": "Names of attachments, never the files themselves.",
+      "sent3": "Your name, role, time zone and VIP senders so the AI can judge what matters.",
+      "notTitle": "What is not sent",
+      "not1": "Card numbers, IBANs, phone numbers and other people's email addresses are replaced before sending (you can change this in Privacy settings).",
+      "not2": "Mail from accounts you excluded from AI.",
+      "not3": "Anything at all before you allow it, and anything after you revoke.",
+      "control": "AI never sends email. Every reply stays a draft until you confirm it yourself.",
+      "allow": "Allow",
+      "revoke": "Revoke consent",
+      "given": "You allowed this on {when}."
     },
     "routes": {
       "title": "Task routes"

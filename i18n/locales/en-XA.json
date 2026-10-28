@@ -219,7 +219,21 @@
     },
     "consent": {
       "review": "[Révíéw áñd állöw one]",
-      "manage": "[Máñágé çöñšéñt one]"
+      "manage": "[Máñágé çöñšéñt one]",
+      "title": "[Állöw {name} tö réád ýöür máíl? one two]",
+      "where": "[Íf ýöü állöw thíš, Šéñtíñél šéñdš máíl çöñtéñt tö {host} šö ít çáñ šümmáríšé áñd príörítíšé ýöür máíl áñd wríté dráft réplíéš. one two three four]",
+      "sentTitle": "[Whát íš šéñt one]",
+      "sent1": "[Šéñdér, réçípíéñtš, dáté, šübjéçt áñd thé ñéw téxt öf éáçh méššágé (qüötéd híštörý áñd šígñátüréš áré rémövéd). one two three four]",
+      "sent2": "[Ñáméš öf áttáçhméñtš, ñévér thé fíléš thémšélvéš. one two three]",
+      "sent3": "[Yöür ñámé, rölé, tímé zöñé áñd VÍP šéñdérš šö thé ÁÍ çáñ jüdgé whát máttérš. one two three four]",
+      "notTitle": "[Whát íš ñöt šéñt one]",
+      "not1": "[Cárd ñümbérš, ÍBÁÑš, phöñé ñümbérš áñd öthér péöplé'š émáíl áddréššéš áré répláçéd béföré šéñdíñg (ýöü çáñ çháñgé thíš íñ Príváçý šéttíñgš). one two three four]",
+      "not2": "[Máíl fröm áççöüñtš ýöü éxçlüdéd fröm ÁÍ. one two]",
+      "not3": "[Áñýthíñg át áll béföré ýöü állöw ít, áñd áñýthíñg áftér ýöü révöké. one two three four]",
+      "control": "[ÁÍ ñévér šéñdš émáíl. Évérý réplý štáýš á dráft üñtíl ýöü çöñfírm ít ýöüršélf. one two three four]",
+      "allow": "[Állöw one]",
+      "revoke": "[Révöké çöñšéñt one]",
+      "given": "[Yöü állöwéd thíš öñ {when}. one two]"
     },
     "routes": {
       "title": "[Tášk röütéš one]"

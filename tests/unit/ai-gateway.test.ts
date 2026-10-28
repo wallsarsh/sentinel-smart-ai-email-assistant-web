@@ -135,3 +135,30 @@ describe('ai gateway', () => {
     expect((await s.repos.ai.usageSince(new Date('2026-10-28T00:00:00Z'))).tokens).toBe(12)
   })
 })
+
+describe('consent through the provider service', () => {
+  it('stores the timestamp, is per user, and revoking blocks the next gateway call', async () => {
+    const s = await setup([reply(), reply()])
+    const { aiProviderService } = await import('../../server/ai/providers')
+    const svc = aiProviderService({
+      db: s.db,
+      ring: { current: { version: 1, key: randomBytes(32) } },
+    })
+    const at = new Date('2026-10-28T10:00:00Z')
+    const g = await svc.setConsent(s.user.id, s.call.providerId, true, at)
+    expect(g).toMatchObject({ ok: true, value: { consentGivenAt: at } })
+    expect((await s.gw.complete(s.call)).ok).toBe(true)
+    const other = await authRepo(s.db).createUser({ email: 'o@x.io', passwordHash: 'h' })
+    expect(await svc.setConsent(other.id, s.call.providerId, true)).toEqual({
+      ok: false,
+      error: { kind: 'not_found' },
+    })
+    expect(await svc.setConsent(s.user.id, s.call.providerId, false)).toMatchObject({
+      value: { consentGivenAt: null },
+    })
+    expect(await s.gw.complete(s.call)).toMatchObject({
+      ok: false,
+      error: { kind: 'consent_required' },
+    })
+  })
+})
