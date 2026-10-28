@@ -1,5 +1,5 @@
-import { and, eq } from 'drizzle-orm'
-import { aiProviders, aiTaskRoutes } from '../db/schema'
+import { and, eq, gte, sql } from 'drizzle-orm'
+import { aiProviders, aiTaskRoutes, usageRecords } from '../db/schema'
 import type { Scope } from './scope'
 
 export type ProviderRow = typeof aiProviders.$inferSelect
@@ -40,6 +40,23 @@ export const aiProvidersRepo = (s: Scope) => {
     async remove(id: string) {
       const r = await s.db.delete(aiProviders).where(own(id)).returning({ id: aiProviders.id })
       return r.length > 0
+    },
+    async recordUsage(v: Omit<typeof usageRecords.$inferInsert, 'userId' | 'id'>) {
+      await s.db.insert(usageRecords).values({ ...v, userId: s.userId })
+    },
+    /** Tokens (input+output) and cost since [since]. */
+    async usageSince(since: Date) {
+      const [r] = await s.db
+        .select({
+          tokens:
+            sql<number>`coalesce(sum(${usageRecords.inputTokens} + ${usageRecords.outputTokens}), 0)::bigint`.mapWith(
+              Number,
+            ),
+          cost: sql<number>`coalesce(sum(${usageRecords.costMicros}), 0)::bigint`.mapWith(Number),
+        })
+        .from(usageRecords)
+        .where(and(eq(usageRecords.userId, s.userId), gte(usageRecords.createdAt, since)))
+      return { tokens: r?.tokens ?? 0, costMicros: r?.cost ?? 0 }
     },
     routes: () => s.db.select().from(aiTaskRoutes).where(eq(aiTaskRoutes.userId, s.userId)),
   }

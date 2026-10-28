@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 54/111 done · ready now: T009, T010, T011, T074, T077, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 55/111 done · ready now: T009, T010, T011, T075, T077, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -80,7 +80,7 @@ flowchart LR
     T071["T071"]:::done
     T072["T072"]:::done
     T073["T073"]:::done
-    T074["T074"]:::todo
+    T074["T074"]:::done
     T075["T075"]:::todo
     T076["T076"]:::done
     T077["T077"]:::todo
@@ -444,7 +444,7 @@ flowchart LR
 | ✅ | [T071](items/T071-openai-and-compatible-adapters.md) | OpenAI and compatible adapters | L | code | T070 | claude |
 | ✅ | [T072](items/T072-streaming-parser.md) | Streaming parser | M | code | T070 | claude |
 | ✅ | [T073](items/T073-ai-provider-repository-and-key-handling.md) | AI provider repository and key handling | M | code | T022, T021 | claude |
-| ⬜ | [T074](items/T074-ai-gateway-consent-caps-and-usage.md) | AI gateway: consent, caps and usage | M | code | T073, T070 |  |
+| ✅ | [T074](items/T074-ai-gateway-consent-caps-and-usage.md) | AI gateway: consent, caps and usage | M | code | T073, T070 | claude |
 | ⬜ | [T075](items/T075-ai-router-with-fallback-chain.md) | AI router with fallback chain | M | code | T074 |  |
 | ✅ | [T076](items/T076-model-catalog-and-price-table.md) | Model catalog and price table | S | code | T073 | claude |
 | ⬜ | [T077](items/T077-ai-providers-ui.md) | AI providers UI | L | code | T073, T008, T055 |  |

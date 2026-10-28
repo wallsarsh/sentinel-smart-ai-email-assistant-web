@@ -2,8 +2,8 @@
 id: T074
 title: "AI gateway: consent, caps and usage"
 phase: P4
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T073, T070]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 Single entry for AI calls: per-provider consent check, daily token/cost caps, usage recording with price table.
 
 ## Acceptance
-- [ ] No call without consent (test)
-- [ ] Cap pauses processing with a clear failure
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] No call without consent (test)
+- [x] Cap pauses processing with a clear failure
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 14:01Z claimed by claude
+- 2026-10-28 14:05Z AI gateway: consent read fresh each call (revoke stops next call), daily token/cost caps (UTC day) with cap_reached failures, usage metering with user prices, streaming through same gates
+- 2026-10-28 14:05Z status -> done
