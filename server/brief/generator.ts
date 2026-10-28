@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Db } from '../db/client'
 import { buildUserContext } from '../ai/user-context'
+import { builderOptions } from '../ai/prompts/from-settings'
 import { PromptBuilder, type BriefEmail } from '../ai/prompts/builder'
 import { briefPrompt } from '../ai/prompts/registry'
 import { structuredCall, type Attempt, type Caller } from '../ai/structured'
@@ -119,11 +120,15 @@ export function briefGenerator(d: BriefDeps) {
 
     ranked.sort((a, b) => a.rank - b.rank || b.at.getTime() - a.at.getTime())
     const chosen = ranked.slice(0, maxEmails).map((r) => emails.get(r.id)!)
-    const prompt = new PromptBuilder().buildBrief(chosen, ctx, {
-      windowStart: start,
-      windowEnd: end,
-      stats: { ...stats },
-    })
+    const prompt = new PromptBuilder(builderOptions(await repos.settings.all())).buildBrief(
+      chosen,
+      ctx,
+      {
+        windowStart: start,
+        windowEnd: end,
+        stats: { ...stats },
+      },
+    )
 
     let provenance: { providerId: string; model: string } | null = null
     const call: Caller = async (turn) => {

@@ -1,6 +1,7 @@
 import type { Db } from '../db/client'
 import { forUser } from '../repos'
 import { rowToMailMessage } from '../sync/message-mapper'
+import { builderOptions } from '../ai/prompts/from-settings'
 import { PromptBuilder } from '../ai/prompts/builder'
 import { PROMPT_VERSIONS, draftPrompt } from '../ai/prompts/registry'
 import { buildUserContext } from '../ai/user-context'
@@ -60,9 +61,7 @@ export function draftGenerator(d: { db: Db; gateway: Gateway; router: Router; no
       const thread = threadRows.map((t) => rowToMailMessage(t))
       const ctx = await buildUserContext(d.db, r.userId, now())
       const settings = await repos.settings.all()
-      const built = new PromptBuilder({
-        draftBodyCap: Math.max(settings['privacy.maxChars'], 6000),
-      }).buildDraft(
+      const built = new PromptBuilder(builderOptions(settings)).buildDraft(
         threadRows.map((t) => ({ messageId: t.id, message: rowToMailMessage(t) })),
         ctx,
         { tone: r.tone, intent: r.intent, instruction: r.instruction },

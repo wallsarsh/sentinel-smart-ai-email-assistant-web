@@ -663,5 +663,88 @@
       "body": "Pick when your brief is written and whether to be told when it is ready.",
       "allowPush": "Browser notifications"
     }
+  },
+  "privacy": {
+    "title": "Privacy and data",
+    "scope": "What the AI may read",
+    "scopeHint": "Applies to the next thing the AI does. Replies always use the conversation you are answering.",
+    "scopeBody": "Subject and the start of the message",
+    "scopeSubject": "Subject only (no message text)",
+    "maxChars": "Most characters of a message sent to the AI",
+    "redact": "Remove before sending to the AI",
+    "redactHint": "These are replaced by a placeholder in what the AI receives.",
+    "redactKinds": {
+      "cards": "Card numbers",
+      "ibans": "Bank account numbers (IBAN)",
+      "phones": "Phone numbers",
+      "emails": "Other email addresses"
+    },
+    "exclude": "Keep accounts away from the AI",
+    "excludeHint": "Mail from these accounts is never sent to the AI. It is still shown and searchable.",
+    "retention": "Keeping mail on this server",
+    "keepMail": "Keep mail copies for",
+    "days": "{n} days",
+    "retentionHint": "Older copies are deleted from Sentinel only. Your mailbox is not touched. Mail with an open task is kept.",
+    "cache": {
+      "title": "Cached mail",
+      "hint": "Delete the copies of mail stored here. Sentinel fetches it again on the next check.",
+      "action": "Clear cached mail",
+      "confirm": "Yes, clear it"
+    },
+    "export": {
+      "title": "Export your data",
+      "hint": "Download your settings, summaries, drafts and history as a ZIP file. Secrets are not included.",
+      "action": "Export my data"
+    },
+    "stepUp": "Enter a code from your authenticator app to continue.",
+    "delete": {
+      "title": "Delete account",
+      "hint": "Permanently deletes your Sentinel account and everything stored for it, and disconnects your mail accounts. This cannot be undone.",
+      "action": "Delete my account…",
+      "password": "Your password",
+      "confirm": "Delete everything"
+    },
+    "message": {
+      "cleared": "Cached mail cleared.",
+      "exported": "Export downloaded.",
+      "failed": "That did not work. Try again."
+    }
+  },
+  "settings": {
+    "signOut": "Sign out",
+    "sections": {
+      "accounts": {
+        "title": "Mail accounts",
+        "hint": "Connect, check or remove accounts."
+      },
+      "profile": {
+        "title": "Profile and writing style",
+        "hint": "Your name, time zone, role, sign-off and signature."
+      },
+      "ai": {
+        "title": "AI providers",
+        "hint": "Choose providers, models and what the AI may see."
+      },
+      "usage": {
+        "title": "AI usage and limits",
+        "hint": "Tokens, cost and daily caps."
+      },
+      "senders": {
+        "title": "Important and muted senders",
+        "hint": "VIPs and senders to ignore."
+      },
+      "sending": {
+        "title": "Sending",
+        "hint": "Undo time, confirmation and your send history."
+      },
+      "background": {
+        "title": "Background checks and notifications",
+        "hint": "How often mail is checked, what notifies you, and the daily brief."
+      },
+      "privacy": {
+        "title": "Privacy and data",
+        "hint": "What the AI reads, how long mail is kept, export and delete."
+      }
+    }
   }
 }

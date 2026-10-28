@@ -1,6 +1,7 @@
 import type { Db } from '../db/client'
 import { forUser } from '../repos'
 import { rowToMailMessage } from '../sync/message-mapper'
+import { builderOptions } from '../ai/prompts/from-settings'
 import { PromptBuilder, type UserContext } from '../ai/prompts/builder'
 import { buildUserContext } from '../ai/user-context'
 import { PROMPT_VERSIONS, triagePrompt } from '../ai/prompts/registry'
@@ -90,16 +91,7 @@ export function triageService(d: TriageDeps) {
   ): Promise<TriageRun> {
     const repos = forUser(d.db, userId)
     const settings = await repos.settings.all()
-    const builder = new PromptBuilder({
-      triageBodyCap: settings['privacy.maxChars'],
-      triageSubjectOnly: settings['privacy.subjectOnly'],
-      redaction: {
-        cards: settings['privacy.redactCards'],
-        ibans: settings['privacy.redactIbans'],
-        phones: settings['privacy.redactPhones'],
-        otherEmails: settings['privacy.redactEmails'],
-      },
-    })
+    const builder = new PromptBuilder(builderOptions(settings))
     const todo: Item[] = []
     let byRule = 0
     const accountCache = new Map<

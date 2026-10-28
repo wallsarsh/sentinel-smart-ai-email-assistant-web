@@ -322,3 +322,35 @@ describe('triage service', () => {
     expect(s.calls).toHaveLength(0)
   })
 })
+
+describe('privacy settings apply to the very next AI call', () => {
+  const CARD = '4111 1111 1111 1111'
+  const reply = (id: string) => ans(entry(id))
+
+  it('redaction, character cap and subject-only are read fresh for each call', async () => {
+    const s = await setup({ answers: [reply('e1'), reply('e1'), reply('e1'), reply('e1')] })
+    const body = `Please pay with card ${CARD}. ${'x'.repeat(2000)} END-MARKER`
+    const run = async () => {
+      const m = await s.add({ bodyText: body })
+      await s.svc.triageMessages(s.user.id, [m.id])
+      return s.calls.at(-1)!.user
+    }
+
+    const first = await run() // defaults: cards redacted, 6000 chars
+    expect(first).not.toContain(CARD)
+    expect(first).toContain('END-MARKER')
+
+    await s.repos.settings.setMany({ 'privacy.redactCards': false })
+    expect(await run()).toContain(CARD)
+
+    await s.repos.settings.setMany({ 'privacy.redactCards': true, 'privacy.maxChars': 500 })
+    const capped = await run()
+    expect(capped).not.toContain('END-MARKER')
+
+    await s.repos.settings.setMany({ 'privacy.maxChars': 6000, 'privacy.subjectOnly': true })
+    const subjectOnly = await run()
+    expect(subjectOnly).not.toContain('END-MARKER')
+    expect(subjectOnly).not.toContain('Please pay')
+    expect(s.calls).toHaveLength(4)
+  })
+})

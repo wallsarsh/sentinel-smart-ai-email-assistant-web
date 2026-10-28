@@ -663,5 +663,88 @@
       "body": "[Píçk whéñ ýöür bríéf íš wríttéñ áñd whéthér tö bé töld whéñ ít íš réádý. one two three four]",
       "allowPush": "[Bröwšér ñötífíçátíöñš one two]"
     }
+  },
+  "privacy": {
+    "title": "[Príváçý áñd dátá one]",
+    "scope": "[Whát thé ÁÍ máý réád one]",
+    "scopeHint": "[Ápplíéš tö thé ñéxt thíñg thé ÁÍ döéš. Réplíéš álwáýš üšé thé çöñvéršátíöñ ýöü áré áñšwéríñg. one two three four]",
+    "scopeBody": "[Šübjéçt áñd thé štárt öf thé méššágé one two]",
+    "scopeSubject": "[Šübjéçt öñlý (ñö méššágé téxt) one two]",
+    "maxChars": "[Möšt çháráçtérš öf á méššágé šéñt tö thé ÁÍ one two three]",
+    "redact": "[Rémövé béföré šéñdíñg tö thé ÁÍ one two]",
+    "redactHint": "[Théšé áré répláçéd bý á pláçéhöldér íñ whát thé ÁÍ réçéívéš. one two three]",
+    "redactKinds": {
+      "cards": "[Cárd ñümbérš one]",
+      "ibans": "[Báñk áççöüñt ñümbérš (ÍBÁÑ) one two]",
+      "phones": "[Phöñé ñümbérš one]",
+      "emails": "[Öthér émáíl áddréššéš one two]"
+    },
+    "exclude": "[Kéép áççöüñtš áwáý fröm thé ÁÍ one two]",
+    "excludeHint": "[Máíl fröm théšé áççöüñtš íš ñévér šéñt tö thé ÁÍ. Ít íš štíll šhöwñ áñd šéárçháblé. one two three four]",
+    "retention": "[Kéépíñg máíl öñ thíš šérvér one two]",
+    "keepMail": "[Kéép máíl çöpíéš för one]",
+    "days": "[{n} dáýš one]",
+    "retentionHint": "[Öldér çöpíéš áré délétéd fröm Šéñtíñél öñlý. Yöür máílböx íš ñöt töüçhéd. Máíl wíth áñ öpéñ tášk íš képt. one two three four]",
+    "cache": {
+      "title": "[Cáçhéd máíl one]",
+      "hint": "[Délété thé çöpíéš öf máíl štöréd héré. Šéñtíñél fétçhéš ít ágáíñ öñ thé ñéxt çhéçk. one two three four]",
+      "action": "[Cléár çáçhéd máíl one]",
+      "confirm": "[Yéš, çléár ít one]"
+    },
+    "export": {
+      "title": "[Éxpört ýöür dátá one]",
+      "hint": "[Döwñlöád ýöür šéttíñgš, šümmáríéš, dráftš áñd híštörý áš á ZÍP fílé. Šéçrétš áré ñöt íñçlüdéd. one two three four]",
+      "action": "[Éxpört mý dátá one]"
+    },
+    "stepUp": "[Éñtér á çödé fröm ýöür áüthéñtíçátör ápp tö çöñtíñüé. one two three]",
+    "delete": {
+      "title": "[Délété áççöüñt one]",
+      "hint": "[Pérmáñéñtlý délétéš ýöür Šéñtíñél áççöüñt áñd évérýthíñg štöréd för ít, áñd díšçöññéçtš ýöür máíl áççöüñtš. Thíš çáññöt bé üñdöñé. one two three four]",
+      "action": "[Délété mý áççöüñt… one]",
+      "password": "[Yöür páššwörd one]",
+      "confirm": "[Délété évérýthíñg one]"
+    },
+    "message": {
+      "cleared": "[Cáçhéd máíl çléáréd. one]",
+      "exported": "[Éxpört döwñlöádéd. one]",
+      "failed": "[Thát díd ñöt wörk. Trý ágáíñ. one two]"
+    }
+  },
+  "settings": {
+    "signOut": "[Šígñ öüt one]",
+    "sections": {
+      "accounts": {
+        "title": "[Máíl áççöüñtš one]",
+        "hint": "[Cöññéçt, çhéçk ör rémövé áççöüñtš. one two]"
+      },
+      "profile": {
+        "title": "[Pröfílé áñd wrítíñg štýlé one two]",
+        "hint": "[Yöür ñámé, tímé zöñé, rölé, šígñ-öff áñd šígñátüré. one two three]"
+      },
+      "ai": {
+        "title": "[ÁÍ prövídérš one]",
+        "hint": "[Chööšé prövídérš, mödélš áñd whát thé ÁÍ máý šéé. one two three]"
+      },
+      "usage": {
+        "title": "[ÁÍ üšágé áñd límítš one]",
+        "hint": "[Tökéñš, çöšt áñd dáílý çápš. one two]"
+      },
+      "senders": {
+        "title": "[Ímpörtáñt áñd mütéd šéñdérš one two]",
+        "hint": "[VÍPš áñd šéñdérš tö ígñöré. one two]"
+      },
+      "sending": {
+        "title": "[Šéñdíñg one]",
+        "hint": "[Üñdö tímé, çöñfírmátíöñ áñd ýöür šéñd híštörý. one two three]"
+      },
+      "background": {
+        "title": "[Báçkgröüñd çhéçkš áñd ñötífíçátíöñš one two]",
+        "hint": "[Höw öftéñ máíl íš çhéçkéd, whát ñötífíéš ýöü, áñd thé dáílý bríéf. one two three four]"
+      },
+      "privacy": {
+        "title": "[Príváçý áñd dátá one]",
+        "hint": "[Whát thé ÁÍ réádš, höw löñg máíl íš képt, éxpört áñd délété. one two three]"
+      }
+    }
   }
 }
