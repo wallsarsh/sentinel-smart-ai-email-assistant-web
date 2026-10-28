@@ -146,6 +146,10 @@ export const sendAuthorizations = pgTable(
     releaseAt: timestamp('release_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+    /** The send record created when the authorization was released, so the UI can follow the outcome. */
+    recordId: uuid('record_id'),
+    /** Why an authorization ended without a send (session ended, expired); null otherwise. */
+    endedReason: text('ended_reason'),
   },
   (t) => [index('send_auth_due').on(t.state, t.releaseAt), index('send_auth_user').on(t.userId)],
 )

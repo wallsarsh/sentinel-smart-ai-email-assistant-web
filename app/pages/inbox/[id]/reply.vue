@@ -4,6 +4,7 @@ import { draftStore, streamDraft, type SavedDraft } from '~/utils/draft-stream'
 import type { WireFailure } from '~/utils/failure-presenter'
 import type { Detail } from '~/components/message/MessageCard.vue'
 import { nativeDraftLink, type NativeLink } from '~/utils/native-link'
+import type { Preview } from '~/components/send/ConfirmDialog.vue'
 
 type Info = {
   accountId: string
@@ -32,6 +33,10 @@ const to = ref<string[]>([])
 const cc = ref<string[]>([])
 const streaming = ref(false)
 const saving = ref(false)
+const preview = ref<Preview | null>(null)
+const sending = ref(false)
+const pending = ref<{ nonce: string; releaseAt: string } | null>(null)
+const me = useFetch<{ mfaEnabled: boolean }>('/api/auth/me')
 const saved = ref<NativeLink | null>(null)
 const saveFailure = ref<WireFailure | null>(null)
 const failure = ref<WireFailure | null>(null)
@@ -129,6 +134,52 @@ async function saveDraft() {
     saveFailure.value = (e as { data?: { error?: WireFailure } }).data?.error ?? { kind: 'network' }
   } finally {
     saving.value = false
+  }
+}
+
+const draftBody = () => ({
+  messageId: id.value,
+  body: text.value,
+  to: to.value,
+  cc: cc.value,
+  replyAll: mode.value === 'reply_all',
+})
+
+async function review() {
+  saveFailure.value = null
+  saving.value = true
+  try {
+    preview.value = await $fetch<Preview>('/api/send/prepare', {
+      method: 'POST',
+      body: draftBody(),
+    })
+  } catch (e) {
+    saveFailure.value = (e as { data?: { error?: WireFailure } }).data?.error ?? { kind: 'network' }
+  } finally {
+    saving.value = false
+  }
+}
+async function confirmSend(o: { placeholderOverride: boolean; password?: string }) {
+  if (!preview.value) return
+  sending.value = true
+  try {
+    const r = await $fetch<{ nonce: string; releaseAt: string }>('/api/send/authorize', {
+      method: 'POST',
+      body: {
+        ...draftBody(),
+        previewHash: preview.value.contentHash,
+        placeholderOverride: o.placeholderOverride,
+        password: o.password,
+      },
+    })
+    pending.value = r
+    preview.value = null
+    store.clear(id.value)
+  } catch (e) {
+    preview.value = null
+    saveFailure.value = (e as { data?: { error?: WireFailure } }).data?.error ?? { kind: 'network' }
+  } finally {
+    sending.value = false
   }
 }
 
@@ -232,6 +283,23 @@ onBeforeUnmount(() => {
         <span v-else class="text-sm">{{ $t('composer.openManually') }}</span>
       </template>
     </div>
+    <button
+      type="button"
+      :disabled="saving || streaming || !text.trim() || !to.length || !!pending"
+      class="rounded border px-3 py-1 font-medium"
+      @click="review"
+    >
+      {{ $t('send.review') }}
+    </button>
+    <SendUndoBar v-if="pending" :nonce="pending.nonce" :release-at="pending.releaseAt" />
+    <SendConfirmDialog
+      v-if="preview"
+      :preview="preview"
+      :needs-password="!me.data.value?.mfaEnabled"
+      :busy="sending"
+      @cancel="preview = null"
+      @confirm="confirmSend"
+    />
     <p class="text-xs" style="color: var(--muted)">{{ $t('composer.neverSends') }}</p>
   </section>
 </template>

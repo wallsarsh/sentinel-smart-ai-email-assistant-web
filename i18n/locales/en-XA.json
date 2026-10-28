@@ -427,5 +427,34 @@
     "draftSaved": "[Šávéd tö ýöür Dráftš földér. one two]",
     "openInMail": "[Öpéñ íñ ýöür máíl one]",
     "openManually": "[Öpéñ thé Dráftš földér íñ ýöür máíl ápp tö fíñíšh áñd šéñd ít. one two three four]"
+  },
+  "send": {
+    "review": "[Révíéw áñd šéñd one]",
+    "title": "[Šéñd thíš émáíl? one]",
+    "from": "[Fröm one]",
+    "subject": "[Šübjéçt one]",
+    "body": "[Méššágé one]",
+    "scrollToEnd": "[Šçröll tö thé éñd öf thé méššágé tö éñáblé šéñdíñg. one two three]",
+    "warnings": "[Chéçk théšé béföré šéñdíñg one two]",
+    "newRecipients": "[Théšé péöplé wéré ñöt öñ thé çöñvéršátíöñ: {list} one two three]",
+    "external": "[Réçípíéñtš öütšídé ýöür örgáñíšátíöñ: {list} one two three]",
+    "foreign": "[Détáílš thát wéré ñöt íñ thé çöñvéršátíöñ: {list} one two three]",
+    "placeholders": "[Üñfílléd pláçéhöldérš: {list} one two]",
+    "override": "[Í kñöw théré áré pláçéhöldérš áñd wáñt tö šéñd áñýwáý. one two three]",
+    "password": "[Cöñfírm wíth ýöür páššwörd one two]",
+    "sendNow": "[Šéñd one]",
+    "undoNote": "[Áftér ýöü préšš Šéñd ýöü hávé á féw šéçöñdš tö üñdö. one two three]",
+    "sendingIn": "[Šéñdíñg íñ {n} š one]",
+    "undo": "[Üñdö one]",
+    "state": {
+      "waiting": "[Wáítíñg one]",
+      "cancelled": "[Cáñçélléd. Ñöthíñg wáš šéñt. one two]",
+      "sending": "[Šéñdíñg… one]",
+      "sent": "[Šéñt. one]",
+      "failed": "[Ñöt šéñt: thé máíl prövídér réfüšéd ít. Yöür dráft íš štíll šávéd. one two three four]",
+      "unknown": "[Thé réšült íš üñçértáíñ. Chéçk ýöür Šéñt földér béföré šéñdíñg ágáíñ. one two three four]",
+      "expired": "[Ñöt šéñt: thé çöñfírmátíöñ éxpíréd ör ýöür šéššíöñ éñdéd. Révíéw áñd šéñd ágáíñ. one two three four]",
+      "unknown_ref": "[Thíš šéñd íš ñö löñgér tráçkéd. one two]"
+    }
   }
 }

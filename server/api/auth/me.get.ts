@@ -1,3 +1,4 @@
+import { useMfa } from '../../container'
 import { requireUser } from '../../utils/require-user'
 
 export default defineEventHandler(async (event) => {
@@ -8,5 +9,6 @@ export default defineEventHandler(async (event) => {
     displayName: user.displayName,
     timezone: user.timezone,
     locale: user.locale,
+    mfaEnabled: await useMfa().isEnabled(user.id),
   }
 })

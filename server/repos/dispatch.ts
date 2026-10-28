@@ -57,6 +57,24 @@ export const sendRepo = (s: Scope) => ({
     return r.length > 0
   },
 
+  async linkRecord(nonceHash: string, recordId: string) {
+    await s.db
+      .update(sendAuthorizations)
+      .set({ recordId })
+      .where(
+        and(eq(sendAuthorizations.userId, s.userId), eq(sendAuthorizations.nonceHash, nonceHash)),
+      )
+  },
+
+  async endAuthorization(nonceHash: string, reason: string) {
+    await s.db
+      .update(sendAuthorizations)
+      .set({ endedReason: reason })
+      .where(
+        and(eq(sendAuthorizations.userId, s.userId), eq(sendAuthorizations.nonceHash, nonceHash)),
+      )
+  },
+
   /** Revokes every pending authorization (for example after a password change). */
   async revokeAllPending(): Promise<number> {
     const r = await s.db

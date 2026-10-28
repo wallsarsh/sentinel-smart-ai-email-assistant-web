@@ -26,6 +26,8 @@ import { triageService } from './triage/service'
 import { draftGenerator } from './drafts/generator'
 import { draftSaver } from './drafts/save'
 import { providerFactory } from './mail/provider-factory'
+import { sendConfirmation } from './mail/send/confirmation'
+import { sendGate } from './mail/send/send-gate'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -173,3 +175,7 @@ export function useProviderFor() {
 }
 export const useDraftSaver = () =>
   draftSaver({ db: useDb(), providerFor: (u, a) => useProviderFor()(u, a) })
+
+export const useSendGate = () => sendGate({ db: useDb(), ring: tokenKek() })
+export const useSendConfirmation = () =>
+  sendConfirmation({ db: useDb(), gate: useSendGate(), saver: useDraftSaver() })

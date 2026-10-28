@@ -427,5 +427,34 @@
     "draftSaved": "Saved to your Drafts folder.",
     "openInMail": "Open in your mail",
     "openManually": "Open the Drafts folder in your mail app to finish and send it."
+  },
+  "send": {
+    "review": "Review and send",
+    "title": "Send this email?",
+    "from": "From",
+    "subject": "Subject",
+    "body": "Message",
+    "scrollToEnd": "Scroll to the end of the message to enable sending.",
+    "warnings": "Check these before sending",
+    "newRecipients": "These people were not on the conversation: {list}",
+    "external": "Recipients outside your organisation: {list}",
+    "foreign": "Details that were not in the conversation: {list}",
+    "placeholders": "Unfilled placeholders: {list}",
+    "override": "I know there are placeholders and want to send anyway.",
+    "password": "Confirm with your password",
+    "sendNow": "Send",
+    "undoNote": "After you press Send you have a few seconds to undo.",
+    "sendingIn": "Sending in {n} s",
+    "undo": "Undo",
+    "state": {
+      "waiting": "Waiting",
+      "cancelled": "Cancelled. Nothing was sent.",
+      "sending": "Sending…",
+      "sent": "Sent.",
+      "failed": "Not sent: the mail provider refused it. Your draft is still saved.",
+      "unknown": "The result is uncertain. Check your Sent folder before sending again.",
+      "expired": "Not sent: the confirmation expired or your session ended. Review and send again.",
+      "unknown_ref": "This send is no longer tracked."
+    }
   }
 }

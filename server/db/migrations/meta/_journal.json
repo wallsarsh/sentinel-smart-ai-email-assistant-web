@@ -36,6 +36,13 @@
       "when": 1793201852620,
       "tag": "0004_send_authorizations",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793204042331,
+      "tag": "0005_send_auth_outcome",
+      "breakpoints": true
     }
   ]
 }
