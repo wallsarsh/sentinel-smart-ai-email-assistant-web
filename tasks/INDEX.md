@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 8/111 done · ready now: T008, T009, T010, T011, T020, T027, T028, T029, T030, T040, T041, T055, T090, T092
+**Progress:** 9/111 done · ready now: T009, T010, T011, T020, T027, T028, T029, T030, T040, T041, T055, T090, T092
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -23,7 +23,7 @@ flowchart LR
     T005["T005"]:::done
     T006["T006"]:::done
     T007["T007"]:::done
-    T008["T008"]:::todo
+    T008["T008"]:::done
     T009["T009"]:::todo
     T010["T010"]:::todo
     T011["T011"]:::todo
@@ -377,7 +377,7 @@ flowchart LR
 | ✅ | [T005](items/T005-shared-domain-types-result-and-error-model.md) | Shared domain types, Result and error model | M | code | T001 | claude-sonnet-5-5 |
 | ✅ | [T006](items/T006-logging-with-scrubbing.md) | Logging with scrubbing | S | code | T004 | claude-sonnet-5-5 |
 | ✅ | [T007](items/T007-i18n-scaffold.md) | i18n scaffold | S | code | T001 | claude-sonnet-5-5 |
-| ⬜ | [T008](items/T008-app-shell-layout-and-navigation.md) | App shell, layout and navigation | M | code | T001, T007 |  |
+| ✅ | [T008](items/T008-app-shell-layout-and-navigation.md) | App shell, layout and navigation | M | code | T001, T007 | claude-sonnet-5-5 |
 | ⬜ | [T009](items/T009-google-oauth-web-client-registration.md) | Google OAuth web client registration | S | manual | — |  |
 | ⬜ | [T010](items/T010-microsoft-entra-web-app-registration.md) | Microsoft Entra web app registration | S | manual | — |  |
 | ⬜ | [T011](items/T011-domain-tls-and-hosting.md) | Domain, TLS and hosting | S | manual | — |  |

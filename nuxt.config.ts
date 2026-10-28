@@ -13,6 +13,6 @@ export default defineNuxtConfig({
     detectBrowserLanguage: false,
   },
   typescript: { strict: true, typeCheck: false },
-  css: [],
+  css: ['~/assets/css/main.css'],
   app: { head: { title: 'Sentinel', htmlAttrs: { lang: 'en' } } },
 })
