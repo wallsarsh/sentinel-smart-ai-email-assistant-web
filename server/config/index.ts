@@ -17,6 +17,9 @@ const schema = z
     KEK_BASE64: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, {
       message: 'KEK_BASE64 must be exactly 32 bytes, base64',
     }),
+    // Key rotation: bump KEK_VERSION when KEK_BASE64 changes and list the older keys as `version:base64,version:base64`.
+    KEK_VERSION: z.coerce.number().int().min(1).max(1_000_000).default(1),
+    KEK_PREVIOUS: z.string().default(''),
     GOOGLE_CLIENT_ID: z.string().default(''),
     GOOGLE_CLIENT_SECRET: z.string().default(''),
     MS_CLIENT_ID: z.string().default(''),
@@ -33,6 +36,18 @@ const schema = z
     BUILD_ID: z.string().max(60).default('unknown'),
   })
   .superRefine((v, ctx) => {
+    try {
+      const prev = parseKekPrevious(v.KEK_PREVIOUS)
+      const versions = [v.KEK_VERSION, ...prev.map((k) => k.version)]
+      if (new Set(versions).size !== versions.length)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['KEK_PREVIOUS'],
+          message: 'KEK versions must be unique',
+        })
+    } catch (e) {
+      ctx.addIssue({ code: 'custom', path: ['KEK_PREVIOUS'], message: (e as Error).message })
+    }
     if (v.NODE_ENV !== 'production') return
     if (!v.BASE_URL.startsWith('https://'))
       ctx.addIssue({ code: 'custom', path: ['BASE_URL'], message: 'must be https in production' })
@@ -42,12 +57,28 @@ const schema = z
     }
   })
 
+/** `1:base64,2:base64` → keys; each must be 32 bytes. Throws with a message that never contains the key. */
+export function parseKekPrevious(raw: string): { version: number; key: Buffer }[] {
+  if (!raw.trim()) return []
+  return raw.split(',').map((part, i) => {
+    const m = /^\s*(\d{1,7}):([A-Za-z0-9+/=_-]+)\s*$/.exec(part)
+    if (!m) throw new Error(`KEK_PREVIOUS entry ${i + 1} must look like version:base64`)
+    const key = Buffer.from(m[2]!, 'base64')
+    if (key.length !== 32) throw new Error(`KEK_PREVIOUS entry ${i + 1} must be 32 bytes`)
+    return { version: Number(m[1]), key }
+  })
+}
+
 export type AppConfig = {
   env: 'development' | 'test' | 'production'
   baseUrl: string
   databaseUrl: string
   sessionSecret: string
   kek: Buffer
+  /** Version number stored with data keys wrapped by [kek]. */
+  kekVersion: number
+  /** Older keys still needed to read data keys that have not been re-wrapped yet. */
+  kekPrevious: { version: number; key: Buffer }[]
   google: { clientId: string; clientSecret: string }
   microsoft: { clientId: string; clientSecret: string; authority: string }
   vapid: { publicKey: string; privateKey: string; subject: string }
@@ -81,6 +112,8 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     databaseUrl: v.DATABASE_URL,
     sessionSecret: v.SESSION_SECRET,
     kek: Buffer.from(v.KEK_BASE64, 'base64'),
+    kekVersion: v.KEK_VERSION,
+    kekPrevious: parseKekPrevious(v.KEK_PREVIOUS),
     google: { clientId: v.GOOGLE_CLIENT_ID, clientSecret: v.GOOGLE_CLIENT_SECRET },
     microsoft: {
       clientId: v.MS_CLIENT_ID,

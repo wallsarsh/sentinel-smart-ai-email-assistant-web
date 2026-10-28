@@ -17,6 +17,7 @@ export default defineConfig({
       'tests/a11y/**/*.e2e.ts',
       'tests/perf/**/*.e2e.ts',
       'tests/security/**/*.e2e.ts',
+      'tests/ops/**/*.e2e.ts',
     ],
     testTimeout: 60_000,
     hookTimeout: 120_000,

@@ -8,7 +8,11 @@ import { build } from 'esbuild'
 rmSync('dist', { recursive: true, force: true })
 mkdirSync('dist', { recursive: true })
 await build({
-  entryPoints: { worker: 'worker/index.ts', migrate: 'server/db/migrate.ts' },
+  entryPoints: {
+    worker: 'worker/index.ts',
+    migrate: 'server/db/migrate.ts',
+    'rotate-kek': 'server/db/rotate-kek.ts',
+  },
   outdir: 'dist',
   bundle: true,
   platform: 'node',

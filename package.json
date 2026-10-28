@@ -24,7 +24,8 @@
     "e2e": "vitest run --config vitest.e2e.config.ts",
     "eval": "tsx tools/eval/run.ts",
     "budget": "node tools/bundle-budget.mjs",
-    "secrets": "node tools/secrets-scan.mjs"
+    "secrets": "node tools/secrets-scan.mjs",
+    "kek:rotate": "tsx server/db/rotate-kek.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",

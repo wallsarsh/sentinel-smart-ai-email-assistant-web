@@ -51,6 +51,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: PostgreSQL client tools (backup and restore drill)
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: npm run build
       - name: End-to-end (built server, real Postgres, real browser)
         run: npm run e2e

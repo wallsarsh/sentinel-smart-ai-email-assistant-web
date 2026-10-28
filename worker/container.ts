@@ -3,6 +3,7 @@ import { aiProviderService } from '../server/ai/providers'
 import { aiRouter } from '../server/ai/router'
 import { briefGenerator } from '../server/brief/generator'
 import { useConfig } from '../server/config'
+import { kekRing } from '../server/security/kek-ring'
 import type { Db } from '../server/db/client'
 import { googleOAuth } from '../server/mail/oauth/google'
 import { microsoftOAuth } from '../server/mail/oauth/microsoft'
@@ -38,7 +39,7 @@ export class CapabilityError extends Error {
  */
 export function workerContainer(db: Db, o: { hubBridge?: boolean } = {}) {
   const c = useConfig()
-  const ring = { current: { version: 1, key: c.kek } }
+  const ring = kekRing(c)
   const redirect = (p: string) => `${c.baseUrl}/api/accounts/${p}/callback`
   const providerFor = providerFactory({
     db,

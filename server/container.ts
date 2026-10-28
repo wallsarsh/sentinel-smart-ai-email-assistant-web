@@ -40,6 +40,7 @@ import type { MailSender } from './mail/send/support'
 import { secretStoreFor } from './security/secret-store'
 import { pushService } from './push/service'
 import { webPushTransport } from './push/web-push-transport'
+import { kekRing } from './security/kek-ring'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -108,7 +109,7 @@ export function useHub(): EventHub {
 }
 
 /** The key ring for the secret store. */
-export const tokenKek = () => ({ current: { version: 1, key: useConfig().kek } })
+export const tokenKek = () => kekRing(useConfig())
 
 let google: ReturnType<typeof googleOAuth> | undefined
 export function useGoogleOAuth() {

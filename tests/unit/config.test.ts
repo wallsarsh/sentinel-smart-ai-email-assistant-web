@@ -71,3 +71,49 @@ describe('env access', () => {
     expect(out.trim().split('\n').filter(Boolean)).toEqual(['server/config/index.ts'])
   })
 })
+
+describe('KEK rotation settings', () => {
+  const base = {
+    BASE_URL: 'http://localhost:3000',
+    DATABASE_URL: 'postgres://u:p@h/db',
+    SESSION_SECRET: 's'.repeat(40),
+  }
+  const k = (n: number) => Buffer.alloc(32, n).toString('base64')
+
+  it('defaults to version 1 with no older keys, and builds the key ring', async () => {
+    const { kekRing } = await import('../../server/security/kek-ring')
+    const c = loadConfig({ ...base, KEK_BASE64: k(1) })
+    expect(c.kekVersion).toBe(1)
+    expect(c.kekPrevious).toEqual([])
+    expect(kekRing(c)).toEqual({ current: { version: 1, key: Buffer.alloc(32, 1) }, previous: [] })
+  })
+
+  it('reads the version and a list of older keys', async () => {
+    const { kekRing } = await import('../../server/security/kek-ring')
+    const c = loadConfig({
+      ...base,
+      KEK_BASE64: k(3),
+      KEK_VERSION: '3',
+      KEK_PREVIOUS: `1:${k(1)}, 2:${k(2)}`,
+    })
+    expect(kekRing(c).previous!.map((x) => x.version)).toEqual([1, 2])
+    expect(kekRing(c).current.version).toBe(3)
+  })
+
+  it.each([
+    ['bad format', 'nope'],
+    ['not 32 bytes', `1:${Buffer.alloc(16).toString('base64')}`],
+    ['same version as current', `2:${k(1)}`],
+    ['duplicate versions', `1:${k(1)},1:${k(2)}`],
+  ])('rejects %s without echoing key material', (_n, prev) => {
+    let message = ''
+    try {
+      loadConfig({ ...base, KEK_BASE64: k(9), KEK_VERSION: '2', KEK_PREVIOUS: prev })
+    } catch (e) {
+      message = (e as Error).message
+    }
+    expect(message).toContain('KEK_PREVIOUS')
+    expect(message).not.toContain(k(1))
+    expect(message).not.toContain(k(9))
+  })
+})
