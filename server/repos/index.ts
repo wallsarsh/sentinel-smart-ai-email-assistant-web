@@ -1,5 +1,6 @@
 import type { Db } from '../db/client'
 import { accountsRepo } from './accounts'
+import { aiProvidersRepo } from './ai-providers'
 import { auditRepo } from './audit'
 import { exportRepo } from './export'
 import { inboxRepo } from './inbox'
@@ -18,6 +19,7 @@ export type UserRepos = {
   mail: ReturnType<typeof mailRepo>
   inbox: ReturnType<typeof inboxRepo>
   search: ReturnType<typeof searchRepo>
+  ai: ReturnType<typeof aiProvidersRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -38,6 +40,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     mail: mailRepo(scope),
     inbox: inboxRepo(scope),
     search: searchRepo(scope),
+    ai: aiProvidersRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),

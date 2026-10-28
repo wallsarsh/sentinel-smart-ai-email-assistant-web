@@ -16,6 +16,7 @@ import { ImapMailProvider } from './mail/imap/provider'
 import { testSmtp } from './mail/send/smtp-test'
 import { loadTokens } from './mail/oauth/connect'
 import { forUser } from './repos'
+import { aiProviderService } from './ai/providers'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -123,4 +124,9 @@ export function useAccounts() {
       if (type === 'gmail') await useGoogleOAuth().revoke(t)
     },
   }))
+}
+
+let aiProviders: ReturnType<typeof aiProviderService> | undefined
+export function useAiProviders() {
+  return (aiProviders ??= aiProviderService({ db: useDb(), ring: tokenKek() }))
 }

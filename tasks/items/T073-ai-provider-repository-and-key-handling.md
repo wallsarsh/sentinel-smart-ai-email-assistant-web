@@ -2,8 +2,8 @@
 id: T073
 title: "AI provider repository and key handling"
 phase: P4
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T022, T021]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 CRUD for providers; keys encrypted, masked on read, replaceable without removing the provider; model list refresh.
 
 ## Acceptance
-- [ ] Key never returned in full (test)
-- [ ] Key never logged (test)
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Key never returned in full (test)
+- [x] Key never logged (test)
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 13:54Z claimed by claude
+- 2026-10-28 13:57Z AI provider repo + service + API: presets, encrypted keys in secret store (write-only PUT, masked hint only), key replace keeps id/consent/routes, model refresh + status, base URL policy, per-user limit; tests prove key never returned/stored plain/logged
+- 2026-10-28 13:57Z status -> done
