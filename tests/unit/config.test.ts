@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import type { ConfigError} from '../../server/config';
+import type { ConfigError } from '../../server/config'
 import { loadConfig } from '../../server/config'
 
 function exampleEnv() {
