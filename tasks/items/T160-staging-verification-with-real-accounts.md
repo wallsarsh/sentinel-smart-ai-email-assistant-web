@@ -19,6 +19,7 @@ updated: 2026-10-28
 Manual matrix on staging: Gmail, M365 with MFA, Fastmail/IMAP, send proxy audit (no sends without confirmation), push on desktop and mobile browsers.
 
 ## Acceptance
+- [ ] imapflow adapter (server/mail/imap/session.ts) verified against GreenMail/Dovecot (from T050)
 - [ ] Matrix results logged
 - [ ] Send-gate traffic audit signed off
 

@@ -12,6 +12,9 @@ export type ContractHarness = {
   seed(m: MailMessage): Promise<void>
   /** Makes the next call fail with a network error. */
   breakNetwork(): void
+  /** Providers whose ids/threads are derived (IMAP) map the logical ids used below. */
+  idFor?(logical: string): string
+  threadFor?(logical: string): string
 }
 
 export const sampleMessage = (
@@ -44,6 +47,8 @@ export const sampleMessage = (
 export function runMailProviderContract(name: string, make: () => Promise<ContractHarness>) {
   describe(`MailProvider contract: ${name}`, () => {
     let h: ContractHarness
+    const id = (x: string) => h.idFor?.(x) ?? x
+    const thr = (x: string) => h.threadFor?.(x) ?? x
     beforeEach(async () => {
       h = await make()
     })
@@ -82,20 +87,20 @@ export function runMailProviderContract(name: string, make: () => Promise<Contra
       const first = await h.provider.fetchChanges({ folder })
       expect(first.ok).toBe(true)
       if (!first.ok) return
-      expect(first.value.newOrUpdatedIds.sort()).toEqual(['1', '2'])
+      expect(first.value.newOrUpdatedIds.sort()).toEqual([id('1'), id('2')])
       const again = await h.provider.fetchChanges({ folder, cursor: first.value.nextCursor })
       expect(again.ok && again.value.newOrUpdatedIds).toEqual([])
       await h.seed(sampleMessage('3'))
       const next = await h.provider.fetchChanges({ folder, cursor: first.value.nextCursor })
-      expect(next.ok && next.value.newOrUpdatedIds).toEqual(['3'])
+      expect(next.ok && next.value.newOrUpdatedIds).toEqual([id('3')])
     })
 
     it('fetches messages by id and by thread', async () => {
       await h.seed(sampleMessage('1', 'tA'))
       await h.seed(sampleMessage('2', 'tA'))
-      const r = await h.provider.getMessages(['1'])
-      expect(r.ok && r.value.map((m) => m.providerMessageId)).toEqual(['1'])
-      const t = await h.provider.getThread('tA')
+      const r = await h.provider.getMessages([id('1')])
+      expect(r.ok && r.value.map((m) => m.providerMessageId)).toEqual([id('1')])
+      const t = await h.provider.getThread(thr('tA'))
       expect(t.ok && t.value).toHaveLength(2)
     })
 
