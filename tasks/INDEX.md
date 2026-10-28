@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 31/111 done · ready now: T009, T010, T011, T047, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 32/111 done · ready now: T009, T010, T011, T048, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -54,7 +54,7 @@ flowchart LR
     T044["T044"]:::done
     T045["T045"]:::done
     T046["T046"]:::done
-    T047["T047"]:::todo
+    T047["T047"]:::done
     T048["T048"]:::todo
     T049["T049"]:::todo
     T050["T050"]:::todo
@@ -412,7 +412,7 @@ flowchart LR
 | ✅ | [T044](items/T044-token-refresh-and-account-health.md) | Token refresh and account health | M | code | T042, T043 | claude |
 | ✅ | [T045](items/T045-gmailmailprovider-read-and-sync.md) | GmailMailProvider: read and sync | L | code | T040, T044, T029 | claude |
 | ✅ | [T046](items/T046-gmail-drafts.md) | Gmail drafts | M | code | T045, T041 | claude |
-| ⬜ | [T047](items/T047-graphmailprovider-read-and-sync.md) | GraphMailProvider: read and sync | L | code | T040, T044, T029 |  |
+| ✅ | [T047](items/T047-graphmailprovider-read-and-sync.md) | GraphMailProvider: read and sync | L | code | T040, T044, T029 | claude |
 | ⬜ | [T048](items/T048-graph-drafts.md) | Graph drafts | M | code | T047, T041 |  |
 | ⬜ | [T049](items/T049-imap-smtp-autodiscovery.md) | IMAP/SMTP autodiscovery | M | code | T029 |  |
 | ⬜ | [T050](items/T050-imapmailprovider-read-and-sync.md) | ImapMailProvider: read and sync | L | code | T040, T049, T022 |  |
