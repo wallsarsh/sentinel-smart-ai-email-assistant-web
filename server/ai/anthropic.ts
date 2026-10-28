@@ -1,7 +1,16 @@
 import { err, ok, type Result } from '../../shared/errors/result'
 import type { AppFailure } from '../../shared/errors/failure'
 import { failureForStatus, guardedHttp } from './http'
-import type { AiHttp, AiProvider, AiRequest, AiResponse, StopReason } from './types'
+import { parseSse } from './sse-parser'
+import {
+  AiStreamError,
+  type AiHttp,
+  type AiProvider,
+  type AiRequest,
+  type AiResponse,
+  type StopReason,
+  type StreamEvent,
+} from './types'
 
 const VERSION = '2023-06-01'
 export const ANTHROPIC_BASE = 'https://api.anthropic.com'
@@ -12,6 +21,14 @@ type Body = {
   model?: string
   usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number }
   data?: { id: string }[]
+}
+
+type StreamJson = {
+  type?: string
+  message?: { model?: string; usage?: { input_tokens?: number; cache_read_input_tokens?: number } }
+  delta?: { type?: string; text?: string; stop_reason?: string }
+  usage?: { output_tokens?: number }
+  error?: { type?: string }
 }
 
 const STOP: Record<string, StopReason> = {
@@ -98,6 +115,59 @@ export function anthropicProvider(o: {
         signal: req.signal,
       })
       return r.ok ? ok(parseAnthropic(r.value)) : r
+    },
+    async *stream(req): AsyncGenerator<StreamEvent, void, void> {
+      let res
+      try {
+        res = await http.stream(`${base}/v1/messages`, {
+          headers: anthropicHeaders(o.apiKey),
+          body: JSON.stringify(anthropicBody(req, true)),
+          signal: req.signal,
+        })
+      } catch (e) {
+        throw new AiStreamError(
+          e instanceof Error && e.message.startsWith('blocked:')
+            ? { kind: 'validation', field: 'baseUrl', code: 'private_address' }
+            : { kind: 'network' },
+        )
+      }
+      try {
+        if (res.status < 200 || res.status >= 300)
+          throw new AiStreamError(failureForStatus(res.status, res.headers.get('retry-after')))
+        let text = ''
+        let model = ''
+        let stop: StopReason = 'other'
+        const usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 }
+        for await (const ev of parseSse(res.body)) {
+          let j: StreamJson
+          try {
+            j = JSON.parse(ev.data)
+          } catch {
+            continue
+          }
+          if (j.type === 'message_start') {
+            model = j.message?.model ?? model
+            usage.inputTokens = j.message?.usage?.input_tokens ?? 0
+            usage.cachedTokens = j.message?.usage?.cache_read_input_tokens ?? 0
+          } else if (j.type === 'content_block_delta' && j.delta?.type === 'text_delta') {
+            const t = j.delta.text ?? ''
+            text += t
+            yield { type: 'delta', text: t }
+          } else if (j.type === 'message_delta') {
+            stop = STOP[j.delta?.stop_reason ?? ''] ?? stop
+            usage.outputTokens = j.usage?.output_tokens ?? usage.outputTokens
+          } else if (j.type === 'error') {
+            throw new AiStreamError(
+              j.error?.type === 'rate_limit_error'
+                ? { kind: 'rate_limited' }
+                : { kind: 'provider', status: 529, code: 'stream_error' },
+            )
+          } else if (j.type === 'message_stop') break
+        }
+        yield { type: 'done', response: { text, usage, stop, model } }
+      } finally {
+        res.close() // also runs when the consumer stops early: cancels the upstream request
+      }
     },
     async listModels() {
       const r = await call(`${base}/v1/models?limit=100`, {

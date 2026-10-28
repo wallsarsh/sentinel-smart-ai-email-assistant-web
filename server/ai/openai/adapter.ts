@@ -2,7 +2,17 @@ import { checkUrl, SsrfError, type Resolver } from '../../http/ssrf'
 import { err, ok, type Result } from '../../../shared/errors/result'
 import type { AppFailure } from '../../../shared/errors/failure'
 import { failureForStatus, guardedHttp } from '../http'
-import type { AiHttp, AiKind, AiProvider, AiRequest, AiResponse, StopReason } from '../types'
+import { parseSse } from '../sse-parser'
+import {
+  AiStreamError,
+  type AiHttp,
+  type AiKind,
+  type AiProvider,
+  type AiRequest,
+  type AiResponse,
+  type StopReason,
+  type StreamEvent,
+} from '../types'
 
 export const OPENAI_BASE = 'https://api.openai.com/v1'
 
@@ -30,6 +40,16 @@ type Body = {
     prompt_tokens_details?: { cached_tokens?: number }
   }
   data?: { id: string }[]
+}
+
+type Chunk = {
+  model?: string
+  choices?: { delta?: { content?: string; refusal?: string }; finish_reason?: string }[]
+  usage?: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    prompt_tokens_details?: { cached_tokens?: number }
+  }
 }
 
 const FINISH: Record<string, StopReason> = {
@@ -160,6 +180,55 @@ export function openAiProvider(o: {
         r = await post(req, mode)
       }
       return r
+    },
+    async *stream(req): AsyncGenerator<StreamEvent, void, void> {
+      let res
+      try {
+        res = await http.stream(`${base}/chat/completions`, {
+          headers: openAiHeaders(o.apiKey, o.options ?? {}),
+          body: JSON.stringify(openAiBody(req, mode, tokensParam, true)),
+          signal: req.signal,
+        })
+      } catch (e) {
+        throw new AiStreamError(
+          e instanceof Error && e.message.startsWith('blocked:')
+            ? { kind: 'validation', field: 'baseUrl', code: 'private_address' }
+            : { kind: 'network' },
+        )
+      }
+      try {
+        if (res.status < 200 || res.status >= 300)
+          throw new AiStreamError(failureForStatus(res.status, res.headers.get('retry-after')))
+        let text = ''
+        let model = ''
+        let stop: StopReason = 'other'
+        const usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 }
+        for await (const ev of parseSse(res.body)) {
+          if (ev.data === '[DONE]') break
+          let j: Chunk
+          try {
+            j = JSON.parse(ev.data)
+          } catch {
+            continue
+          }
+          model = j.model ?? model
+          const c = j.choices?.[0]
+          if (c?.delta?.content) {
+            text += c.delta.content
+            yield { type: 'delta', text: c.delta.content }
+          }
+          if (c?.delta?.refusal) stop = 'refusal'
+          else if (c?.finish_reason) stop = FINISH[c.finish_reason] ?? 'other'
+          if (j.usage) {
+            usage.inputTokens = j.usage.prompt_tokens ?? 0
+            usage.outputTokens = j.usage.completion_tokens ?? 0
+            usage.cachedTokens = j.usage.prompt_tokens_details?.cached_tokens ?? 0
+          }
+        }
+        yield { type: 'done', response: { text, usage, stop, model } }
+      } finally {
+        res.close()
+      }
     },
     async listModels() {
       let res
