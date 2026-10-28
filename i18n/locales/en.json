@@ -368,5 +368,18 @@
     "markDone": "Mark done",
     "snooze": "Snooze to tomorrow",
     "reopen": "Reopen"
+  },
+  "profile": {
+    "title": "Writing profile",
+    "intro": "This helps the AI write like you. Only these details are shared with your AI provider, and only after you have allowed it.",
+    "name": "Your name",
+    "role": "Role",
+    "timezone": "Time zone (e.g. Europe/Berlin)",
+    "language": "Reply language",
+    "languageAuto": "Same as the email",
+    "signOff": "Sign-off (e.g. Best regards,)",
+    "styleNotes": "Style notes",
+    "signature": "Signature",
+    "signatureHint": "Added to the end of drafts by Sentinel, never written by the AI."
   }
 }

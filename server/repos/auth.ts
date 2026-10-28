@@ -29,6 +29,9 @@ export const authRepo = (db: Db) => ({
     const [row] = await db.select().from(users).where(eq(users.id, id))
     return row ?? null
   },
+  async updateProfile(userId: string, patch: { displayName?: string; timezone?: string }) {
+    await db.update(users).set(patch).where(eq(users.id, userId))
+  },
   async setPassword(userId: string, passwordHash: string) {
     await db.update(users).set({ passwordHash }).where(eq(users.id, userId))
   },

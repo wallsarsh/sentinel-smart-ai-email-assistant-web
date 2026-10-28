@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 68/111 done · ready now: T009, T010, T011, T100, T105, T122, T124, T127, T141, T142, T154
+**Progress:** 69/111 done · ready now: T009, T010, T011, T101, T105, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -99,7 +99,7 @@ flowchart LR
     T095["T095"]:::done
   end
   subgraph P6
-    T100["T100"]:::todo
+    T100["T100"]:::done
     T101["T101"]:::todo
     T102["T102"]:::todo
     T103["T103"]:::todo
@@ -469,7 +469,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T100](items/T100-writing-profile.md) | Writing profile | S | code | T031 |  |
+| ✅ | [T100](items/T100-writing-profile.md) | Writing profile | S | code | T031 | claude |
 | ⬜ | [T101](items/T101-draft-generator-with-streaming.md) | Draft generator with streaming | L | code | T080, T075, T072, T034, T100 |  |
 | ⬜ | [T102](items/T102-composer-ui.md) | Composer UI | L | code | T101, T065 |  |
 | ⬜ | [T103](items/T103-save-draft-use-case.md) | Save draft use case | M | code | T046, T048, T051, T102 |  |

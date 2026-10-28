@@ -1,8 +1,8 @@
 import type { Db } from '../db/client'
 import { forUser } from '../repos'
-import { authRepo } from '../repos/auth'
 import { rowToMailMessage } from '../sync/message-mapper'
-import { PromptBuilder, zoneOffset, type UserContext } from '../ai/prompts/builder'
+import { PromptBuilder, type UserContext } from '../ai/prompts/builder'
+import { buildUserContext } from '../ai/user-context'
 import { PROMPT_VERSIONS, triagePrompt } from '../ai/prompts/registry'
 import {
   reconcileIds,
@@ -77,33 +77,7 @@ export function triageService(d: TriageDeps) {
   const now = d.now ?? (() => new Date())
   const batchSize = d.batchSize ?? 8
 
-  async function context(userId: string): Promise<UserContext> {
-    const repos = forUser(d.db, userId)
-    const user = await authRepo(d.db).userById(userId)
-    const tz = user?.timezone || 'UTC'
-    const safeTz = (() => {
-      try {
-        zoneOffset(tz, new Date())
-        return tz
-      } catch {
-        return 'UTC'
-      }
-    })()
-    const accounts = await repos.accounts.list()
-    const rules = await repos.rules.list()
-    return {
-      name: user?.displayName || '',
-      timezoneName: safeTz,
-      offsetAt: (t) => zoneOffset(safeTz, t),
-      now: now(),
-      selfAddresses: new Set(accounts.map((a) => a.email)),
-      vipSenders: rules
-        .filter((r) => r.rule === 'vip')
-        .map((r) => r.pattern)
-        .slice(0, 50),
-      senderHints: await repos.rules.hints(),
-    }
-  }
+  const context = (userId: string) => buildUserContext(d.db, userId, now())
 
   async function triagePending(userId: string, o: { limit?: number; useAi?: boolean } = {}) {
     return triageMessages(userId, await forUser(d.db, userId).triage.untriaged(o.limit ?? 100), o)

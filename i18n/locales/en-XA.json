@@ -368,5 +368,18 @@
     "markDone": "[Márk döñé one]",
     "snooze": "[Šñöözé tö tömörröw one]",
     "reopen": "[Réöpéñ one]"
+  },
+  "profile": {
+    "title": "[Wrítíñg pröfílé one]",
+    "intro": "[Thíš hélpš thé ÁÍ wríté líké ýöü. Öñlý théšé détáílš áré šháréd wíth ýöür ÁÍ prövídér, áñd öñlý áftér ýöü hávé állöwéd ít. one two three four]",
+    "name": "[Yöür ñámé one]",
+    "role": "[Rölé one]",
+    "timezone": "[Tímé zöñé (é.g. Éüröpé/Bérlíñ) one two]",
+    "language": "[Réplý láñgüágé one]",
+    "languageAuto": "[Šámé áš thé émáíl one]",
+    "signOff": "[Šígñ-öff (é.g. Béšt régárdš,) one two]",
+    "styleNotes": "[Štýlé ñötéš one]",
+    "signature": "[Šígñátüré one]",
+    "signatureHint": "[Áddéd tö thé éñd öf dráftš bý Šéñtíñél, ñévér wríttéñ bý thé ÁÍ. one two three four]"
   }
 }

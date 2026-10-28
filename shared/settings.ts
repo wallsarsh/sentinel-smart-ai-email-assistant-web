@@ -11,6 +11,12 @@ export const settingsSchema = {
   // onboarding
   'onboarding.complete': bool(false),
   'onboarding.step': z.number().int().min(0).max(10).default(0),
+  // writing profile (the display name lives on the user record)
+  'profile.role': z.string().trim().max(80).default(''),
+  'profile.signOff': z.string().trim().max(80).default(''),
+  'profile.signature': z.string().max(1000).default(''),
+  'profile.styleNotes': z.string().trim().max(300).default(''),
+  'profile.language': z.string().trim().max(20).default(''),
   // sending
   'send.undoSeconds': z.number().int().min(0).max(30).default(5),
   'send.requireStepUp': bool(true),
