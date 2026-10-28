@@ -5,6 +5,7 @@ import type { JobHandler } from '../../server/jobs/runner'
 import type { MailProvider } from '../../server/mail/provider'
 import { forUser } from '../../server/repos'
 import { syncUser } from '../../server/sync/sync-account'
+import { notifyAccountIssues, notifyNewMail, type Notifier } from '../../server/push/rules'
 import type { TriageService } from '../../server/triage/service'
 import type { AppFailure } from '../../shared/errors/failure'
 
@@ -120,6 +121,7 @@ export function defaultPorts(d: {
   db: Db
   providerFor(userId: string, accountId: string): Promise<MailProvider>
   triage: Pick<TriageService, 'triagePending'>
+  push?: Notifier
   onPage?: (userId: string, p: { added: string[]; removed: number }) => void
 }): MailCheckPorts {
   const repos = (u: string) => forUser(d.db, u)
@@ -150,6 +152,16 @@ export function defaultPorts(d: {
         ...(r.failure ? { failure: r.failure } : {}),
       }
     },
+    ...(d.push
+      ? {
+          notifyNewMail: async (userId: string) => {
+            await notifyNewMail({ db: d.db, push: d.push! }, userId)
+          },
+          notifyAccountIssues: async (userId: string, ids: string[]) => {
+            await notifyAccountIssues({ db: d.db, push: d.push! }, userId, ids)
+          },
+        }
+      : {}),
     aiEnabled: async (userId) => (await repos(userId).settings.get('bg.aiEnabled')) as boolean,
     accountsNeedingReauth: async (userId) =>
       (await repos(userId).accounts.list())

@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, lt } from 'drizzle-orm'
-import { bgRuns, notified } from '../db/schema'
+import { bgRuns, messages, notified, triageResults } from '../db/schema'
 import type { Scope } from './scope'
 
 export type RunRow = typeof bgRuns.$inferSelect
@@ -60,6 +60,31 @@ export const backgroundRepo = (s: Scope) => ({
       .onConflictDoNothing()
       .returning({ k: notified.key })
     return r.length > 0
+  },
+
+  /** Unread, triaged mail received since [since], newest first (inputs to the notification rules). */
+  async notifyCandidates(since: Date, limit = 200) {
+    return s.db
+      .select({
+        id: messages.id,
+        accountId: messages.accountId,
+        fromAddress: messages.fromAddress,
+        receivedAt: messages.receivedAt,
+        isRead: messages.isRead,
+        priority: triageResults.priority,
+        needsReply: triageResults.needsReply,
+      })
+      .from(messages)
+      .innerJoin(triageResults, eq(triageResults.messageId, messages.id))
+      .where(
+        and(
+          eq(messages.userId, s.userId),
+          eq(messages.isRead, false),
+          gte(messages.receivedAt, since),
+        ),
+      )
+      .orderBy(desc(messages.receivedAt))
+      .limit(limit)
   },
 
   async notifiedSince(since: Date): Promise<number> {
