@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 67/111 done · ready now: T009, T010, T011, T095, T100, T105, T122, T124, T127, T141, T142, T154
+**Progress:** 68/111 done · ready now: T009, T010, T011, T100, T105, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -96,7 +96,7 @@ flowchart LR
     T092["T092"]:::done
     T093["T093"]:::done
     T094["T094"]:::done
-    T095["T095"]:::todo
+    T095["T095"]:::done
   end
   subgraph P6
     T100["T100"]:::todo
@@ -463,7 +463,7 @@ flowchart LR
 | ✅ | [T092](items/T092-due-date-resolver.md) | Due-date resolver | S | code | T005 | claude |
 | ✅ | [T093](items/T093-sender-rules-and-corrections.md) | Sender rules and corrections | M | code | T021 | claude |
 | ✅ | [T094](items/T094-triage-ui.md) | Triage UI | L | code | T091, T093, T064, T065 | claude |
-| ⬜ | [T095](items/T095-action-items-page.md) | Action items page | M | code | T091, T008 |  |
+| ✅ | [T095](items/T095-action-items-page.md) | Action items page | M | code | T091, T008 | claude |
 
 ## P6
 

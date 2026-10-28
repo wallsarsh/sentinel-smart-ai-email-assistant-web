@@ -355,5 +355,18 @@
       "none": "[Ñöñé ýét. one]",
       "removeFor": "[Rémövé {pattern} one]"
     }
+  },
+  "actions": {
+    "empty": "[Ñö áçtíöñ ítémš. Whéñ máíl áškš ýöü tö dö šöméthíñg, ít šhöwš üp héré. one two three four]",
+    "group": {
+      "today": "[Tödáý áñd övérdüé one]",
+      "upcoming": "[Üpçömíñg one]",
+      "noDate": "[Ñö dáté one]",
+      "snoozed": "[Šñöözéd one]",
+      "done": "[Döñé one]"
+    },
+    "markDone": "[Márk döñé one]",
+    "snooze": "[Šñöözé tö tömörröw one]",
+    "reopen": "[Réöpéñ one]"
   }
 }

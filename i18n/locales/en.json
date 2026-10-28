@@ -355,5 +355,18 @@
       "none": "None yet.",
       "removeFor": "Remove {pattern}"
     }
+  },
+  "actions": {
+    "empty": "No action items. When mail asks you to do something, it shows up here.",
+    "group": {
+      "today": "Today and overdue",
+      "upcoming": "Upcoming",
+      "noDate": "No date",
+      "snoozed": "Snoozed",
+      "done": "Done"
+    },
+    "markDone": "Mark done",
+    "snooze": "Snooze to tomorrow",
+    "reopen": "Reopen"
   }
 }

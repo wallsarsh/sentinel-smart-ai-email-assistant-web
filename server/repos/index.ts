@@ -1,5 +1,6 @@
 import type { Db } from '../db/client'
 import { accountsRepo } from './accounts'
+import { actionsRepo } from './actions'
 import { aiProvidersRepo } from './ai-providers'
 import { auditRepo } from './audit'
 import { exportRepo } from './export'
@@ -24,6 +25,7 @@ export type UserRepos = {
   ai: ReturnType<typeof aiProvidersRepo>
   rules: ReturnType<typeof senderRulesRepo>
   triage: ReturnType<typeof triageRepo>
+  actions: ReturnType<typeof actionsRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -47,6 +49,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     ai: aiProvidersRepo(scope),
     rules: senderRulesRepo(scope),
     triage: triageRepo(scope),
+    actions: actionsRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),
