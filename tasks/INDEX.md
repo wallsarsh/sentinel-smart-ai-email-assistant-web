@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 28/111 done · ready now: T009, T010, T011, T044, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 29/111 done · ready now: T009, T010, T011, T045, T047, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -51,7 +51,7 @@ flowchart LR
     T041["T041"]:::done
     T042["T042"]:::done
     T043["T043"]:::done
-    T044["T044"]:::todo
+    T044["T044"]:::done
     T045["T045"]:::todo
     T046["T046"]:::todo
     T047["T047"]:::todo
@@ -409,7 +409,7 @@ flowchart LR
 | ✅ | [T041](items/T041-mime-reply-builder.md) | MIME reply builder | M | code | T005 | claude-sonnet-5-5 |
 | ✅ | [T042](items/T042-google-oauth-connect-flow.md) | Google OAuth connect flow | L | code | T022, T023 |  |
 | ✅ | [T043](items/T043-microsoft-oauth-connect-flow-with-admin-consent.md) | Microsoft OAuth connect flow with admin consent | L | code | T022, T023 | claude |
-| ⬜ | [T044](items/T044-token-refresh-and-account-health.md) | Token refresh and account health | M | code | T042, T043 |  |
+| ✅ | [T044](items/T044-token-refresh-and-account-health.md) | Token refresh and account health | M | code | T042, T043 | claude |
 | ⬜ | [T045](items/T045-gmailmailprovider-read-and-sync.md) | GmailMailProvider: read and sync | L | code | T040, T044, T029 |  |
 | ⬜ | [T046](items/T046-gmail-drafts.md) | Gmail drafts | M | code | T045, T041 |  |
 | ⬜ | [T047](items/T047-graphmailprovider-read-and-sync.md) | GraphMailProvider: read and sync | L | code | T040, T044, T029 |  |
