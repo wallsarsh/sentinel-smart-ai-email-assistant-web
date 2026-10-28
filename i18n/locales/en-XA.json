@@ -131,5 +131,35 @@
       "title": "[Földérš tö pröçéšš one]",
       "hint": "[Šéñtíñél öñlý réádš thé földérš ýöü tíçk. one two three]"
     }
+  },
+  "inbox": {
+    "segments": "[Íñböx šégméñtš one]",
+    "list": "[Méššágéš one]",
+    "segment": {
+      "all": "[Áll one]",
+      "needs_reply": "[Ñéédš réplý one]",
+      "actions": "[Áçtíöñš one]",
+      "important": "[Ímpörtáñt one]",
+      "fyi": "[FYÍ one]",
+      "newsletters": "[Ñéwšléttérš one]"
+    },
+    "empty": {
+      "all": "[Ñö máíl ýét. Cöññéçt áñ áççöüñt íñ Šéttíñgš. one two three]",
+      "needs_reply": "[Ñöthíñg ñéédš á réplý. one two]",
+      "actions": "[Ñö öpéñ áçtíöñ ítémš. one two]",
+      "important": "[Ñöthíñg ímpörtáñt ríght ñöw. one two]",
+      "fyi": "[Ñö FYÍ máíl. one]",
+      "newsletters": "[Ñö ñéwšléttérš. one]"
+    },
+    "urgent": "[Ürgéñt one]",
+    "needsReply": "[Ñéédš réplý one]",
+    "unread": "[Üñréád one]",
+    "noSubject": "[(ñö šübjéçt) one]",
+    "account": "[Áççöüñt one]",
+    "allAccounts": "[Áll áççöüñtš one]",
+    "refresh": "[Réfréšh one]",
+    "offline": "[Yöü áré öfflíñé. Šhöwíñg whát wáš löádéd éárlíér. one two three]",
+    "loading": "[Löádíñg… one]",
+    "shortcuts": "[Šhörtçütš: j / k mövé, Éñtér öpéñš, / šéárçhéš. one two three]"
   }
 }

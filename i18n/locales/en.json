@@ -131,5 +131,35 @@
       "title": "Folders to process",
       "hint": "Sentinel only reads the folders you tick."
     }
+  },
+  "inbox": {
+    "segments": "Inbox segments",
+    "list": "Messages",
+    "segment": {
+      "all": "All",
+      "needs_reply": "Needs reply",
+      "actions": "Actions",
+      "important": "Important",
+      "fyi": "FYI",
+      "newsletters": "Newsletters"
+    },
+    "empty": {
+      "all": "No mail yet. Connect an account in Settings.",
+      "needs_reply": "Nothing needs a reply.",
+      "actions": "No open action items.",
+      "important": "Nothing important right now.",
+      "fyi": "No FYI mail.",
+      "newsletters": "No newsletters."
+    },
+    "urgent": "Urgent",
+    "needsReply": "Needs reply",
+    "unread": "Unread",
+    "noSubject": "(no subject)",
+    "account": "Account",
+    "allAccounts": "All accounts",
+    "refresh": "Refresh",
+    "offline": "You are offline. Showing what was loaded earlier.",
+    "loading": "Loading…",
+    "shortcuts": "Shortcuts: j / k move, Enter opens, / searches."
   }
 }

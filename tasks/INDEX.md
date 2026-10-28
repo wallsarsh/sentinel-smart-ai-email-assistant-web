@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 46/111 done · ready now: T009, T010, T011, T064, T065, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 47/111 done · ready now: T009, T010, T011, T065, T066, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -69,7 +69,7 @@ flowchart LR
     T061["T061"]:::done
     T062["T062"]:::done
     T063["T063"]:::done
-    T064["T064"]:::todo
+    T064["T064"]:::done
     T065["T065"]:::todo
     T066["T066"]:::todo
     T067["T067"]:::done
@@ -430,7 +430,7 @@ flowchart LR
 | ✅ | [T061](items/T061-sync-scheduling.md) | Sync scheduling | S | code | T060, T033 | claude |
 | ✅ | [T062](items/T062-inbox-query-api.md) | Inbox query API | M | code | T060 | claude |
 | ✅ | [T063](items/T063-full-text-search.md) | Full-text search | M | code | T060 | claude |
-| ⬜ | [T064](items/T064-inbox-ui.md) | Inbox UI | L | code | T062, T008, T055 |  |
+| ✅ | [T064](items/T064-inbox-ui.md) | Inbox UI | L | code | T062, T008, T055 | claude |
 | ⬜ | [T065](items/T065-message-detail-ui.md) | Message detail UI | L | code | T062, T027, T028 |  |
 | ⬜ | [T066](items/T066-search-ui.md) | Search UI | M | code | T063, T064 |  |
 | ✅ | [T067](items/T067-read-state-and-local-actions.md) | Read state and local actions | S | code | T062 | claude |
