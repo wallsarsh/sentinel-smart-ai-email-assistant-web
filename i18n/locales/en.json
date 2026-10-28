@@ -161,5 +161,26 @@
     "offline": "You are offline. Showing what was loaded earlier.",
     "loading": "Loading…",
     "shortcuts": "Shortcuts: j / k move, Enter opens, / searches."
+  },
+  "message": {
+    "body": "Message body",
+    "to": "To",
+    "cc": "Cc",
+    "imagesBlocked": "Remote images are blocked to protect your privacy.",
+    "loadImages": "Load images",
+    "attachments": "Attachments",
+    "attachmentsNote": "Attachments are not downloaded by Sentinel. Open them in your mail app.",
+    "link": {
+      "title": "Check this link before opening",
+      "open": "Open anyway",
+      "risk": {
+        "ip_host": "The address is a raw IP address.",
+        "punycode": "The domain uses look-alike characters.",
+        "insecure_http": "The connection is not encrypted (http).",
+        "user_info": "The link contains a username or password.",
+        "unusual_port": "The link uses an unusual port.",
+        "text_mismatch": "The link text says {host}, but it goes somewhere else."
+      }
+    }
   }
 }

@@ -161,5 +161,26 @@
     "offline": "[Yöü áré öfflíñé. Šhöwíñg whát wáš löádéd éárlíér. one two three]",
     "loading": "[Löádíñg… one]",
     "shortcuts": "[Šhörtçütš: j / k mövé, Éñtér öpéñš, / šéárçhéš. one two three]"
+  },
+  "message": {
+    "body": "[Méššágé bödý one]",
+    "to": "[Tö one]",
+    "cc": "[Cç one]",
+    "imagesBlocked": "[Rémöté ímágéš áré blöçkéd tö prötéçt ýöür príváçý. one two three]",
+    "loadImages": "[Löád ímágéš one]",
+    "attachments": "[Áttáçhméñtš one]",
+    "attachmentsNote": "[Áttáçhméñtš áré ñöt döwñlöádéd bý Šéñtíñél. Öpéñ thém íñ ýöür máíl ápp. one two three four]",
+    "link": {
+      "title": "[Chéçk thíš líñk béföré öpéñíñg one two]",
+      "open": "[Öpéñ áñýwáý one]",
+      "risk": {
+        "ip_host": "[Thé áddréšš íš á ráw ÍP áddréšš. one two]",
+        "punycode": "[Thé dömáíñ üšéš löök-álíké çháráçtérš. one two]",
+        "insecure_http": "[Thé çöññéçtíöñ íš ñöt éñçrýptéd (http). one two]",
+        "user_info": "[Thé líñk çöñtáíñš á üšérñámé ör páššwörd. one two three]",
+        "unusual_port": "[Thé líñk üšéš áñ üñüšüál pört. one two]",
+        "text_mismatch": "[Thé líñk téxt šáýš {host}, büt ít göéš šöméwhéré élšé. one two three]"
+      }
+    }
   }
 }

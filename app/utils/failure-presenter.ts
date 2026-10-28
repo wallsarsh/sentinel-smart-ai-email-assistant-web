@@ -1,4 +1,4 @@
-import type { AppFailure } from '../../shared/errors/failure'
+import type { AppFailure } from '#shared/errors/failure'
 
 /** What the user can do next; the UI renders a button (or none) for it. */
 export type RecoveryAction =

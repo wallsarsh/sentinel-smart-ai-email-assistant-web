@@ -1,0 +1,22 @@
+// Hostile HTML used by the sanitizer test and the browser test.
+export const XSS = [
+  '<script>alert(1)</script>',
+  '<img src=x onerror=alert(1)>',
+  '<a href="javascript:alert(1)">x</a>',
+  '<svg onload=alert(1)><circle/></svg>',
+  '<iframe src="https://evil.test"></iframe>',
+  '<form action="https://evil.test"><input name=p></form>',
+  '<div style="background:url(https://evil.test/x)">x</div>',
+  '<div style="width:expression(alert(1))">x</div>',
+  '<style>@import "https://evil.test/x.css"; body{display:none}</style>',
+  '<link rel=stylesheet href="https://evil.test/x.css">',
+  '<meta http-equiv="refresh" content="0;url=https://evil.test">',
+  '<base href="https://evil.test/">',
+  '<object data="x"></object><embed src="x">',
+  '<math><mtext><script>alert(1)</script></mtext></math>',
+  '<a href="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==">x</a>',
+  '<img src="data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+">',
+  '<p onclick="alert(1)" onmouseover="alert(2)">x</p>',
+  '<a href="  javascript:alert(1)">x</a>',
+  '<button formaction="https://evil.test">x</button>',
+]
