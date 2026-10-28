@@ -87,6 +87,11 @@ export const backgroundRepo = (s: Scope) => ({
       .limit(limit)
   },
 
+  /** Gives a claimed key back so a failed attempt can be retried. */
+  async releaseNotification(key: string): Promise<void> {
+    await s.db.delete(notified).where(and(eq(notified.userId, s.userId), eq(notified.key, key)))
+  },
+
   async notifiedSince(since: Date): Promise<number> {
     return (
       await s.db

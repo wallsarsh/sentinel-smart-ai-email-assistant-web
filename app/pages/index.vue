@@ -11,7 +11,11 @@ const failure = ref<WireFailure | null>(null)
 
 async function load() {
   try {
-    brief.value = (await $fetch<{ brief: DailyBrief | null }>('/api/brief')).brief
+    const r = await $fetch<{ brief: DailyBrief | null; due: boolean }>('/api/brief')
+    brief.value = r.brief
+    loading.value = false
+    // The scheduled run did not happen: write today's brief now (FR-SUM-02).
+    if (r.due) await generate()
   } catch {
     failure.value = { kind: 'network' }
   } finally {

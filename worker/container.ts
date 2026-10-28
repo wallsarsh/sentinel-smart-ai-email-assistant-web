@@ -1,6 +1,7 @@
 import { aiGateway } from '../server/ai/gateway'
 import { aiProviderService } from '../server/ai/providers'
 import { aiRouter } from '../server/ai/router'
+import { briefGenerator } from '../server/brief/generator'
 import { useConfig } from '../server/config'
 import type { Db } from '../server/db/client'
 import { googleOAuth } from '../server/mail/oauth/google'
@@ -75,7 +76,9 @@ export function workerContainer(db: Db, o: { hubBridge?: boolean } = {}) {
     onDone: (userId, count) => publish(userId, 'triage.done', { count }),
   })
 
-  const services = { db, providerFor, hub, publish, ai: { providers, router }, triage }
+  const brief = briefGenerator({ db, router })
+
+  const services = { db, providerFor, hub, publish, ai: { providers, router }, triage, brief }
   type Services = typeof services
 
   return {
