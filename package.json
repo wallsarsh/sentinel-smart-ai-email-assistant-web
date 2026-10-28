@@ -23,7 +23,8 @@
     "worker": "tsx worker/index.ts",
     "e2e": "vitest run --config vitest.e2e.config.ts",
     "eval": "tsx tools/eval/run.ts",
-    "budget": "node tools/bundle-budget.mjs"
+    "budget": "node tools/bundle-budget.mjs",
+    "secrets": "node tools/secrets-scan.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",
@@ -38,7 +39,7 @@
     "ipaddr.js": "^2.5.0",
     "jsdom": "^29.1.1",
     "mailparser": "^3.12.4",
-    "nodemailer": "^7.0.13",
+    "nodemailer": "^10.2.1",
     "nuxt": "^4.5.2",
     "nuxt-security": "^2.5.1",
     "pg": "^8.23.1",

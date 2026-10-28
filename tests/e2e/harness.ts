@@ -91,7 +91,7 @@ export async function startStack(): Promise<Stack> {
 // The server limits sign-in and sign-up to 10 per minute per address, and every test shares 127.0.0.1.
 // The limit stays as in production; the suite paces itself under it.
 const authCalls: number[] = []
-async function pace() {
+export async function pace() {
   for (;;) {
     const now = Date.now()
     while (authCalls.length && now - authCalls[0]! > 61_000) authCalls.shift()
