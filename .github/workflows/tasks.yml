@@ -1,0 +1,22 @@
+name: Task tracker
+
+on:
+  pull_request:
+    paths: ["tasks/**"]
+  push:
+    branches: [main]
+    paths: ["tasks/**"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Validate task graph
+        run: python3 tasks/tools/taskctl.py validate
+      - name: INDEX.md is up to date
+        run: |
+          python3 tasks/tools/taskctl.py index
+          git diff --exit-code tasks/INDEX.md || (echo "Run: python3 tasks/tools/taskctl.py index" && exit 1)
