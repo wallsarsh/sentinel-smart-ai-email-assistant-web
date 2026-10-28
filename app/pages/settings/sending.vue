@@ -73,7 +73,7 @@ const when = (iso: string) =>
           min="0"
           max="30"
           class="w-full rounded border px-2 py-1"
-        />
+        >
         <p class="text-xs" style="color: var(--muted)">{{ $t('sending.undoHint') }}</p>
       </div>
       <div>
@@ -85,21 +85,21 @@ const when = (iso: string) =>
           min="0"
           max="1000"
           class="w-full rounded border px-2 py-1"
-        />
+        >
         <p class="text-xs" style="color: var(--muted)">{{ $t('sending.limitHint') }}</p>
       </div>
       <label class="flex items-start gap-2 text-sm md:col-span-2"
-        ><input v-model="form.stepUp" type="checkbox" class="mt-1" />{{
+        ><input v-model="form.stepUp" type="checkbox" class="mt-1" >{{
           $t('sending.stepUp')
         }}</label
       >
       <label class="flex items-start gap-2 text-sm md:col-span-2"
-        ><input v-model="form.placeholders" type="checkbox" class="mt-1" />{{
+        ><input v-model="form.placeholders" type="checkbox" class="mt-1" >{{
           $t('sending.placeholders')
         }}</label
       >
       <label class="flex items-start gap-2 text-sm md:col-span-2"
-        ><input v-model="form.external" type="checkbox" class="mt-1" />{{
+        ><input v-model="form.external" type="checkbox" class="mt-1" >{{
           $t('sending.external')
         }}</label
       >

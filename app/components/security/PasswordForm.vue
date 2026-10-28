@@ -50,7 +50,7 @@ async function submit() {
           autocomplete="current-password"
           class="mt-1 w-full rounded border px-3 py-2"
           data-testid="pw-current"
-        />
+        >
       </label>
       <label class="block text-sm">
         {{ $t('auth.newPassword') }}
@@ -60,7 +60,7 @@ async function submit() {
           autocomplete="new-password"
           class="mt-1 w-full rounded border px-3 py-2"
           data-testid="pw-next"
-        />
+        >
       </label>
       <p class="text-sm" style="color: var(--muted)">{{ $t('security.password.hint') }}</p>
       <button

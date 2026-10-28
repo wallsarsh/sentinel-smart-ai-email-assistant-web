@@ -82,16 +82,38 @@ export const inboxRepo = (s: Scope) => {
   }
 
   return {
+    /** All segment counts in one pass over the user's messages (one query, not one per segment). */
     async counts(accountId?: string): Promise<Record<Segment, number>> {
-      const out = {} as Record<Segment, number>
-      for (const seg of SEGMENTS) {
-        const [r] = await s.db
-          .select({ n: sql<number>`count(*)::int` })
-          .from(messages)
-          .where(base(seg, accountId))
-        out[seg] = r?.n ?? 0
+      return (await this.countsWithUnread(accountId)).counts
+    },
+
+    /** Segment counts and the unread total from one query. */
+    async countsWithUnread(
+      accountId?: string,
+    ): Promise<{ counts: Record<Segment, number>; unread: number }> {
+      const r = await s.db.execute(sql`
+        select count(*)::int as "all",
+               (count(*) filter (where t.needs_reply))::int as needs_reply,
+               (count(*) filter (where a.message_id is not null))::int as actions,
+               (count(*) filter (where t.importance = 'high'))::int as important,
+               (count(*) filter (where t.priority = 'p4_fyi'))::int as fyi,
+               (count(*) filter (where not m.is_read))::int as unread,
+               (count(*) filter (where t.category in ('newsletter_marketing', 'notification_automated')))::int as newsletters
+        from messages m
+        join folders f on f.id = m.folder_id and f.processed
+        left join triage_results t on t.message_id = m.id
+        left join (select distinct message_id from action_items
+                   where user_id = ${s.userId} and status = 'open') a on a.message_id = m.id
+        where m.user_id = ${s.userId}
+          ${accountId ? sql`and m.account_id = ${accountId}` : sql``}`)
+      const row = (r.rows[0] ?? {}) as Record<Segment | 'unread', number | undefined>
+      return {
+        counts: Object.fromEntries(SEGMENTS.map((seg) => [seg, row[seg] ?? 0])) as Record<
+          Segment,
+          number
+        >,
+        unread: row.unread ?? 0,
       }
-      return out
     },
 
     async unreadCount(accountId?: string): Promise<number> {

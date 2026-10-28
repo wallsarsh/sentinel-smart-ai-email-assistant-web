@@ -23,6 +23,8 @@ jobs:
         run: npm run check
       - name: Build
         run: npm run build
+      - name: Bundle size budget
+        run: node tools/bundle-budget.mjs
       - name: Dependency audit
         run: node tools/audit.mjs
 

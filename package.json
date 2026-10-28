@@ -22,7 +22,8 @@
     "db:migrate": "tsx server/db/migrate.ts",
     "worker": "tsx worker/index.ts",
     "e2e": "vitest run --config vitest.e2e.config.ts",
-    "eval": "tsx tools/eval/run.ts"
+    "eval": "tsx tools/eval/run.ts",
+    "budget": "node tools/bundle-budget.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",

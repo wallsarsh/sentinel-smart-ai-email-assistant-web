@@ -89,7 +89,7 @@ function setTime(v: string) {
           :value="minutesToTime(briefMinutes)"
           data-testid="brief-time"
           @change="setTime(($event.target as HTMLInputElement).value)"
-        />
+        >
       </label>
       <label class="flex items-center gap-2">
         <input
@@ -97,7 +97,7 @@ function setTime(v: string) {
           :checked="briefNotify"
           data-testid="brief-notify"
           @change="emit('brief', { 'brief.notify': ($event.target as HTMLInputElement).checked })"
-        />
+        >
         {{ $t('bg.briefNotify') }}
       </label>
       <div>

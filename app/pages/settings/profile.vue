@@ -46,7 +46,7 @@ async function save() {
           v-model="form.name"
           maxlength="80"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="pf-role" class="block text-sm font-medium">{{ $t('profile.role') }}</label
@@ -55,7 +55,7 @@ async function save() {
           v-model="form.role"
           maxlength="80"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="pf-tz" class="block text-sm font-medium">{{ $t('profile.timezone') }}</label
@@ -64,7 +64,7 @@ async function save() {
           v-model="form.timezone"
           maxlength="60"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="pf-lang" class="block text-sm font-medium">{{ $t('profile.language') }}</label
@@ -74,7 +74,7 @@ async function save() {
           maxlength="20"
           :placeholder="$t('profile.languageAuto')"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="pf-signoff" class="block text-sm font-medium">{{ $t('profile.signOff') }}</label
@@ -83,7 +83,7 @@ async function save() {
           v-model="form.signOff"
           maxlength="80"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="pf-style" class="block text-sm font-medium">{{
@@ -94,7 +94,7 @@ async function save() {
           v-model="form.styleNotes"
           maxlength="300"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div class="md:col-span-2">
         <label for="pf-sig" class="block text-sm font-medium">{{ $t('profile.signature') }}</label>

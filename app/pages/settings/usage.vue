@@ -71,7 +71,7 @@ async function savePrice(model: string) {
           type="number"
           min="0"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="cap-cost" class="block text-sm">{{ $t('ai.usage.costCap') }}</label
@@ -82,7 +82,7 @@ async function savePrice(model: string) {
           min="0"
           step="0.01"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div class="flex items-end gap-2">
         <button type="submit" class="rounded border px-3 py-1">{{ $t('common.save') }}</button
@@ -178,7 +178,7 @@ async function savePrice(model: string) {
                   step="0.01"
                   :placeholder="$t('ai.usage.priceIn')"
                   class="w-20 rounded border px-1"
-                />
+                >
                 <label :for="`pout-${m.model}`" class="sr-only">{{
                   $t('ai.usage.priceOut')
                 }}</label>
@@ -190,7 +190,7 @@ async function savePrice(model: string) {
                   step="0.01"
                   :placeholder="$t('ai.usage.priceOut')"
                   class="w-20 rounded border px-1"
-                />
+                >
                 <button type="submit" class="rounded border px-2 text-xs">
                   {{ $t('common.save') }}
                 </button>

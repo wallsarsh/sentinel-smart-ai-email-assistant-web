@@ -70,11 +70,11 @@ async function run() {
     <form class="flex flex-wrap items-end gap-3" @submit.prevent="run">
       <label class="flex flex-col text-sm"
         >{{ $t('brief.catch.from') }}
-        <input v-model="from" type="datetime-local" class="rounded border px-2 py-1" />
+        <input v-model="from" type="datetime-local" class="rounded border px-2 py-1" >
       </label>
       <label class="flex flex-col text-sm"
         >{{ $t('brief.catch.to') }}
-        <input v-model="to" type="datetime-local" class="rounded border px-2 py-1" />
+        <input v-model="to" type="datetime-local" class="rounded border px-2 py-1" >
       </label>
       <button
         type="submit"

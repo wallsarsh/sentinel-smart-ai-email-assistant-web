@@ -62,7 +62,7 @@ async function save() {
         v-model="name"
         maxlength="60"
         class="mt-1 w-full rounded border px-2 py-1"
-      />
+      >
     </div>
     <div v-if="preset?.editableUrl">
       <label for="prov-url" class="block text-sm font-medium">{{
@@ -75,7 +75,7 @@ async function save() {
         required
         placeholder="https://"
         class="mt-1 w-full rounded border px-2 py-1"
-      />
+      >
       <p class="text-xs" style="color: var(--muted)">{{ $t('ai.providers.baseUrlHint') }}</p>
     </div>
     <div>
@@ -88,7 +88,7 @@ async function save() {
         required
         minlength="8"
         class="mt-1 w-full rounded border px-2 py-1"
-      />
+      >
       <p class="text-xs" style="color: var(--muted)">{{ $t('ai.providers.keyHint') }}</p>
     </div>
     <div class="flex gap-2">

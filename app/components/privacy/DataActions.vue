@@ -164,7 +164,7 @@ void props
           autocomplete="one-time-code"
           class="mt-1 w-full rounded border px-3 py-2"
           data-testid="step-up-code"
-        />
+        >
       </label>
       <button type="submit" class="rounded border px-3 py-2" :disabled="busy || !code">
         {{ $t('auth.mfa.submit') }}
@@ -192,7 +192,7 @@ void props
             autocomplete="current-password"
             class="mt-1 w-full rounded border px-3 py-2"
             data-testid="delete-password"
-          />
+          >
         </label>
         <div class="flex gap-2">
           <button

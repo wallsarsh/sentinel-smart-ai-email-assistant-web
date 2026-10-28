@@ -10,8 +10,5 @@ export default defineEventHandler(async (event) => {
   if (!q.success)
     return failWith(event, { kind: 'validation', field: 'accountId', code: 'invalid' })
   const inbox = forUser(useDb(), user.id).inbox
-  return {
-    counts: await inbox.counts(q.data.accountId),
-    unread: await inbox.unreadCount(q.data.accountId),
-  }
+  return inbox.countsWithUnread(q.data.accountId)
 })

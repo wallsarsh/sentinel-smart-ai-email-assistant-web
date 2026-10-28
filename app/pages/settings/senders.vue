@@ -43,7 +43,7 @@ const of = (k: 'vip' | 'mute') => (data.value?.rules ?? []).filter((r) => r.kind
           required
           placeholder="boss@corp.example or @news.example"
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <div>
         <label for="rule-kind" class="block text-sm font-medium">{{

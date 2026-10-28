@@ -44,7 +44,7 @@ async function submit() {
           autocomplete="new-password"
           required
           class="mt-1 w-full rounded border px-3 py-2"
-        />
+        >
       </label>
       <button
         type="submit"

@@ -82,7 +82,7 @@ const status = computed(() =>
           autocomplete="off"
           autofocus
           class="w-full rounded border px-2 py-1"
-        />
+        >
       </div>
       <label v-if="accounts.length > 1" class="text-sm">
         {{ $t('inbox.account') }}
@@ -94,7 +94,7 @@ const status = computed(() =>
         </select>
       </label>
       <label class="flex items-center gap-2 text-sm"
-        ><input v-model="unread" type="checkbox" />{{ $t('search.unreadOnly') }}</label
+        ><input v-model="unread" type="checkbox" >{{ $t('search.unreadOnly') }}</label
       >
     </form>
 

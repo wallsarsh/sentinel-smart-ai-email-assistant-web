@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 99/111 done · ready now: T009, T010, T011, T153, T154, T155, T159
+**Progress:** 100/111 done · ready now: T009, T010, T011, T154, T155, T159
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -136,7 +136,7 @@ flowchart LR
     T150["T150"]:::done
     T151["T151"]:::done
     T152["T152"]:::done
-    T153["T153"]:::todo
+    T153["T153"]:::done
     T154["T154"]:::todo
     T155["T155"]:::todo
     T156["T156"]:::todo
@@ -515,7 +515,7 @@ flowchart LR
 | ✅ | [T150](items/T150-end-to-end-suite-with-fakes.md) | End-to-end suite with fakes | L | test | T140, T113, T126 | claude |
 | ✅ | [T151](items/T151-ai-evaluation-harness.md) | AI evaluation harness | M | test | T091, T101, T124 | claude |
 | ✅ | [T152](items/T152-accessibility-audit.md) | Accessibility audit | M | test | T140 | claude |
-| ⬜ | [T153](items/T153-performance-pass.md) | Performance pass | M | test | T140 |  |
+| ✅ | [T153](items/T153-performance-pass.md) | Performance pass | M | test | T140 | claude |
 | ⬜ | [T154](items/T154-observability.md) | Observability | S | code | T006, T033 |  |
 | ⬜ | [T155](items/T155-security-review-pass-and-headers-audit.md) | Security review pass and headers audit | M | test | T113, T025 |  |
 | ⬜ | [T156](items/T156-production-image-and-deployment.md) | Production image and deployment | M | config | T002, T011 |  |

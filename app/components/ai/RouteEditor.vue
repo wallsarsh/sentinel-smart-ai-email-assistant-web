@@ -76,7 +76,7 @@ async function save() {
             :list="`${task}-models${i}`"
             required
             class="w-full rounded border px-2 py-1"
-          />
+          >
           <datalist :id="`${task}-models${i}`">
             <option v-for="m in modelsFor(r.providerId)" :key="m" :value="m" />
           </datalist>
@@ -92,7 +92,7 @@ async function save() {
             min="16"
             max="32000"
             class="w-full rounded border px-2 py-1"
-          />
+          >
         </div>
         <div>
           <label :for="`${task}-c${i}`" class="block text-sm">{{
@@ -106,7 +106,7 @@ async function save() {
             max="2"
             step="0.1"
             class="w-full rounded border px-2 py-1"
-          />
+          >
         </div>
         <div class="flex gap-1 md:col-span-6">
           <button

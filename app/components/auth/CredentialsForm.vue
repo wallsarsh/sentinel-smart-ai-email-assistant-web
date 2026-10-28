@@ -31,7 +31,7 @@ function submit() {
         autocomplete="username"
         required
         class="mt-1 w-full rounded border px-3 py-2"
-      />
+      >
     </label>
     <label class="block text-sm">
       {{ $t('auth.password') }}
@@ -42,7 +42,7 @@ function submit() {
         :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
         required
         class="mt-1 w-full rounded border px-3 py-2"
-      />
+      >
     </label>
     <p v-if="mode === 'signup'" class="text-sm" style="color: var(--muted)">
       {{ $t('auth.signup.passwordHint') }}
