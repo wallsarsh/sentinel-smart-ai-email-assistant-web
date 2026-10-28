@@ -170,18 +170,13 @@ describe('usage breakdown', () => {
     await s.gw.complete(s.call)
     await s.gw.complete({ ...s.call, task: 'draft' })
     const rows = await s.repos.ai.usageBreakdown(new Date('2026-10-01T00:00:00Z'))
-    expect(
-      rows.map((r) => [r.day, r.model, r.task, r.calls, r.inputTokens, r.outputTokens]),
-    ).toEqual(
-      [
-        ['2026-10-28', 'm1', 'draft', 1, 20, 5],
-        ['2026-10-28', 'm1', 'triage', 1, 10, 5],
-      ]
-        .sort((a, b) => String(a[2]).localeCompare(String(b[2])))
-        .reverse().length
-        ? rows.map((r) => [r.day, r.model, r.task, r.calls, r.inputTokens, r.outputTokens])
-        : [],
-    )
+    const flat = rows
+      .map((r) => [r.day, r.model, r.task, r.calls, r.inputTokens, r.outputTokens])
+      .sort((x, y) => String(x[2]).localeCompare(String(y[2])))
+    expect(flat).toEqual([
+      ['2026-10-28', 'm1', 'draft', 1, 20, 5],
+      ['2026-10-28', 'm1', 'triage', 1, 10, 5],
+    ])
     expect(rows.reduce((n, r) => n + r.inputTokens + r.outputTokens, 0)).toBe(40)
   })
 })
