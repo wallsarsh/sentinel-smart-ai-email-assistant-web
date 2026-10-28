@@ -1,0 +1,55 @@
+# Single-host deployment: Postgres, a one-shot migration, the web app and the worker.
+#   cp deploy/.env.example deploy/.env   (fill every value; see the comments there)
+#   docker compose -f deploy/compose.yml --env-file deploy/.env up -d
+# Put a TLS-terminating reverse proxy in front of `web` (port 3000); BASE_URL must be its https address.
+# For a managed Postgres, delete the `postgres` service and point DATABASE_URL at it.
+x-app: &app
+  image: ${SENTINEL_IMAGE:-sentinel:latest}
+  restart: unless-stopped
+  env_file: .env
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  depends_on:
+    migrate: { condition: service_completed_successfully }
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: sentinel
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sentinel']
+      interval: 5s
+      retries: 20
+    deploy: { resources: { limits: { cpus: '1.0', memory: 1G } } }
+
+  migrate:
+    image: ${SENTINEL_IMAGE:-sentinel:latest}
+    command: ['node', 'dist/migrate.mjs']
+    env_file: .env
+    restart: 'no'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    <<: *app
+    ports: ['127.0.0.1:3000:3000']
+    deploy: { resources: { limits: { cpus: '1.0', memory: 512M } } }
+
+  worker:
+    <<: *app
+    command: ['node', 'dist/worker.mjs']
+    healthcheck: { disable: true } # no HTTP port; the queue gauges on /api/metrics show if it is stuck
+    deploy: { resources: { limits: { cpus: '1.0', memory: 768M } } }
+
+volumes:
+  pgdata:

@@ -55,3 +55,30 @@ jobs:
         run: npm run e2e
         env:
           E2E_DATABASE_URL: postgres://postgres:pw@127.0.0.1:5432/sentinel_e2e
+
+  image:
+    runs-on: ubuntu-latest
+    needs: checks
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: pw
+          POSTGRES_DB: sentinel
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        run: docker build -t sentinel:ci .
+      - name: Migrations run from the image, then web and worker start as a non-root user on a read-only filesystem
+        run: |
+          ENVS="-e NODE_ENV=production -e BASE_URL=https://sentinel.example.test -e DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/sentinel -e SESSION_SECRET=$(openssl rand -base64 48) -e KEK_BASE64=$(openssl rand -base64 32)"
+          docker run --rm --network host --read-only --cap-drop ALL $ENVS sentinel:ci node dist/migrate.mjs
+          docker run -d --name web --network host --read-only --tmpfs /tmp --cap-drop ALL -e PORT=3000 $ENVS sentinel:ci
+          docker run -d --name worker --network host --read-only --tmpfs /tmp --cap-drop ALL $ENVS sentinel:ci node dist/worker.mjs
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:3000/api/ready && break; sleep 2; done
+          curl -sf http://127.0.0.1:3000/api/ready | grep '"ready":true'
+          test "$(docker exec web id -u)" != "0"
+          docker logs worker 2>&1 | grep 'worker started'
