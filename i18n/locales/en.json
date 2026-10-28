@@ -284,7 +284,21 @@
       "unpriced": "no price set"
     },
     "bench": {
-      "title": "Test bench"
+      "title": "Test bench",
+      "intro": "Compares two models on three made-up emails. Your real mail is never used. Each run is a normal AI call: it needs consent for the provider and counts toward your usage and limits.",
+      "side": {
+        "a": "Model A",
+        "b": "Model B"
+      },
+      "run": "Run comparison",
+      "row": {
+        "result": "Result",
+        "tokens": "Tokens in / out",
+        "latency": "Time",
+        "cost": "Cost"
+      },
+      "valid": "Valid JSON",
+      "invalid": "Invalid JSON"
     }
   }
 }

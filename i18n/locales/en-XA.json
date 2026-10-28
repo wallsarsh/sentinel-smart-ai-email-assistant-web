@@ -284,7 +284,21 @@
       "unpriced": "[ñö príçé šét one]"
     },
     "bench": {
-      "title": "[Téšt béñçh one]"
+      "title": "[Téšt béñçh one]",
+      "intro": "[Cömpáréš twö mödélš öñ thréé mádé-üp émáílš. Yöür réál máíl íš ñévér üšéd. Éáçh rüñ íš á ñörmál ÁÍ çáll: ít ñéédš çöñšéñt för thé prövídér áñd çöüñtš töwárd ýöür üšágé áñd límítš. one two three four]",
+      "side": {
+        "a": "[Mödél Á one]",
+        "b": "[Mödél B one]"
+      },
+      "run": "[Rüñ çömpáríšöñ one]",
+      "row": {
+        "result": "[Réšült one]",
+        "tokens": "[Tökéñš íñ / öüt one]",
+        "latency": "[Tímé one]",
+        "cost": "[Cöšt one]"
+      },
+      "valid": "[Válíd JŠÖÑ one]",
+      "invalid": "[Íñválíd JŠÖÑ one]"
     }
   }
 }

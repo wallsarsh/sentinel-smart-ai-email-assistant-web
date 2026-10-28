@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 61/111 done · ready now: T009, T010, T011, T082, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 62/111 done · ready now: T009, T010, T011, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -88,7 +88,7 @@ flowchart LR
     T079["T079"]:::done
     T080["T080"]:::done
     T081["T081"]:::done
-    T082["T082"]:::todo
+    T082["T082"]:::done
   end
   subgraph P5
     T090["T090"]:::todo
@@ -452,7 +452,7 @@ flowchart LR
 | ✅ | [T079](items/T079-task-routes-and-usage-ui.md) | Task routes and usage UI | M | code | T075, T076, T077 | claude |
 | ✅ | [T080](items/T080-prompt-registry-and-builder.md) | Prompt registry and builder | M | code | T030, T005 | claude |
 | ✅ | [T081](items/T081-structured-output-validation-and-repair.md) | Structured output validation and repair | M | code | T080, T070 | claude |
-| ⬜ | [T082](items/T082-ai-test-bench.md) | AI test bench | M | code | T079, T080 |  |
+| ✅ | [T082](items/T082-ai-test-bench.md) | AI test bench | M | code | T079, T080 | claude |
 
 ## P5
 
