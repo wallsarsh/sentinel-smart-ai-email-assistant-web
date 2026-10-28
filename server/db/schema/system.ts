@@ -133,3 +133,29 @@ export const notified = pgTable(
   },
   (t) => [uniqueIndex('notified_pk').on(t.userId, t.key)],
 )
+
+/** Durable job queue (claimed with FOR UPDATE SKIP LOCKED). */
+export const jobs = pgTable(
+  'jobs',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    /** Idempotency key: enqueueing the same key twice keeps one job. */
+    key: text('key').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    status: text('status').notNull().default('queued'), // queued | running | done | failed
+    runAt: timestamp('run_at', { withTimezone: true }).notNull().defaultNow(),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+    lastError: text('last_error'),
+    createdAt: createdAt(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('jobs_key').on(t.key),
+    index('jobs_due').on(t.status, t.runAt),
+    index('jobs_user_status').on(t.userId, t.status),
+  ],
+)
