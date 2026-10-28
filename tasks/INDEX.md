@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 9/111 done · ready now: T009, T010, T011, T020, T027, T028, T029, T030, T040, T041, T055, T090, T092
+**Progress:** 10/111 done · ready now: T009, T010, T011, T021, T022, T027, T028, T029, T030, T033, T040, T041, T055, T090, T092
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -30,7 +30,7 @@ flowchart LR
     T012["T012"]:::done
   end
   subgraph P1
-    T020["T020"]:::todo
+    T020["T020"]:::done
     T021["T021"]:::todo
     T022["T022"]:::todo
     T023["T023"]:::todo
@@ -387,7 +387,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T020](items/T020-database-schema-and-migrations.md) | Database schema and migrations | L | code | T005 |  |
+| ✅ | [T020](items/T020-database-schema-and-migrations.md) | Database schema and migrations | L | code | T005 | claude-sonnet-5-5 |
 | ⬜ | [T021](items/T021-repositories-and-tenant-scoping.md) | Repositories and tenant scoping | M | code | T020 |  |
 | ⬜ | [T022](items/T022-envelope-encryption-secret-store.md) | Envelope encryption secret store | M | code | T004, T020 |  |
 | ⬜ | [T023](items/T023-user-signup-login-and-sessions.md) | User signup, login and sessions | M | code | T021, T004 |  |
