@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 89/111 done · ready now: T009, T010, T011, T127, T128, T140, T141, T142, T143, T144, T151, T154, T155
+**Progress:** 90/111 done · ready now: T009, T010, T011, T128, T140, T141, T142, T143, T144, T151, T154, T155
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -122,7 +122,7 @@ flowchart LR
     T124["T124"]:::done
     T125["T125"]:::done
     T126["T126"]:::done
-    T127["T127"]:::todo
+    T127["T127"]:::done
     T128["T128"]:::todo
   end
   subgraph P8
@@ -495,7 +495,7 @@ flowchart LR
 | ✅ | [T124](items/T124-daily-brief-generator.md) | Daily brief generator | L | code | T081, T091, T080 | claude |
 | ✅ | [T125](items/T125-brief-ui.md) | Brief UI | M | code | T124, T008 | claude |
 | ✅ | [T126](items/T126-brief-scheduling.md) | Brief scheduling | S | code | T124, T121, T123 | claude |
-| ⬜ | [T127](items/T127-retention-job.md) | Retention job | S | code | T033 |  |
+| ✅ | [T127](items/T127-retention-job.md) | Retention job | S | code | T033 | claude |
 | ⬜ | [T128](items/T128-background-settings-and-diagnostics-ui.md) | Background settings and diagnostics UI | M | code | T123, T126 |  |
 
 ## P8

@@ -1,4 +1,4 @@
-import { and, eq, gte, sql } from 'drizzle-orm'
+import { and, eq, gte, lt, sql } from 'drizzle-orm'
 import { aiProviders, aiTaskRoutes, usageRecords } from '../db/schema'
 import type { Scope } from './scope'
 
@@ -43,6 +43,15 @@ export const aiProvidersRepo = (s: Scope) => {
     },
     async recordUsage(v: Omit<typeof usageRecords.$inferInsert, 'userId' | 'id'>) {
       await s.db.insert(usageRecords).values({ ...v, userId: s.userId })
+    },
+    /** Retention: deletes usage records created before [cutoff]. */
+    async deleteUsageBefore(cutoff: Date): Promise<number> {
+      return (
+        await s.db
+          .delete(usageRecords)
+          .where(and(eq(usageRecords.userId, s.userId), lt(usageRecords.createdAt, cutoff)))
+          .returning({ id: usageRecords.id })
+      ).length
     },
     /** Tokens (input+output) and cost since [since]. */
     async usageSince(since: Date) {

@@ -5,6 +5,7 @@ import type { JobHandler } from '../server/jobs/runner'
 import { pushService } from '../server/push/service'
 import { webPushTransport } from '../server/push/web-push-transport'
 import { useConfig } from '../server/config'
+import { retentionHandler, RETENTION_JOB } from './jobs/retention'
 import { workerContainer } from './container'
 import { briefStep, defaultBriefPorts } from './jobs/brief'
 import { defaultPorts, mailCheck } from './jobs/mail-check'
@@ -25,6 +26,7 @@ export function buildHandlers(db: Db): Record<string, JobHandler> {
       ...defaultPorts({ db, providerFor: c.providerFor, triage: c.triage, push, onPage }),
       briefStep: briefStepFor(defaultBriefPorts({ db, brief: c.brief, push })),
     }),
+    [RETENTION_JOB]: retentionHandler({ db }),
     // Jobs queued by earlier versions finish through the plain sync path.
     [SYNC_JOB]: syncHandler({ db, providerFor: c.providerFor, onPage }),
   }

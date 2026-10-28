@@ -1,5 +1,5 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
-import { accounts, folders, messages, threads } from '../db/schema'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { accounts, actionItems, folders, messages, threads } from '../db/schema'
 import type { Scope } from './scope'
 
 export type MessageRow = typeof messages.$inferSelect
@@ -16,6 +16,25 @@ async function ownsAccount(s: Scope, accountId: string): Promise<boolean> {
 }
 
 export const mailRepo = (s: Scope) => ({
+  /**
+   * Retention: deletes local copies of messages received before [cutoff],
+   * except mail with an open or snoozed action item. Triage results and
+   * action items of deleted mail go with them. The mailbox is not touched.
+   */
+  async deleteReceivedBeforeKeepingOpenTasks(cutoff: Date): Promise<number> {
+    const rows = await s.db
+      .delete(messages)
+      .where(
+        and(
+          eq(messages.userId, s.userId),
+          lt(messages.receivedAt, cutoff),
+          sql`not exists (select 1 from ${actionItems} a where a.message_id = ${messages.id} and a.status in ('open','snoozed'))`,
+        ),
+      )
+      .returning({ id: messages.id })
+    return rows.length
+  },
+
   async upsertFolders(accountId: string, list: Omit<NewFolder, 'accountId'>[]) {
     if (!(await ownsAccount(s, accountId))) throw new Error('forbidden')
     for (const f of list) {

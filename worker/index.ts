@@ -5,14 +5,17 @@ import { enqueueUserSyncs } from '../server/jobs/sync'
 import { jobQueue } from '../server/jobs/queue'
 import { startRunner } from '../server/jobs/runner'
 import { logger } from '../server/utils/logger'
+import { enqueueRetention } from './jobs/retention'
 import { buildHandlers } from './handlers'
 
 const { db, close } = createDb(useConfig().databaseUrl)
 const runner = startRunner({ queue: jobQueue(db), handlers: buildHandlers(db), logger })
 const queue = jobQueue(db)
 const scheduler = setInterval(() => {
-  enqueueUserSyncs(db, queue, new Date()).catch((e) =>
-    logger.error({ err: String(e) }, 'schedule failed'),
+  const now = new Date()
+  enqueueUserSyncs(db, queue, now).catch((e) => logger.error({ err: String(e) }, 'schedule failed'))
+  enqueueRetention(db, queue, now).catch((e) =>
+    logger.error({ err: String(e) }, 'retention schedule failed'),
   )
 }, 60_000)
 logger.info('worker started')

@@ -92,6 +92,15 @@ export const backgroundRepo = (s: Scope) => ({
     await s.db.delete(notified).where(and(eq(notified.userId, s.userId), eq(notified.key, key)))
   },
 
+  async deleteNotifiedBefore(before: Date): Promise<number> {
+    return (
+      await s.db
+        .delete(notified)
+        .where(and(eq(notified.userId, s.userId), lt(notified.at, before)))
+        .returning({ k: notified.key })
+    ).length
+  },
+
   async notifiedSince(since: Date): Promise<number> {
     return (
       await s.db

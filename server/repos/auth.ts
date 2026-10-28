@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull } from 'drizzle-orm'
+import { and, eq, gt, isNull, lt, or } from 'drizzle-orm'
 import { passwordResets, sessions, users } from '../db/schema'
 import type { Db } from '../db/client'
 
@@ -45,6 +45,19 @@ export const authRepo = (db: Db) => ({
     lastSeenAt: Date
   }) {
     await db.insert(sessions).values(v)
+  },
+  /** Deletes sessions that expired (or were revoked over a week ago) and used or expired reset tokens. */
+  async purgeExpired(now: Date): Promise<{ sessions: number; resets: number }> {
+    const weekAgo = new Date(now.getTime() - 7 * 86_400_000)
+    const s = await db
+      .delete(sessions)
+      .where(or(lt(sessions.expiresAt, now), lt(sessions.revokedAt, weekAgo)))
+      .returning({ id: sessions.id })
+    const r = await db
+      .delete(passwordResets)
+      .where(or(lt(passwordResets.expiresAt, now), lt(passwordResets.usedAt, weekAgo)))
+      .returning({ h: passwordResets.tokenHash })
+    return { sessions: s.length, resets: r.length }
   },
   async sessionWithUser(id: string, now: Date) {
     const [row] = await db
