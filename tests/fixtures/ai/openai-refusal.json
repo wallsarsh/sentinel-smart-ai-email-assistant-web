@@ -1,0 +1,12 @@
+{
+  "id": "c3",
+  "model": "test-model-b",
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": null, "refusal": "I can't help with that." },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": { "prompt_tokens": 10, "completion_tokens": 5 }
+}

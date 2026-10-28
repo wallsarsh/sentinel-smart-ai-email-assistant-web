@@ -1,0 +1,12 @@
+{
+  "id": "c2",
+  "model": "test-model-b",
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "{\"results\":[{" },
+      "finish_reason": "length"
+    }
+  ],
+  "usage": { "prompt_tokens": 10, "completion_tokens": 5 }
+}
