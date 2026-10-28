@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 49/111 done · ready now: T009, T010, T011, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 50/111 done · ready now: T009, T010, T011, T071, T072, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -76,7 +76,7 @@ flowchart LR
     T068["T068"]:::done
   end
   subgraph P4
-    T070["T070"]:::todo
+    T070["T070"]:::done
     T071["T071"]:::todo
     T072["T072"]:::todo
     T073["T073"]:::todo
@@ -440,7 +440,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T070](items/T070-ai-ports-and-anthropic-adapter.md) | AI ports and Anthropic adapter | L | code | T005, T029 |  |
+| ✅ | [T070](items/T070-ai-ports-and-anthropic-adapter.md) | AI ports and Anthropic adapter | L | code | T005, T029 | claude |
 | ⬜ | [T071](items/T071-openai-and-compatible-adapters.md) | OpenAI and compatible adapters | L | code | T070 |  |
 | ⬜ | [T072](items/T072-streaming-parser.md) | Streaming parser | M | code | T070 |  |
 | ⬜ | [T073](items/T073-ai-provider-repository-and-key-handling.md) | AI provider repository and key handling | M | code | T022, T021 |  |

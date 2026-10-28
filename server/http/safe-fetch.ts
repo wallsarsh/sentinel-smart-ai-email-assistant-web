@@ -118,3 +118,74 @@ async function readCapped(
   }
   return Buffer.concat(chunks).toString('utf8')
 }
+
+export type SafeStreamOptions = Pick<
+  SafeFetchOptions,
+  'method' | 'headers' | 'body' | 'policy' | 'resolver'
+> & {
+  /** Time allowed until response headers arrive. */
+  connectTimeoutMs?: number
+  /** Aborting closes the upstream connection. */
+  signal?: AbortSignal
+}
+export type SafeStream = {
+  status: number
+  headers: Headers
+  body: ReadableStream<Uint8Array> | null
+  close(): void
+}
+
+/**
+ * Like [safeFetch] but hands back the response body as a stream (for AI token
+ * streaming). Same address vetting and pinning; redirects are refused and
+ * nothing is retried, since a half-delivered stream cannot be replayed.
+ */
+export async function safeStream(rawUrl: string, o: SafeStreamOptions = {}): Promise<SafeStream> {
+  const { url, addresses } = await checkUrl(rawUrl, o.policy, o.resolver ?? systemResolver)
+  const dispatcher = new Agent({
+    connect: {
+      lookup: (_h, _o, cb) => {
+        const ip = addresses[0]!
+        if (!isPublicAddress(ip)) return cb(new SsrfError('private_address'), '', 4)
+        cb(null, [{ address: ip, family: ip.includes(':') ? 6 : 4 }] as never, undefined as never)
+      },
+    },
+  })
+  const ctl = new AbortController()
+  const abort = () => ctl.abort()
+  o.signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(abort, o.connectTimeoutMs ?? 15_000)
+  const close = () => {
+    clearTimeout(timer)
+    o.signal?.removeEventListener('abort', abort)
+    ctl.abort()
+    void dispatcher.close()
+  }
+  try {
+    const res = await undiciFetch(url, {
+      method: o.method ?? 'POST',
+      headers: o.headers,
+      body: o.body,
+      redirect: 'manual',
+      dispatcher,
+      signal: ctl.signal,
+    })
+    clearTimeout(timer)
+    if (REDIRECT.has(res.status)) {
+      close()
+      throw new SsrfError('too_many_redirects')
+    }
+    return {
+      status: res.status,
+      headers: res.headers as unknown as Headers,
+      body: res.body as never,
+      close,
+    }
+  } catch (e) {
+    close()
+    if (e instanceof SsrfError) throw e
+    throw new Error(`request failed: ${scrub(e instanceof Error ? e.message : 'error')}`, {
+      cause: e,
+    })
+  }
+}

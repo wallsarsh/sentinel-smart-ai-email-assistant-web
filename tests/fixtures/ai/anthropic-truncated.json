@@ -1,0 +1,9 @@
+{
+  "id": "msg_2",
+  "type": "message",
+  "role": "assistant",
+  "model": "test-model-a",
+  "content": [{ "type": "text", "text": "{\"results\":[{\"id\":\"e1\"" }],
+  "stop_reason": "max_tokens",
+  "usage": { "input_tokens": 50, "output_tokens": 10 }
+}
