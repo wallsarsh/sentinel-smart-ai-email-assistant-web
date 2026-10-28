@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { clearOfflineData } from '~/utils/offline'
 import { SETTINGS_SECTIONS } from '~/utils/settings-sections'
 import type { Me } from '~/utils/route-guard'
 
 async function signOut() {
   await $fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
+  await clearOfflineData()
   useState<boolean>('me-loaded').value = false
   useState<Me>('me').value = null
   await navigateTo('/login')

@@ -811,5 +811,8 @@
         "session_revoked": "[Šéššíöñ éñdéd one]"
       }
     }
+  },
+  "offline": {
+    "banner": "[Yöü áré öfflíñé. Yöü çáñ réád whát wáš álréádý löádéd; öpéñíñg ñéw máíl áñd šéñdíñg ñééd á çöññéçtíöñ. one two three four]"
   }
 }

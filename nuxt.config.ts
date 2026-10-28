@@ -41,5 +41,20 @@ export default defineNuxtConfig({
   },
   typescript: { strict: true, typeCheck: false },
   css: ['~/assets/css/main.css'],
-  app: { head: { title: 'Sentinel', htmlAttrs: { lang: 'en' } } },
+  app: {
+    head: {
+      title: 'Sentinel',
+      htmlAttrs: { lang: 'en' },
+      meta: [
+        { name: 'theme-color', content: '#3949ab' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-title', content: 'Sentinel' },
+      ],
+      link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/icons/favicon-32.png' },
+        { rel: 'apple-touch-icon', href: '/icons/apple-touch-icon.png' },
+      ],
+    },
+  },
 })

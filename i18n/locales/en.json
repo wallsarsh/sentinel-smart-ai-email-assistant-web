@@ -811,5 +811,8 @@
         "session_revoked": "Session ended"
       }
     }
+  },
+  "offline": {
+    "banner": "You are offline. You can read what was already loaded; opening new mail and sending need a connection."
   }
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { clearOfflineData } from '~/utils/offline'
 import { ref } from 'vue'
 import type { PrivacySettings } from '~/components/privacy/PrivacyForm.vue'
 import type { Me } from '~/utils/route-guard'
@@ -28,6 +29,7 @@ async function exclude(v: { id: string; excluded: boolean }) {
   await refresh()
 }
 async function deleted() {
+  await clearOfflineData()
   const loaded = useState<boolean>('me-loaded')
   const state = useState<Me>('me')
   loaded.value = false

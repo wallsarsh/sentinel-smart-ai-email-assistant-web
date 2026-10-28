@@ -25,7 +25,13 @@ self.addEventListener('push', (event) => {
       tag: `${type}:${id}`, // the same message never stacks up twice
       data: { type, id },
       // Open and Mark done are the only actions.
-      actions: type === 'message' ? [{ action: 'open', title: 'Open' }, { action: 'done', title: 'Mark done' }] : [{ action: 'open', title: 'Open' }],
+      actions:
+        type === 'message'
+          ? [
+              { action: 'open', title: 'Open' },
+              { action: 'done', title: 'Mark done' },
+            ]
+          : [{ action: 'open', title: 'Open' }],
     }),
   )
 })
@@ -59,3 +65,6 @@ self.addEventListener('notificationclick', (event) => {
     })(),
   )
 })
+
+// Offline page and metadata cache live in their own file so this one stays push-only.
+importScripts('/sw-offline.js')

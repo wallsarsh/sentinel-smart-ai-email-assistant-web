@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { clearOfflineData } from '~/utils/offline'
 import { ref } from 'vue'
 import type { AuditRow } from '~/components/security/AuditLog.vue'
 import type { SessionRow } from '~/components/security/SessionList.vue'
@@ -17,6 +18,7 @@ async function revoke(handle: string) {
     failed.value = true
   }
   if (current) {
+    await clearOfflineData()
     useState<boolean>('me-loaded').value = false
     useState<Me>('me').value = null
     await navigateTo('/login')

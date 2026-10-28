@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 94/111 done · ready now: T009, T010, T011, T143, T144, T150, T151, T152, T153, T154, T155, T159
+**Progress:** 95/111 done · ready now: T009, T010, T011, T144, T150, T151, T152, T153, T154, T155, T159
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -129,7 +129,7 @@ flowchart LR
     T140["T140"]:::done
     T141["T141"]:::done
     T142["T142"]:::done
-    T143["T143"]:::todo
+    T143["T143"]:::done
     T144["T144"]:::todo
   end
   subgraph P9
@@ -505,7 +505,7 @@ flowchart LR
 | ✅ | [T140](items/T140-onboarding-flow.md) | Onboarding flow | M | code | T054, T077, T078, T122 | claude |
 | ✅ | [T141](items/T141-settings-hub-and-privacy-and-data.md) | Settings hub and privacy and data | M | code | T030, T032, T031 | claude |
 | ✅ | [T142](items/T142-security-settings.md) | Security settings | M | code | T024, T026 | claude |
-| ⬜ | [T143](items/T143-pwa-shell.md) | PWA shell | M | code | T008, T122 |  |
+| ✅ | [T143](items/T143-pwa-shell.md) | PWA shell | M | code | T008, T122 | claude |
 | ⬜ | [T144](items/T144-visual-regression-and-responsive-polish.md) | Visual regression and responsive polish | S | test | T125, T064, T102, T110 |  |
 
 ## P9
