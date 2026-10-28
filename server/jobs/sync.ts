@@ -8,6 +8,8 @@ import type { JobHandler } from './runner'
 import type { JobQueue } from './queue'
 
 export const SYNC_JOB = 'mail.sync'
+/** The scheduled per-user background job: sync, rules, notify, AI triage. */
+export const MAIL_CHECK_JOB = 'mail.check'
 export const INTERVALS = [5, 15, 30, 60] as const
 
 /** Snaps any value to the nearest allowed interval (5/15/30/60 minutes). */
@@ -28,7 +30,10 @@ export async function enqueueUserSyncs(db: Db, queue: JobQueue, now: Date): Prom
     if (!(await repos.accounts.list()).some((a) => a.status === 'active')) continue
     const every = clampInterval(await repos.settings.get('bg.intervalMinutes')) * 60_000
     const period = Math.floor(now.getTime() / every) * every
-    if (await queue.enqueue(SYNC_JOB, { userId, key: `${SYNC_JOB}:${userId}:${period}` })) n++
+    if (
+      await queue.enqueue(MAIL_CHECK_JOB, { userId, key: `${MAIL_CHECK_JOB}:${userId}:${period}` })
+    )
+      n++
   }
   return n
 }
@@ -45,10 +50,11 @@ export async function requestRefresh(
   const wait = refreshLimiter.hit(`refresh:${userId}`, REFRESH_LIMIT)
   if (wait) return wait
   // Unique per call within a second so a manual refresh is not swallowed by the scheduled key.
-  await queue.enqueue(SYNC_JOB, {
+  await queue.enqueue(MAIL_CHECK_JOB, {
     userId,
-    key: `${SYNC_JOB}:now:${userId}:${now.getTime()}`,
+    key: `${MAIL_CHECK_JOB}:now:${userId}:${now.getTime()}`,
     maxAttempts: 2,
+    payload: { trigger: 'manual' },
   })
   return 0
 }

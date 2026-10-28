@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 83/111 done · ready now: T009, T010, T011, T121, T122, T124, T127, T141, T142, T154, T155
+**Progress:** 84/111 done · ready now: T009, T010, T011, T122, T124, T127, T141, T142, T154, T155
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -116,7 +116,7 @@ flowchart LR
   end
   subgraph P7
     T120["T120"]:::done
-    T121["T121"]:::todo
+    T121["T121"]:::done
     T122["T122"]:::todo
     T123["T123"]:::todo
     T124["T124"]:::todo
@@ -489,7 +489,7 @@ flowchart LR
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
 | ✅ | [T120](items/T120-worker-container-without-send-capability.md) | Worker container without send capability | M | code | T033, T105 | claude |
-| ⬜ | [T121](items/T121-mail-check-job.md) | Mail-check job | M | code | T120, T061, T091 |  |
+| ✅ | [T121](items/T121-mail-check-job.md) | Mail-check job | M | code | T120, T061, T091 | claude |
 | ⬜ | [T122](items/T122-web-push-service.md) | Web push service | L | code | T033, T008 |  |
 | ⬜ | [T123](items/T123-notification-rules-and-quiet-hours.md) | Notification rules and quiet hours | M | code | T122, T121 |  |
 | ⬜ | [T124](items/T124-daily-brief-generator.md) | Daily brief generator | L | code | T081, T091, T080 |  |
