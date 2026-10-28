@@ -1,0 +1,20 @@
+<emails boundary="b7f3c2a911223344">
+<email id="e1" boundary="b7f3c2a911223344">
+from: Alex Chen <alex@acme.example>
+to: me
+cc: —
+date: 2026-10-27T08:14:00+01:00 (Tuesday)
+subject: Q3 numbers before board call
+attachments: Q3-draft.xlsx
+thread_context: 2 earlier messages (summarized): Alex asked for Q3 revenue split; you said you'd send by Tuesday.
+body:
+  Hi, can you send the final Q3 numbers before 3pm today? The board call moved up. Thanks!
+</email boundary="b7f3c2a911223344">
+</emails boundary="b7f3c2a911223344">
+user_context:
+  name: Priya Sharma
+  role: Director of Finance
+  timezone: Europe/Berlin
+  today: 2026-10-27 (Tuesday)
+  vip_senders: [alex@acme.example]
+  sender_hints: ["newsletter@vendor.example → user marks Low importance"]

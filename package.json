@@ -17,6 +17,7 @@
     "check": "npm run lint && npm run typecheck && npm run test && npm run send-gate",
     "send-gate": "node tools/send-gate-check.mjs",
     "i18n:pseudo": "node tools/pseudo.mjs",
+    "prompts:sync": "node tools/sync-prompts.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/db/migrate.ts",
     "worker": "tsx worker/index.ts"
