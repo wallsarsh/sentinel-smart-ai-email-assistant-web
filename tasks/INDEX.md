@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 26/111 done · ready now: T009, T010, T011, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 27/111 done · ready now: T009, T010, T011, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -49,7 +49,7 @@ flowchart LR
   subgraph P2
     T040["T040"]:::done
     T041["T041"]:::done
-    T042["T042"]:::todo
+    T042["T042"]:::done
     T043["T043"]:::todo
     T044["T044"]:::todo
     T045["T045"]:::todo
@@ -180,7 +180,6 @@ flowchart LR
   T005 --> T041
   T022 --> T042
   T023 --> T042
-  T009 --> T042
   T022 --> T043
   T023 --> T043
   T010 --> T043
@@ -409,7 +408,7 @@ flowchart LR
 |---|---|---|---|---|---|---|
 | ✅ | [T040](items/T040-mailprovider-port-and-entities.md) | MailProvider port and entities | M | code | T005 | claude-sonnet-5-5 |
 | ✅ | [T041](items/T041-mime-reply-builder.md) | MIME reply builder | M | code | T005 | claude-sonnet-5-5 |
-| ⬜ | [T042](items/T042-google-oauth-connect-flow.md) | Google OAuth connect flow | L | code | T022, T023, T009 |  |
+| ✅ | [T042](items/T042-google-oauth-connect-flow.md) | Google OAuth connect flow | L | code | T022, T023 |  |
 | ⬜ | [T043](items/T043-microsoft-oauth-connect-flow-with-admin-consent.md) | Microsoft OAuth connect flow with admin consent | L | code | T022, T023, T010 |  |
 | ⬜ | [T044](items/T044-token-refresh-and-account-health.md) | Token refresh and account health | M | code | T042, T043 |  |
 | ⬜ | [T045](items/T045-gmailmailprovider-read-and-sync.md) | GmailMailProvider: read and sync | L | code | T040, T044, T029 |  |

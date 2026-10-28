@@ -8,6 +8,7 @@ import { EventHub } from './sse/hub'
 import { createPgBridge } from './sse/pg-bridge'
 import { useConfig } from './config'
 import { createDb, type Db } from './db/client'
+import { googleOAuth } from './mail/oauth/google'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -55,4 +56,18 @@ export function useHub(): EventHub {
     () => undefined, // single-instance mode until the bridge connects
   )
   return hub
+}
+
+/** The key ring for the secret store. */
+export const tokenKek = () => ({ current: { version: 1, key: useConfig().kek } })
+
+let google: ReturnType<typeof googleOAuth> | undefined
+export function useGoogleOAuth() {
+  const c = useConfig()
+  return (google ??= googleOAuth({
+    clientId: c.google.clientId,
+    clientSecret: c.google.clientSecret,
+    redirectUri: `${c.baseUrl}/api/accounts/google/callback`,
+    secret: c.sessionSecret,
+  }))
 }
