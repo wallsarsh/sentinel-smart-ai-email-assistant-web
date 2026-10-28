@@ -1,6 +1,29 @@
 import type { MailMessage } from '../../shared/domain'
 import type { ApiCall } from '../../server/mail/gmail/http'
 
+const sentMessage = (
+  id: string,
+  internetMessageId: string,
+  threadId: string | null,
+): MailMessage => ({
+  providerMessageId: id,
+  providerThreadId: threadId,
+  internetMessageId,
+  from: { address: 'me@x.test' },
+  to: [],
+  cc: [],
+  subject: '',
+  sentAt: new Date(),
+  receivedAt: new Date(),
+  isRead: true,
+  bodyText: '',
+  bodyHtml: null,
+  attachmentNames: [],
+  references: [],
+  listUnsubscribe: null,
+  precedence: null,
+  autoSubmitted: null,
+})
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64url')
 type Draft = { id: string; messageId: string; raw: string; threadId?: string }
 
@@ -11,6 +34,11 @@ export class FakeGmailApi {
   drafts: Draft[] = []
   seq = 100
   expireHistory = false
+  /** Behaviour of POST /drafts/send: an HTTP status, or a thrown error code. */
+  sendStatus = 200
+  sendThrows: string | null = null
+  sent: { raw: string; threadId?: string }[] = []
+  bodies: { method: string; path: string; body?: unknown }[] = []
   down = false
   calls: string[] = []
 
@@ -53,6 +81,7 @@ export class FakeGmailApi {
 
   api: ApiCall = async (method, path, o = {}) => {
     this.calls.push(`${method} ${path}`)
+    this.bodies.push({ method, path, body: o.body })
     if (this.down) throw new Error('offline')
     const q = o.query ?? {}
     const one = (k: string) => (Array.isArray(q[k]) ? q[k]![0] : (q[k] as string | undefined))
@@ -68,6 +97,17 @@ export class FakeGmailApi {
         ],
       })
     if (path === '/messages' && method === 'GET') {
+      const q = one('q') ?? ''
+      const mid = /rfc822msgid:(\S+)/.exec(q)?.[1]
+      if (mid)
+        return ok({
+          messages: this.messages
+            .filter(
+              (x) =>
+                x.m.internetMessageId === mid && (!/in:sent/.test(q) || x.labels.includes('SENT')),
+            )
+            .map((x) => ({ id: x.m.providerMessageId })),
+        })
       const label = one('labelIds')
       return ok({
         messages: this.messages
@@ -96,6 +136,22 @@ export class FakeGmailApi {
         })),
         historyId: String(this.seq),
       })
+    }
+    if (path === '/drafts/send' && method === 'POST') {
+      if (this.sendThrows) throw Object.assign(new Error('boom'), { code: this.sendThrows })
+      if (this.sendStatus >= 200 && this.sendStatus < 300) {
+        const d = this.drafts.find((x) => x.id === (o.body as { id: string }).id)
+        if (!d) return { status: 404, json: {} }
+        this.sent.push({ raw: d.raw, threadId: d.threadId })
+        this.drafts = this.drafts.filter((x) => x !== d)
+        this.messages.push({
+          m: sentMessage(`sent-${this.sent.length}`, d.messageId, d.threadId ?? null),
+          labels: ['SENT'],
+          seq: ++this.seq,
+        })
+        return ok({ id: 's1', labelIds: ['SENT'] })
+      }
+      return { status: this.sendStatus, json: { error: { errors: [{ reason: 'x' }] } } }
     }
     if (path === '/drafts' && method === 'GET') {
       const mid = /rfc822msgid:(\S+)/.exec(one('q') ?? '')?.[1]

@@ -15,7 +15,10 @@ export type UserConfirmation = {
 }
 
 export type Authorization = { nonce: string; releaseAt: Date; expiresAt: Date; contentHash: string }
+/** Proof that the gate redeemed an authorization. Only [sendGate.redeem] attaches it. */
+export const REDEEMED: unique symbol = Symbol('redeemed')
 export type Redeemed = {
+  readonly [REDEEMED]: true
   content: ApprovedContent
   userId: string
   accountId: string
@@ -131,7 +134,13 @@ export function sendGate(d: SendGateDeps) {
       const claimed = await claim(userId, nonceHash, t)
       if (!claimed) return err('already_used')
       await finish(userId, nonceHash) // the sealed content is no longer needed
-      return ok({ content, userId, accountId: row.accountId, contentHash: row.contentHash })
+      return ok({
+        [REDEEMED]: true,
+        content,
+        userId,
+        accountId: row.accountId,
+        contentHash: row.contentHash,
+      })
     },
 
     /** Undo. True when the send was stopped; false when it had already been released. */
