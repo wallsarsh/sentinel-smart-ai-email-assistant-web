@@ -85,6 +85,14 @@ export const mailRepo = (s: Scope) => ({
     return row ?? null
   },
 
+  /** All messages of a thread, oldest first. */
+  threadMessages: (threadId: string) =>
+    s.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.userId, s.userId), eq(messages.threadId, threadId)))
+      .orderBy(messages.sentAt, messages.id),
+
   recent: (limit = 50) =>
     s.db
       .select()
