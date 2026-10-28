@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 0/111 done · ready now: T001, T009, T010, T011
+**Progress:** 1/111 done · ready now: T002, T003, T004, T005, T007, T009, T010, T011, T012
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -16,7 +16,7 @@ flowchart LR
   classDef blk fill:#ffcdd2,stroke:#c62828
   classDef todo fill:#eeeeee,stroke:#9e9e9e
   subgraph P0
-    T001["T001"]:::todo
+    T001["T001"]:::done
     T002["T002"]:::todo
     T003["T003"]:::todo
     T004["T004"]:::todo
@@ -370,7 +370,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T001](items/T001-nuxt-3-project-scaffold-and-tooling.md) | Nuxt 3 project scaffold and tooling | M | code | — |  |
+| ✅ | [T001](items/T001-nuxt-3-project-scaffold-and-tooling.md) | Nuxt 3 project scaffold and tooling | M | code | — | claude-sonnet-5-5 |
 | ⬜ | [T002](items/T002-ci-pipeline.md) | CI pipeline | S | config | T001 |  |
 | ⬜ | [T003](items/T003-docker-dev-environment.md) | Docker dev environment | S | config | T001 |  |
 | ⬜ | [T004](items/T004-typed-configuration.md) | Typed configuration | S | code | T001 |  |

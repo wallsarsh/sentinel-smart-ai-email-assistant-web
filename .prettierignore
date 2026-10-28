@@ -1,0 +1,5 @@
+.nuxt
+.output
+node_modules
+tasks/INDEX.md
+docs/reference
