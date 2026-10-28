@@ -1,7 +1,34 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-01',
   devtools: { enabled: false },
-  modules: ['@pinia/nuxt', '@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n'],
+  modules: ['@pinia/nuxt', '@nuxtjs/tailwindcss', '@nuxt/eslint', '@nuxtjs/i18n', 'nuxt-security'],
+  security: {
+    nonce: true,
+    rateLimiter: false, // own limiter (server/middleware) so limits are per user and testable
+    csrf: false, // own double-submit check (server/middleware)
+    headers: {
+      contentSecurityPolicy: {
+        'default-src': ["'none'"],
+        'script-src': ["'self'", "'nonce-{{nonce}}'", "'strict-dynamic'"],
+        'style-src': ["'self'", "'unsafe-inline'"], // Tailwind/Vue inline styles; no script
+        'img-src': ["'self'", 'data:'],
+        'font-src': ["'self'"],
+        'connect-src': ["'self'"],
+        'manifest-src': ["'self'"],
+        'worker-src': ["'self'"],
+        'frame-src': ["'self'"], // sandboxed message iframe (T065)
+        'frame-ancestors': ["'none'"],
+        'form-action': ["'self'"],
+        'base-uri': ["'none'"],
+        'object-src': ["'none'"],
+        'upgrade-insecure-requests': true,
+      },
+      strictTransportSecurity: { maxAge: 63072000, includeSubdomains: true, preload: true },
+      xFrameOptions: 'DENY',
+      referrerPolicy: 'same-origin',
+      permissionsPolicy: { camera: [], microphone: [], geolocation: [] },
+    },
+  },
   i18n: {
     defaultLocale: 'en',
     strategy: 'no_prefix',

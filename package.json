@@ -27,6 +27,7 @@
     "drizzle-orm": "^0.45.4",
     "nodemailer": "^10.2.1",
     "nuxt": "^4.5.2",
+    "nuxt-security": "^2.5.1",
     "pg": "^8.23.1",
     "pinia": "^4.1.0",
     "pino": "^10.4.0",

@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 14/111 done · ready now: T009, T010, T011, T025, T026, T027, T028, T029, T030, T031, T033, T034, T040, T041, T055, T073, T090, T092, T093, T105
+**Progress:** 15/111 done · ready now: T009, T010, T011, T026, T027, T028, T029, T030, T031, T033, T034, T040, T041, T055, T073, T090, T092, T093, T105
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -35,7 +35,7 @@ flowchart LR
     T022["T022"]:::done
     T023["T023"]:::done
     T024["T024"]:::done
-    T025["T025"]:::todo
+    T025["T025"]:::done
     T026["T026"]:::todo
     T027["T027"]:::todo
     T028["T028"]:::todo
@@ -392,7 +392,7 @@ flowchart LR
 | ✅ | [T022](items/T022-envelope-encryption-secret-store.md) | Envelope encryption secret store | M | code | T004, T020 | claude-sonnet-5-5 |
 | ✅ | [T023](items/T023-user-signup-login-and-sessions.md) | User signup, login and sessions | M | code | T021, T004 | claude-sonnet-5-5 |
 | ✅ | [T024](items/T024-totp-two-factor-and-recovery-codes.md) | TOTP two-factor and recovery codes | M | code | T023 | claude-sonnet-5-5 |
-| ⬜ | [T025](items/T025-csrf-rate-limiting-and-security-headers.md) | CSRF, rate limiting and security headers | M | code | T023 |  |
+| ✅ | [T025](items/T025-csrf-rate-limiting-and-security-headers.md) | CSRF, rate limiting and security headers | M | code | T023 | claude-sonnet-5-5 |
 | ⬜ | [T026](items/T026-audit-log-and-account-lockout.md) | Audit log and account lockout | S | code | T023 |  |
 | ⬜ | [T027](items/T027-html-sanitizer.md) | HTML sanitizer | M | code | T005 |  |
 | ⬜ | [T028](items/T028-link-guard.md) | Link guard | S | code | T005 |  |
