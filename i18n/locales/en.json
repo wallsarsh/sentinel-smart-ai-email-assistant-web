@@ -182,5 +182,15 @@
         "text_mismatch": "The link text says {host}, but it goes somewhere else."
       }
     }
+  },
+  "search": {
+    "title": "Search",
+    "label": "Search your mail",
+    "unreadOnly": "Unread only",
+    "recent": "Recent searches",
+    "results": "Search results",
+    "searching": "Searching…",
+    "count": "{n} results",
+    "none": "No messages match."
   }
 }

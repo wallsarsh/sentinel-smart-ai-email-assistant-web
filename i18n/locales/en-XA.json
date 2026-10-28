@@ -182,5 +182,15 @@
         "text_mismatch": "[Thé líñk téxt šáýš {host}, büt ít göéš šöméwhéré élšé. one two three]"
       }
     }
+  },
+  "search": {
+    "title": "[Šéárçh one]",
+    "label": "[Šéárçh ýöür máíl one]",
+    "unreadOnly": "[Üñréád öñlý one]",
+    "recent": "[Réçéñt šéárçhéš one]",
+    "results": "[Šéárçh réšültš one]",
+    "searching": "[Šéárçhíñg… one]",
+    "count": "[{n} réšültš one]",
+    "none": "[Ñö méššágéš mátçh. one]"
   }
 }
