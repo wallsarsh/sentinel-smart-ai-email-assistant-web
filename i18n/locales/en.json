@@ -422,6 +422,10 @@
       "phone": "Number not in the conversation"
     },
     "backToMessage": "Back to message",
-    "neverSends": "Nothing is sent from here. You review and confirm every message yourself."
+    "neverSends": "Nothing is sent from here. You review and confirm every message yourself.",
+    "saveDraft": "Save as draft",
+    "draftSaved": "Saved to your Drafts folder.",
+    "openInMail": "Open in your mail",
+    "openManually": "Open the Drafts folder in your mail app to finish and send it."
   }
 }

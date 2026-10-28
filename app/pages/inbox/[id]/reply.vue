@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { draftStore, streamDraft, type SavedDraft } from '~/utils/draft-stream'
 import type { WireFailure } from '~/utils/failure-presenter'
 import type { Detail } from '~/components/message/MessageCard.vue'
+import { nativeDraftLink, type NativeLink } from '~/utils/native-link'
 
 type Info = {
   accountId: string
@@ -30,6 +31,9 @@ const text = ref('')
 const to = ref<string[]>([])
 const cc = ref<string[]>([])
 const streaming = ref(false)
+const saving = ref(false)
+const saved = ref<NativeLink | null>(null)
+const saveFailure = ref<WireFailure | null>(null)
 const failure = ref<WireFailure | null>(null)
 let handle: ReturnType<typeof streamDraft> | null = null
 
@@ -96,6 +100,37 @@ watch(
   },
   { deep: true },
 )
+
+async function saveDraft() {
+  saving.value = true
+  saveFailure.value = null
+  try {
+    const r = await $fetch<{ providerDraftId: string }>(`/api/drafts/message/${id.value}`, {
+      method: 'PUT',
+      body: {
+        body: text.value,
+        to: to.value,
+        cc: cc.value,
+        tone: tone.value,
+        intent: intent.value,
+        replyAll: mode.value === 'reply_all',
+      },
+    })
+    const type = (
+      await $fetch<{ accountType: 'gmail' | 'microsoft_graph' | 'imap' }>(
+        `/api/drafts/message/${id.value}`,
+      ).catch(() => ({ accountType: 'imap' as const }))
+    ).accountType
+    saved.value = nativeDraftLink(type, {
+      providerDraftId: r.providerDraftId,
+      accountEmail: info.value?.accountEmail,
+    })
+  } catch (e) {
+    saveFailure.value = (e as { data?: { error?: WireFailure } }).data?.error ?? { kind: 'network' }
+  } finally {
+    saving.value = false
+  }
+}
 
 function generate() {
   failure.value = null
@@ -174,6 +209,29 @@ onBeforeUnmount(() => {
     <p v-if="info?.signature" class="whitespace-pre-wrap text-sm" style="color: var(--muted)">
       {{ info.signature }}
     </p>
+    <FailureBanner v-if="saveFailure" :failure="saveFailure" />
+    <div class="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        :disabled="saving || streaming || !text.trim() || !to.length"
+        class="rounded border px-3 py-1 font-medium"
+        @click="saveDraft"
+      >
+        {{ $t('composer.saveDraft') }}
+      </button>
+      <template v-if="saved">
+        <span role="status" class="text-sm">{{ $t('composer.draftSaved') }}</span>
+        <a
+          v-if="saved.kind === 'link'"
+          :href="saved.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-sm underline"
+          >{{ $t('composer.openInMail') }}</a
+        >
+        <span v-else class="text-sm">{{ $t('composer.openManually') }}</span>
+      </template>
+    </div>
     <p class="text-xs" style="color: var(--muted)">{{ $t('composer.neverSends') }}</p>
   </section>
 </template>

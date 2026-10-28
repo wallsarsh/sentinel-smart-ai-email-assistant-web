@@ -2,8 +2,8 @@
 id: T104
 title: "Open draft in the provider web mail"
 phase: P6
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: S
 deps: [T103]
@@ -19,7 +19,10 @@ updated: 2026-10-28
 Deep links to Gmail/Outlook web drafts; manual instruction for IMAP.
 
 ## Acceptance
-- [ ] https-only links (test)
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] https-only links (test)
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 15:33Z claimed by claude
+- 2026-10-28 15:37Z Native draft links: Gmail/Outlook https deep links (encoded id; host allow-list test over hostile ids), IMAP manual instruction; composer Save as draft with open-in-mail link; draft state endpoint
+- 2026-10-28 15:37Z status -> done

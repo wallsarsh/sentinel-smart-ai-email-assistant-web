@@ -422,6 +422,10 @@
       "phone": "[Ñümbér ñöt íñ thé çöñvéršátíöñ one two]"
     },
     "backToMessage": "[Báçk tö méššágé one]",
-    "neverSends": "[Ñöthíñg íš šéñt fröm héré. Yöü révíéw áñd çöñfírm évérý méššágé ýöüršélf. one two three four]"
+    "neverSends": "[Ñöthíñg íš šéñt fröm héré. Yöü révíéw áñd çöñfírm évérý méššágé ýöüršélf. one two three four]",
+    "saveDraft": "[Šávé áš dráft one]",
+    "draftSaved": "[Šávéd tö ýöür Dráftš földér. one two]",
+    "openInMail": "[Öpéñ íñ ýöür máíl one]",
+    "openManually": "[Öpéñ thé Dráftš földér íñ ýöür máíl ápp tö fíñíšh áñd šéñd ít. one two three four]"
   }
 }
