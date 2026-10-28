@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 71/111 done · ready now: T009, T010, T011, T103, T105, T122, T124, T127, T141, T142, T154
+**Progress:** 72/111 done · ready now: T009, T010, T011, T104, T105, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -102,7 +102,7 @@ flowchart LR
     T100["T100"]:::done
     T101["T101"]:::done
     T102["T102"]:::done
-    T103["T103"]:::todo
+    T103["T103"]:::done
     T104["T104"]:::todo
     T105["T105"]:::todo
     T106["T106"]:::todo
@@ -472,7 +472,7 @@ flowchart LR
 | ✅ | [T100](items/T100-writing-profile.md) | Writing profile | S | code | T031 | claude |
 | ✅ | [T101](items/T101-draft-generator-with-streaming.md) | Draft generator with streaming | L | code | T080, T075, T072, T034, T100 | claude |
 | ✅ | [T102](items/T102-composer-ui.md) | Composer UI | L | code | T101, T065 | claude |
-| ⬜ | [T103](items/T103-save-draft-use-case.md) | Save draft use case | M | code | T046, T048, T051, T102 |  |
+| ✅ | [T103](items/T103-save-draft-use-case.md) | Save draft use case | M | code | T046, T048, T051, T102 | claude |
 | ⬜ | [T104](items/T104-open-draft-in-the-provider-web-mail.md) | Open draft in the provider web mail | S | code | T103 |  |
 | ⬜ | [T105](items/T105-sendgate.md) | SendGate | M | code | T005, T022 |  |
 | ⬜ | [T106](items/T106-gmailmailsender.md) | GmailMailSender | M | code | T105, T046 |  |

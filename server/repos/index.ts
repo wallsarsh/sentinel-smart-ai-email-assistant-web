@@ -3,6 +3,7 @@ import { accountsRepo } from './accounts'
 import { actionsRepo } from './actions'
 import { aiProvidersRepo } from './ai-providers'
 import { auditRepo } from './audit'
+import { draftsRepo } from './drafts'
 import { exportRepo } from './export'
 import { inboxRepo } from './inbox'
 import { mailRepo } from './mail'
@@ -26,6 +27,7 @@ export type UserRepos = {
   rules: ReturnType<typeof senderRulesRepo>
   triage: ReturnType<typeof triageRepo>
   actions: ReturnType<typeof actionsRepo>
+  drafts: ReturnType<typeof draftsRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -50,6 +52,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     rules: senderRulesRepo(scope),
     triage: triageRepo(scope),
     actions: actionsRepo(scope),
+    drafts: draftsRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),

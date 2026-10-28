@@ -86,6 +86,14 @@ export const mailRepo = (s: Scope) => ({
     return row ?? null
   },
 
+  async threadProviderId(threadId: string): Promise<string | null> {
+    const [r] = await s.db
+      .select({ id: threads.providerThreadId })
+      .from(threads)
+      .where(and(eq(threads.userId, s.userId), eq(threads.id, threadId)))
+    return r?.id ?? null
+  },
+
   /** All messages of a thread, oldest first. */
   threadMessages: (threadId: string) =>
     s.db

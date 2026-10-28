@@ -24,6 +24,8 @@ import { aiRouter } from './ai/router'
 import { triageCorrections } from './triage/corrections'
 import { triageService } from './triage/service'
 import { draftGenerator } from './drafts/generator'
+import { draftSaver } from './drafts/save'
+import { providerFactory } from './mail/provider-factory'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -158,3 +160,16 @@ export const useTriage = () =>
 
 export const useDraftGenerator = () =>
   draftGenerator({ db: useDb(), gateway: useAiGateway(), router: useAiRouter() })
+
+let providerFor: ReturnType<typeof providerFactory> | undefined
+/** Builds the mail provider for an account (read and draft access only). */
+export function useProviderFor() {
+  return (providerFor ??= providerFactory({
+    db: useDb(),
+    ring: tokenKek(),
+    google: useGoogleOAuth(),
+    microsoft: useMicrosoftOAuth(),
+  }))
+}
+export const useDraftSaver = () =>
+  draftSaver({ db: useDb(), providerFor: (u, a) => useProviderFor()(u, a) })
