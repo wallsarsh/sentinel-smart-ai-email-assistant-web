@@ -58,6 +58,26 @@ export const aiProvidersRepo = (s: Scope) => {
         .where(and(eq(usageRecords.userId, s.userId), gte(usageRecords.createdAt, since)))
       return { tokens: r?.tokens ?? 0, costMicros: r?.cost ?? 0 }
     },
-    routes: () => s.db.select().from(aiTaskRoutes).where(eq(aiTaskRoutes.userId, s.userId)),
+    routes: () =>
+      s.db
+        .select()
+        .from(aiTaskRoutes)
+        .where(eq(aiTaskRoutes.userId, s.userId))
+        .orderBy(aiTaskRoutes.task, aiTaskRoutes.position),
+    /** Replaces one task's whole chain atomically. */
+    async setRoutes(
+      task: (typeof aiTaskRoutes.$inferInsert)['task'],
+      chain: { providerId: string; model: string; paramsJson: object }[],
+    ) {
+      await s.db.transaction(async (tx) => {
+        await tx
+          .delete(aiTaskRoutes)
+          .where(and(eq(aiTaskRoutes.userId, s.userId), eq(aiTaskRoutes.task, task)))
+        if (chain.length)
+          await tx
+            .insert(aiTaskRoutes)
+            .values(chain.map((c, position) => ({ ...c, userId: s.userId, task, position })))
+      })
+    },
   }
 }

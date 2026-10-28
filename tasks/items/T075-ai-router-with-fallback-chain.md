@@ -2,8 +2,8 @@
 id: T075
 title: "AI router with fallback chain"
 phase: P4
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T074]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 Per-task provider/model routes resolved on every call, ordered fallbacks on retryable failures, default route.
 
 ## Acceptance
-- [ ] Fallback rules table-tested
-- [ ] Changes apply on next call
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Fallback rules table-tested
+- [x] Changes apply on next call
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 14:06Z claimed by claude
+- 2026-10-28 14:08Z AI router: per-task chains (default fallback) read every call, ordered fallback on retryable failures (table-tested), per-route maxTokens/temperature, chain validation and API
+- 2026-10-28 14:08Z status -> done

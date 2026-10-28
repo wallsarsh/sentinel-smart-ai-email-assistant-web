@@ -18,6 +18,8 @@ import { loadTokens } from './mail/oauth/connect'
 import { forUser } from './repos'
 import { aiProviderService } from './ai/providers'
 import { catalog } from './ai/catalog'
+import { aiGateway } from './ai/gateway'
+import { aiRouter } from './ai/router'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -133,3 +135,6 @@ export function useAiProviders() {
 }
 
 export const useCatalog = () => catalog(useDb())
+
+export const useAiGateway = () => aiGateway({ db: useDb(), providers: useAiProviders() })
+export const useAiRouter = () => aiRouter({ db: useDb(), gateway: useAiGateway() })
