@@ -57,7 +57,7 @@ export async function requestRefresh(
 export function syncHandler(d: {
   db: Db
   providerFor(userId: string, accountId: string): Promise<MailProvider>
-  onPage?: Parameters<typeof syncUser>[0]['onPage']
+  onPage?: (userId: string, p: { added: string[]; removed: number }) => void
 }): JobHandler {
   return async (ctx) => {
     if (!ctx.userId) return
@@ -66,7 +66,7 @@ export function syncHandler(d: {
       db: d.db,
       userId,
       providerFor: (id) => d.providerFor(userId, id),
-      onPage: d.onPage,
+      onPage: (p) => d.onPage?.(userId, p),
     })
     const all = Object.values(results)
     const retryable = (r: (typeof all)[number]) =>
