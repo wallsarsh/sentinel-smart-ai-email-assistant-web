@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 58/111 done · ready now: T009, T010, T011, T077, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 59/111 done · ready now: T009, T010, T011, T078, T079, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -83,7 +83,7 @@ flowchart LR
     T074["T074"]:::done
     T075["T075"]:::done
     T076["T076"]:::done
-    T077["T077"]:::todo
+    T077["T077"]:::done
     T078["T078"]:::todo
     T079["T079"]:::todo
     T080["T080"]:::done
@@ -447,7 +447,7 @@ flowchart LR
 | ✅ | [T074](items/T074-ai-gateway-consent-caps-and-usage.md) | AI gateway: consent, caps and usage | M | code | T073, T070 | claude |
 | ✅ | [T075](items/T075-ai-router-with-fallback-chain.md) | AI router with fallback chain | M | code | T074 | claude |
 | ✅ | [T076](items/T076-model-catalog-and-price-table.md) | Model catalog and price table | S | code | T073 | claude |
-| ⬜ | [T077](items/T077-ai-providers-ui.md) | AI providers UI | L | code | T073, T008, T055 |  |
+| ✅ | [T077](items/T077-ai-providers-ui.md) | AI providers UI | L | code | T073, T008, T055 | claude |
 | ⬜ | [T078](items/T078-ai-consent-flow-ui.md) | AI consent flow UI | M | code | T074, T077 |  |
 | ⬜ | [T079](items/T079-task-routes-and-usage-ui.md) | Task routes and usage UI | M | code | T075, T076, T077 |  |
 | ✅ | [T080](items/T080-prompt-registry-and-builder.md) | Prompt registry and builder | M | code | T030, T005 | claude |

@@ -192,5 +192,43 @@
     "searching": "[Šéárçhíñg… one]",
     "count": "[{n} réšültš one]",
     "none": "[Ñö méššágéš mátçh. one]"
+  },
+  "ai": {
+    "title": "[ÁÍ prövídérš one]",
+    "intro": "[Šéñtíñél öñlý šéñdš máíl tö áñ ÁÍ prövídér áftér ýöü révíéw áñd állöw ít. Kéýš áré štöréd éñçrýptéd öñ thé šérvér áñd áré ñévér šhöwñ ágáíñ. one two three four]",
+    "providers": {
+      "add": "[Ádd á prövídér one]",
+      "addButton": "[Ádd one]",
+      "type": "[Prövídér one]",
+      "name": "[Díšpláý ñámé one]",
+      "baseUrl": "[Bášé ÜRL one]",
+      "baseUrlHint": "[Müšt bé httpš áñd püblíçlý réáçháblé. one two]",
+      "key": "[ÁPÍ kéý one]",
+      "keyHint": "[Štöréd éñçrýptéd. Yöü çáñ répláçé ít látér büt ñévér réád ít báçk. one two three four]",
+      "newKey": "[Ñéw ÁPÍ kéý one]",
+      "replaceKey": "[Répláçé kéý one]",
+      "test": "[Téšt çöññéçtíöñ one]",
+      "empty": "[Ñö ÁÍ prövídér ýét. Ádd öñé tö türñ öñ šümmáríéš áñd dráftš. one two three]",
+      "keyEnding": "[Kéý {hint} one]",
+      "models": "[{n} mödélš one]",
+      "status": {
+        "ok": "[Wörkíñg one]",
+        "bad_key": "[Kéý réjéçtéd one]",
+        "unreachable": "[Üñréáçháblé one]"
+      }
+    },
+    "consent": {
+      "review": "[Révíéw áñd állöw one]",
+      "manage": "[Máñágé çöñšéñt one]"
+    },
+    "routes": {
+      "title": "[Tášk röütéš one]"
+    },
+    "usage": {
+      "title": "[Üšágé one]"
+    },
+    "bench": {
+      "title": "[Téšt béñçh one]"
+    }
   }
 }

@@ -2,8 +2,8 @@
 id: T077
 title: "AI providers UI"
 phase: P4
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: L
 deps: [T073, T008, T055]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 Provider list/add (presets: Claude, ChatGPT, compatible), key entry, test connection, model picker, status.
 
 ## Acceptance
-- [ ] Key field write-only
-- [ ] Component tests
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Key field write-only
+- [x] Component tests
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 14:19Z claimed by claude
+- 2026-10-28 14:21Z AI providers UI: preset-based add form (base URL only for compatible), write-only key inputs cleared after submit, key hint only, test connection/status, replace key, remove, consent link; component + axe tests
+- 2026-10-28 14:21Z status -> done

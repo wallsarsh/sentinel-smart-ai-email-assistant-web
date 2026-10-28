@@ -192,5 +192,43 @@
     "searching": "Searching…",
     "count": "{n} results",
     "none": "No messages match."
+  },
+  "ai": {
+    "title": "AI providers",
+    "intro": "Sentinel only sends mail to an AI provider after you review and allow it. Keys are stored encrypted on the server and are never shown again.",
+    "providers": {
+      "add": "Add a provider",
+      "addButton": "Add",
+      "type": "Provider",
+      "name": "Display name",
+      "baseUrl": "Base URL",
+      "baseUrlHint": "Must be https and publicly reachable.",
+      "key": "API key",
+      "keyHint": "Stored encrypted. You can replace it later but never read it back.",
+      "newKey": "New API key",
+      "replaceKey": "Replace key",
+      "test": "Test connection",
+      "empty": "No AI provider yet. Add one to turn on summaries and drafts.",
+      "keyEnding": "Key {hint}",
+      "models": "{n} models",
+      "status": {
+        "ok": "Working",
+        "bad_key": "Key rejected",
+        "unreachable": "Unreachable"
+      }
+    },
+    "consent": {
+      "review": "Review and allow",
+      "manage": "Manage consent"
+    },
+    "routes": {
+      "title": "Task routes"
+    },
+    "usage": {
+      "title": "Usage"
+    },
+    "bench": {
+      "title": "Test bench"
+    }
   }
 }
