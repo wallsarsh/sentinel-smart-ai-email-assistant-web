@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 23/111 done · ready now: T009, T010, T011, T034, T040, T041, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 24/111 done · ready now: T009, T010, T011, T040, T041, T049, T055, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -44,7 +44,7 @@ flowchart LR
     T031["T031"]:::done
     T032["T032"]:::done
     T033["T033"]:::done
-    T034["T034"]:::todo
+    T034["T034"]:::done
   end
   subgraph P2
     T040["T040"]:::todo
@@ -401,7 +401,7 @@ flowchart LR
 | ✅ | [T031](items/T031-user-settings-store.md) | User settings store | S | code | T021 | claude-sonnet-5-5 |
 | ✅ | [T032](items/T032-data-export-and-account-deletion.md) | Data export and account deletion | M | code | T021, T022, T026 | claude-sonnet-5-5 |
 | ✅ | [T033](items/T033-job-queue-and-worker-process.md) | Job queue and worker process | L | code | T020, T004 | claude-sonnet-5-5 |
-| ⬜ | [T034](items/T034-server-sent-events-channel.md) | Server-sent events channel | S | code | T023 |  |
+| ✅ | [T034](items/T034-server-sent-events-channel.md) | Server-sent events channel | S | code | T023 | claude-sonnet-5-5 |
 
 ## P2
 

@@ -4,6 +4,8 @@ import { authService } from './auth/service'
 import { mfaService } from './auth/mfa'
 import { auditorFor } from './audit/audit'
 import { accountLifecycle } from './account/lifecycle'
+import { EventHub } from './sse/hub'
+import { createPgBridge } from './sse/pg-bridge'
 import { useConfig } from './config'
 import { createDb, type Db } from './db/client'
 import { createSystemMailer } from './mail/send/system-mailer'
@@ -42,3 +44,15 @@ export const tokenRevokers: { name: string; revoke(userId: string): Promise<void
 
 export const useLifecycle = () =>
   accountLifecycle({ db: useDb(), revokers: tokenRevokers, auditor: auditorFor(useDb()) })
+
+let hub: EventHub | undefined
+/** The event hub; cross-instance delivery uses Postgres LISTEN/NOTIFY. */
+export function useHub(): EventHub {
+  if (hub) return hub
+  hub = new EventHub()
+  void createPgBridge(useConfig().databaseUrl).then(
+    (bridge) => hub?.attach(bridge),
+    () => undefined, // single-instance mode until the bridge connects
+  )
+  return hub
+}
