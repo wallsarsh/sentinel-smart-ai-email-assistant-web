@@ -8,6 +8,10 @@ import type { Db } from '../db/client'
  * established. It never returns other tenants' data to callers.
  */
 export const authRepo = (db: Db) => ({
+  /** Every user id; for schedulers that fan work out per user. */
+  async allUserIds(): Promise<string[]> {
+    return (await db.select({ id: users.id }).from(users)).map((r) => r.id)
+  },
   async createUser(v: {
     email: string
     passwordHash: string
