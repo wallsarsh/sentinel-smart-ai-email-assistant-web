@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 6/111 done · ready now: T007, T009, T010, T011, T012, T020, T027, T028, T029, T030, T040, T041, T090, T092
+**Progress:** 7/111 done · ready now: T007, T009, T010, T011, T020, T027, T028, T029, T030, T040, T041, T090, T092
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -27,7 +27,7 @@ flowchart LR
     T009["T009"]:::todo
     T010["T010"]:::todo
     T011["T011"]:::todo
-    T012["T012"]:::todo
+    T012["T012"]:::done
   end
   subgraph P1
     T020["T020"]:::todo
@@ -381,7 +381,7 @@ flowchart LR
 | ⬜ | [T009](items/T009-google-oauth-web-client-registration.md) | Google OAuth web client registration | S | manual | — |  |
 | ⬜ | [T010](items/T010-microsoft-entra-web-app-registration.md) | Microsoft Entra web app registration | S | manual | — |  |
 | ⬜ | [T011](items/T011-domain-tls-and-hosting.md) | Domain, TLS and hosting | S | manual | — |  |
-| ⬜ | [T012](items/T012-send-gate-architecture-check-js.md) | Send-gate architecture check (JS) | S | code | T001 |  |
+| ✅ | [T012](items/T012-send-gate-architecture-check-js.md) | Send-gate architecture check (JS) | S | code | T001 | claude-sonnet-5-5 |
 
 ## P1
 

@@ -19,7 +19,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Lint, typecheck, unit tests
+      - name: Lint, typecheck, unit tests, send gate
         run: npm run check
       - name: Build
         run: npm run build

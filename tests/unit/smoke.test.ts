@@ -10,5 +10,6 @@ describe('project layout', () => {
     expect(pkg.scripts.check).toContain('lint')
     expect(pkg.scripts.check).toContain('typecheck')
     expect(pkg.scripts.check).toContain('test')
+    expect(pkg.scripts.check).toContain('send-gate')
   })
 })
