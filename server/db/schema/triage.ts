@@ -125,6 +125,31 @@ export const sendRecords = pgTable(
   (t) => [index('send_records_user_approved').on(t.userId, t.approvedAt)],
 )
 
+/**
+ * One row per confirmed send. The nonce is never stored, only its hash; the
+ * approved content is sealed in the secret store under `send:<nonceHash>` and
+ * deleted once the authorization is used, revoked or expired. Metadata only.
+ */
+export const sendAuthorizations = pgTable(
+  'send_authorizations',
+  {
+    nonceHash: text('nonce_hash').primaryKey(),
+    userId: userId(),
+    /** The session that confirmed the send; it must still be valid when the send is released. */
+    sessionId: text('session_id').notNull(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    contentHash: text('content_hash').notNull(),
+    state: text('state').notNull().default('issued'), // issued | revoked | used
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull(),
+    releaseAt: timestamp('release_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
+  },
+  (t) => [index('send_auth_due').on(t.state, t.releaseAt), index('send_auth_user').on(t.userId)],
+)
+
 export const dailyBriefs = pgTable(
   'daily_briefs',
   {

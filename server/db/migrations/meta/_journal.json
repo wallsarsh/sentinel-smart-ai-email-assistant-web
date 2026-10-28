@@ -29,6 +29,13 @@
       "when": 1793198148179,
       "tag": "0003_message_bulk_headers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793201852620,
+      "tag": "0004_send_authorizations",
+      "breakpoints": true
     }
   ]
 }

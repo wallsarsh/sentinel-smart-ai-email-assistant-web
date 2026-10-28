@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 73/111 done · ready now: T009, T010, T011, T105, T122, T124, T127, T141, T142, T154
+**Progress:** 74/111 done · ready now: T009, T010, T011, T106, T107, T108, T120, T122, T124, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -104,7 +104,7 @@ flowchart LR
     T102["T102"]:::done
     T103["T103"]:::done
     T104["T104"]:::done
-    T105["T105"]:::todo
+    T105["T105"]:::done
     T106["T106"]:::todo
     T107["T107"]:::todo
     T108["T108"]:::todo
@@ -474,7 +474,7 @@ flowchart LR
 | ✅ | [T102](items/T102-composer-ui.md) | Composer UI | L | code | T101, T065 | claude |
 | ✅ | [T103](items/T103-save-draft-use-case.md) | Save draft use case | M | code | T046, T048, T051, T102 | claude |
 | ✅ | [T104](items/T104-open-draft-in-the-provider-web-mail.md) | Open draft in the provider web mail | S | code | T103 | claude |
-| ⬜ | [T105](items/T105-sendgate.md) | SendGate | M | code | T005, T022 |  |
+| ✅ | [T105](items/T105-sendgate.md) | SendGate | M | code | T005, T022 | claude |
 | ⬜ | [T106](items/T106-gmailmailsender.md) | GmailMailSender | M | code | T105, T046 |  |
 | ⬜ | [T107](items/T107-graphmailsender.md) | GraphMailSender | M | code | T105, T048 |  |
 | ⬜ | [T108](items/T108-imapsmtpmailsender.md) | ImapSmtpMailSender | L | code | T105, T051, T052 |  |

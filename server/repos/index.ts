@@ -10,12 +10,14 @@ import { mailRepo } from './mail'
 import { mfaRepo } from './mfa'
 import { searchRepo } from './search'
 import { secretsRepo } from './secrets'
+import { sendRepo } from './dispatch'
 import { senderRulesRepo } from './sender-rules'
 import { triageRepo } from './triage'
 import { settingsRepo } from './settings'
 import { inTransaction, type Scope } from './scope'
 
 export type { Scope } from './scope'
+export { sendScheduleAdmin } from './dispatch'
 
 export type UserRepos = {
   userId: string
@@ -28,6 +30,7 @@ export type UserRepos = {
   triage: ReturnType<typeof triageRepo>
   actions: ReturnType<typeof actionsRepo>
   drafts: ReturnType<typeof draftsRepo>
+  send: ReturnType<typeof sendRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -53,6 +56,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     triage: triageRepo(scope),
     actions: actionsRepo(scope),
     drafts: draftsRepo(scope),
+    send: sendRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),
