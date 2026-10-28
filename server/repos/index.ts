@@ -5,6 +5,7 @@ import { exportRepo } from './export'
 import { inboxRepo } from './inbox'
 import { mailRepo } from './mail'
 import { mfaRepo } from './mfa'
+import { searchRepo } from './search'
 import { secretsRepo } from './secrets'
 import { settingsRepo } from './settings'
 import { inTransaction, type Scope } from './scope'
@@ -16,6 +17,7 @@ export type UserRepos = {
   accounts: ReturnType<typeof accountsRepo>
   mail: ReturnType<typeof mailRepo>
   inbox: ReturnType<typeof inboxRepo>
+  search: ReturnType<typeof searchRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -35,6 +37,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     accounts: accountsRepo(scope),
     mail: mailRepo(scope),
     inbox: inboxRepo(scope),
+    search: searchRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),
