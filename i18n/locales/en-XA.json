@@ -499,5 +499,54 @@
     "test": "[Šéñd á téšt one]",
     "testSent": "[Téšt šéñt. one]",
     "privacy": "[Ñötífíçátíöñš ñévér íñçlüdé thé téxt öf áñ émáíl, öñlý thát šöméthíñg ñéw árrívéd. Théír öñlý áçtíöñš áré Öpéñ áñd Márk döñé. one two three four]"
+  },
+  "brief": {
+    "title": "[Bríéf one]",
+    "generated": "[Wríttéñ {when} one]",
+    "stale": "[Thíš bríéf íš fröm {when}. Réfréšh för thé látéšt. one two three]",
+    "nothingNew": "[Ñöthíñg ñéw tö répört. one two]",
+    "refresh": "[Réfréšh one]",
+    "catchUp": "[Cátçh mé üp one]",
+    "history": "[Híštörý one]",
+    "generating": "[Wrítíñg ýöür bríéf… one]",
+    "emptyTitle": "[Ñö bríéf ýét one]",
+    "emptyBody": "[Šéñtíñél wrítéš á šhört šümmárý öf whát ñéédš ýöü. Géñéráté ýöür fíršt öñé ñöw. one two three four]",
+    "generate": "[Wríté mý bríéf one]",
+    "aiNote": "[Wríttéñ bý ÁÍ fröm ýöür máíl šümmáríéš. Chéçk thé líñkéd máíl béföré áçtíñg. one two three four]",
+    "linked": "[Líñkéd máíl: {n} one]",
+    "openMail": "[Öpéñ máíl one]",
+    "close": "[Clöšé one]",
+    "section": {
+      "topPriorities": "[Töp príörítíéš one]",
+      "needsReply": "[Ñéédš á réplý one]",
+      "dueToday": "[Düé tödáý one]",
+      "fyi": "[Gööd tö kñöw one]"
+    },
+    "stat": {
+      "total": "[{n} émáílš one]",
+      "needsReply": "[{n} ñééd á réplý one]",
+      "p1": "[{n} dö ñöw one]",
+      "p2": "[{n} för tödáý one]",
+      "newsletters": "[{n} ñéwšléttérš one]",
+      "notifications": "[{n} ñötífíçátíöñš one]"
+    },
+    "historyEmpty": "[Ñö pášt bríéfš ýét. one]",
+    "back": "[Báçk tö bríéf one]",
+    "catch": {
+      "title": "[Cátçh mé üp one]",
+      "intro": "[Šümmáríšé áñý réçéñt péríöd. Thé réšült íš šhöwñ héré áñd íš ñöt šávéd. one two three four]",
+      "from": "[Fröm one]",
+      "to": "[Tö one]",
+      "preset": {
+        "threeHours": "[Lášt 3 höürš one]",
+        "today": "[Šíñçé mídñíght one]",
+        "threeDays": "[Lášt 3 dáýš one]",
+        "week": "[Lášt 7 dáýš one]"
+      },
+      "run": "[Šümmáríšé one]",
+      "invalid": "[Chööšé á štárt thát íš béföré thé éñd, wíthíñ thé lášt 90 dáýš. one two three four]",
+      "result": "[Šümmárý öf {from} tö {to} one two]",
+      "notSaved": "[Ñöt šávéd tö ýöür híštörý. one two]"
+    }
   }
 }

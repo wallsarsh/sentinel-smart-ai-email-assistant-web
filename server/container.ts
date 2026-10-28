@@ -1,5 +1,6 @@
 // DI root: wires services from configuration. One of the two places (with
 // server/api/send/) allowed to import the send module.
+import { briefGenerator } from './brief/generator'
 import { authService } from './auth/service'
 import { mfaService } from './auth/mfa'
 import { auditorFor } from './audit/audit'
@@ -270,3 +271,5 @@ let push: ReturnType<typeof pushService> | undefined
 export function usePush() {
   return (push ??= pushService({ db: useDb(), transport: webPushTransport(useConfig().vapid) }))
 }
+
+export const useBrief = () => briefGenerator({ db: useDb(), router: useAiRouter() })

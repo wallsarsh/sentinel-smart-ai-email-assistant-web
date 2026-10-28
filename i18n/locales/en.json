@@ -499,5 +499,54 @@
     "test": "Send a test",
     "testSent": "Test sent.",
     "privacy": "Notifications never include the text of an email, only that something new arrived. Their only actions are Open and Mark done."
+  },
+  "brief": {
+    "title": "Brief",
+    "generated": "Written {when}",
+    "stale": "This brief is from {when}. Refresh for the latest.",
+    "nothingNew": "Nothing new to report.",
+    "refresh": "Refresh",
+    "catchUp": "Catch me up",
+    "history": "History",
+    "generating": "Writing your brief…",
+    "emptyTitle": "No brief yet",
+    "emptyBody": "Sentinel writes a short summary of what needs you. Generate your first one now.",
+    "generate": "Write my brief",
+    "aiNote": "Written by AI from your mail summaries. Check the linked mail before acting.",
+    "linked": "Linked mail: {n}",
+    "openMail": "Open mail",
+    "close": "Close",
+    "section": {
+      "topPriorities": "Top priorities",
+      "needsReply": "Needs a reply",
+      "dueToday": "Due today",
+      "fyi": "Good to know"
+    },
+    "stat": {
+      "total": "{n} emails",
+      "needsReply": "{n} need a reply",
+      "p1": "{n} do now",
+      "p2": "{n} for today",
+      "newsletters": "{n} newsletters",
+      "notifications": "{n} notifications"
+    },
+    "historyEmpty": "No past briefs yet.",
+    "back": "Back to brief",
+    "catch": {
+      "title": "Catch me up",
+      "intro": "Summarise any recent period. The result is shown here and is not saved.",
+      "from": "From",
+      "to": "To",
+      "preset": {
+        "threeHours": "Last 3 hours",
+        "today": "Since midnight",
+        "threeDays": "Last 3 days",
+        "week": "Last 7 days"
+      },
+      "run": "Summarise",
+      "invalid": "Choose a start that is before the end, within the last 90 days.",
+      "result": "Summary of {from} to {to}",
+      "notSaved": "Not saved to your history."
+    }
   }
 }

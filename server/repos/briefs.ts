@@ -73,6 +73,20 @@ export const briefsRepo = (s: Scope) => {
       )
     },
 
+    /** Subject and sender of the user's own messages, for the links of a brief item. */
+    heads: (ids: string[]) =>
+      ids.length
+        ? s.db
+            .select({
+              id: messages.id,
+              subject: messages.subject,
+              sender: messages.fromName,
+              address: messages.fromAddress,
+            })
+            .from(messages)
+            .where(and(eq(messages.userId, s.userId), inArray(messages.id, ids)))
+        : Promise.resolve([]),
+
     async save(b: NewBrief) {
       await s.db.transaction(async (tx) => {
         await tx.insert(dailyBriefs).values({
