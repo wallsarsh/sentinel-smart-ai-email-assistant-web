@@ -32,7 +32,15 @@ export const LIMITS = {
 }
 
 export function classify(path: string): keyof typeof LIMITS {
-  if (/^\/api\/auth\//.test(path)) return 'auth'
+  // Only endpoints that check a secret are throttled hard. Reads such as /api/auth/me run on every
+  // page load (the route guard), and counting them here would sign people out by 429.
+  if (
+    /^\/api\/auth\/(login|signup|password|password-reset|password-reset-confirm|mfa\/(login|step-up|confirm|disable|recovery))$/.test(
+      path,
+    )
+  )
+    return 'auth'
+  if (/^\/api\/auth\//.test(path)) return 'api'
   if (/^\/api\/(send|account|ai\/bench)/.test(path)) return 'sensitive'
   return 'api'
 }

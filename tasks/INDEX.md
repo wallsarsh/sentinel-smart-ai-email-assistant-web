@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 96/111 done · ready now: T009, T010, T011, T150, T151, T152, T153, T154, T155, T159
+**Progress:** 97/111 done · ready now: T009, T010, T011, T151, T152, T153, T154, T155, T159
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -133,7 +133,7 @@ flowchart LR
     T144["T144"]:::done
   end
   subgraph P9
-    T150["T150"]:::todo
+    T150["T150"]:::done
     T151["T151"]:::todo
     T152["T152"]:::todo
     T153["T153"]:::todo
@@ -512,7 +512,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T150](items/T150-end-to-end-suite-with-fakes.md) | End-to-end suite with fakes | L | test | T140, T113, T126 |  |
+| ✅ | [T150](items/T150-end-to-end-suite-with-fakes.md) | End-to-end suite with fakes | L | test | T140, T113, T126 | claude |
 | ⬜ | [T151](items/T151-ai-evaluation-harness.md) | AI evaluation harness | M | test | T091, T101, T124 |  |
 | ⬜ | [T152](items/T152-accessibility-audit.md) | Accessibility audit | M | test | T140 |  |
 | ⬜ | [T153](items/T153-performance-pass.md) | Performance pass | M | test | T140 |  |

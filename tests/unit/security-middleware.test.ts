@@ -45,6 +45,16 @@ describe('rate limiter', () => {
   })
   it('auth routes are limited tighter than the general api', () => {
     expect(classify('/api/auth/login')).toBe('auth')
+    for (const p of [
+      '/api/auth/signup',
+      '/api/auth/password',
+      '/api/auth/mfa/login',
+      '/api/auth/mfa/step-up',
+    ])
+      expect(classify(p)).toBe('auth')
+    // reads the route guard makes on every page load must not be throttled like password checks
+    for (const p of ['/api/auth/me', '/api/auth/sessions', '/api/auth/mfa/status'])
+      expect(classify(p)).toBe('api')
     expect(classify('/api/send/confirm')).toBe('sensitive')
     expect(classify('/api/inbox')).toBe('api')
     expect(LIMITS.auth.max).toBeLessThan(LIMITS.api.max)

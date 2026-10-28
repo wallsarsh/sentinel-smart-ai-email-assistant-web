@@ -2,10 +2,10 @@ name: Task tracker
 
 on:
   pull_request:
-    paths: ["tasks/**"]
+    paths: ['tasks/**']
   push:
     branches: [main]
-    paths: ["tasks/**"]
+    paths: ['tasks/**']
 
 jobs:
   validate:
@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+        with: { python-version: '3.12' }
       - name: Validate task graph
         run: python3 tasks/tools/taskctl.py validate
       - name: INDEX.md is up to date
