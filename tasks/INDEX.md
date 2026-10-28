@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 19/111 done · ready now: T009, T010, T011, T029, T031, T032, T033, T034, T040, T041, T055, T073, T080, T090, T092, T093, T105, T142
+**Progress:** 20/111 done · ready now: T009, T010, T011, T031, T032, T033, T034, T040, T041, T049, T055, T070, T073, T080, T090, T092, T093, T105, T142
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -39,7 +39,7 @@ flowchart LR
     T026["T026"]:::done
     T027["T027"]:::done
     T028["T028"]:::done
-    T029["T029"]:::todo
+    T029["T029"]:::done
     T030["T030"]:::done
     T031["T031"]:::todo
     T032["T032"]:::todo
@@ -396,7 +396,7 @@ flowchart LR
 | ✅ | [T026](items/T026-audit-log-and-account-lockout.md) | Audit log and account lockout | S | code | T023 | claude-sonnet-5-5 |
 | ✅ | [T027](items/T027-html-sanitizer.md) | HTML sanitizer | M | code | T005 | claude-sonnet-5-5 |
 | ✅ | [T028](items/T028-link-guard.md) | Link guard | S | code | T005 | claude-sonnet-5-5 |
-| ⬜ | [T029](items/T029-outbound-http-client-with-ssrf-guard.md) | Outbound HTTP client with SSRF guard | M | code | T004, T006 |  |
+| ✅ | [T029](items/T029-outbound-http-client-with-ssrf-guard.md) | Outbound HTTP client with SSRF guard | M | code | T004, T006 | claude-sonnet-5-5 |
 | ✅ | [T030](items/T030-pii-redactor.md) | PII redactor | S | code | T005 | claude-sonnet-5-5 |
 | ⬜ | [T031](items/T031-user-settings-store.md) | User settings store | S | code | T021 |  |
 | ⬜ | [T032](items/T032-data-export-and-account-deletion.md) | Data export and account deletion | M | code | T021, T022, T026 |  |
