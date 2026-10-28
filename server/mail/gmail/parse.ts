@@ -85,5 +85,7 @@ export function toMailMessage(g: GmailMessage): MailMessage {
     attachmentNames: out.files,
     references: (h('references') ?? '').split(/\s+/).filter(Boolean),
     listUnsubscribe: h('list-unsubscribe') ?? null,
+    precedence: h('precedence') ?? null,
+    autoSubmitted: h('auto-submitted') ?? null,
   }
 }

@@ -43,6 +43,8 @@ export const SAMPLES: MailMessage[] = [
   attachmentNames: [],
   references: [],
   listUnsubscribe: null,
+  precedence: null,
+  autoSubmitted: null,
 }))
 
 const side = z.object({ providerId: z.uuid(), model: z.string().trim().min(1).max(200) })

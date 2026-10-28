@@ -2,8 +2,8 @@
 id: T090
 title: "Pre-filter and priority matrix"
 phase: P5
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T005]
@@ -19,7 +19,10 @@ updated: 2026-10-28
 Deterministic rules (muted, bulk, security, excluded accounts) and importance x urgency to P1-P4.
 
 ## Acceptance
-- [ ] Table tests parity with mobile
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Table tests parity with mobile
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 14:35Z claimed by claude
+- 2026-10-28 14:39Z Pre-filter (excluded > mute > security > VIP > bulk > automated) ported with parity tests, priority matrix table test; Precedence/Auto-Submitted headers now parsed by all providers and stored (migration 0003)
+- 2026-10-28 14:39Z status -> done

@@ -132,6 +132,8 @@ async function run(o: SyncOptions): Promise<SyncResult> {
               attachmentNames: m.attachmentNames,
               referencesJson: m.references,
               listUnsubscribe: m.listUnsubscribe,
+              precedence: m.precedence,
+              autoSubmitted: m.autoSubmitted,
             },
           ])
         }

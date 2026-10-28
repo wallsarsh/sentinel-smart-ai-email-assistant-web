@@ -48,5 +48,7 @@ export function toMailMessage(g: GraphMessage): MailMessage {
     attachmentNames: (g.attachments ?? []).flatMap((a) => (a.name ? [a.name] : [])),
     references: (hdr('references') ?? '').split(/\s+/).filter(Boolean),
     listUnsubscribe: hdr('list-unsubscribe') ?? null,
+    precedence: hdr('precedence') ?? null,
+    autoSubmitted: hdr('auto-submitted') ?? null,
   }
 }

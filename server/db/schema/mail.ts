@@ -118,6 +118,8 @@ export const messages = pgTable(
     attachmentNames: jsonb('attachment_names').notNull().default([]),
     referencesJson: jsonb('references_json').notNull().default([]),
     listUnsubscribe: text('list_unsubscribe'),
+    precedence: text('precedence'),
+    autoSubmitted: text('auto_submitted'),
   },
   (t) => [
     uniqueIndex('messages_account_provider').on(t.accountId, t.providerMessageId),

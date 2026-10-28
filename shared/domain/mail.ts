@@ -61,6 +61,10 @@ export const mailMessage = z.object({
   attachmentNames: z.array(z.string()).default([]),
   references: z.array(z.string()).default([]),
   listUnsubscribe: z.string().nullable().default(null),
+  /** `Precedence` header (bulk/list/junk), used by the triage pre-filter. */
+  precedence: z.string().nullable().default(null),
+  /** `Auto-Submitted` header; anything but "no" marks automated mail. */
+  autoSubmitted: z.string().nullable().default(null),
 })
 export type MailMessage = z.infer<typeof mailMessage>
 

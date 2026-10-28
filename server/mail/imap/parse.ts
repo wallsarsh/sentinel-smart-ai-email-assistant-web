@@ -17,6 +17,10 @@ export async function parseRaw(id: string, raw: RawMessage): Promise<MailMessage
   const refs = Array.isArray(p.references) ? p.references : p.references ? [p.references] : []
   const mid = p.messageId ?? ''
   const unsub = p.headers.get('list-unsubscribe')
+  const header = (n: string) => {
+    const v = p.headers.get(n)
+    return typeof v === 'string' ? v : null
+  }
   const from = addrs(p.from)[0] ?? { address: 'unknown@invalid.example' }
   return {
     providerMessageId: id,
@@ -34,5 +38,7 @@ export async function parseRaw(id: string, raw: RawMessage): Promise<MailMessage
     attachmentNames: p.attachments.flatMap((a) => (a.filename ? [a.filename] : [])),
     references: refs,
     listUnsubscribe: typeof unsub === 'string' ? unsub : null,
+    precedence: header('precedence'),
+    autoSubmitted: header('auto-submitted'),
   }
 }

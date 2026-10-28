@@ -37,6 +37,8 @@ export const sampleMessage = (
   attachmentNames: [],
   references: [],
   listUnsubscribe: null,
+  precedence: null,
+  autoSubmitted: null,
   ...over,
 })
 
