@@ -9,7 +9,11 @@ export default defineEventHandler(async (event) => {
   const input = body.safeParse(await readBody(event))
   if (!input.success) return failWith(event, { kind: 'validation', code: 'bad_request' })
   const auth = useAuth()
-  const r = await auth.verifyCredentials(input.data.email, input.data.password)
+  const r = await auth.verifyCredentials(
+    input.data.email,
+    input.data.password,
+    getRequestIP(event) ?? '',
+  )
   if (!r.ok) return failWith(event, r.error)
   const mfa = useMfa()
   if (await mfa.isEnabled(r.value.userId)) {

@@ -2,6 +2,7 @@
 // server/api/send/) allowed to import the send module.
 import { authService } from './auth/service'
 import { mfaService } from './auth/mfa'
+import { auditorFor } from './audit/audit'
 import { useConfig } from './config'
 import { createDb, type Db } from './db/client'
 import { createSystemMailer } from './mail/send/system-mailer'
@@ -19,6 +20,7 @@ export function useAuth() {
   return (auth ??= authService({
     db: useDb(),
     baseUrl: c.baseUrl,
+    auditor: auditorFor(useDb()),
     mailer: createSystemMailer({ smtpUrl: c.systemMail.smtpUrl, from: c.systemMail.from }),
   }))
 }
@@ -31,3 +33,5 @@ export function useMfa() {
     sessionSecret: c.sessionSecret,
   }))
 }
+
+export const useAuditor = () => auditorFor(useDb())

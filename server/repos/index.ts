@@ -1,5 +1,6 @@
 import type { Db } from '../db/client'
 import { accountsRepo } from './accounts'
+import { auditRepo } from './audit'
 import { mailRepo } from './mail'
 import { mfaRepo } from './mfa'
 import { secretsRepo } from './secrets'
@@ -13,6 +14,7 @@ export type UserRepos = {
   mail: ReturnType<typeof mailRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
+  audit: ReturnType<typeof auditRepo>
   transaction<T>(fn: (tx: UserRepos) => Promise<T>): Promise<T>
 }
 
@@ -28,6 +30,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     mail: mailRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
+    audit: auditRepo(scope),
     transaction: (fn) => inTransaction(scope, (tx) => fn(forUser(tx.db, userId))),
   }
 }
