@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt, or } from 'drizzle-orm'
 import { passwordResets, sessions, users } from '../db/schema'
 import type { Db } from '../db/client'
 
@@ -81,6 +81,31 @@ export const authRepo = (db: Db) => ({
     for (const r of rows)
       if (r.id !== exceptId)
         await db.update(sessions).set({ revokedAt: now }).where(eq(sessions.id, r.id))
+  },
+
+  /** The user's live sessions, newest activity first. */
+  async listSessions(userId: string, now: Date) {
+    return db
+      .select({
+        id: sessions.id,
+        userAgent: sessions.userAgent,
+        createdAt: sessions.createdAt,
+        lastSeenAt: sessions.lastSeenAt,
+      })
+      .from(sessions)
+      .where(
+        and(eq(sessions.userId, userId), isNull(sessions.revokedAt), gt(sessions.expiresAt, now)),
+      )
+      .orderBy(desc(sessions.lastSeenAt))
+  },
+  /** Revokes one of the user's own sessions by its id; false when it is not theirs or already ended. */
+  async revokeOwnSession(userId: string, id: string, now: Date): Promise<boolean> {
+    const r = await db
+      .update(sessions)
+      .set({ revokedAt: now })
+      .where(and(eq(sessions.userId, userId), eq(sessions.id, id), isNull(sessions.revokedAt)))
+      .returning({ id: sessions.id })
+    return r.length > 0
   },
 
   async createReset(v: { tokenHash: string; userId: string; expiresAt: Date }) {

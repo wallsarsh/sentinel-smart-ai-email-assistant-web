@@ -77,6 +77,30 @@ export function authService(d: AuthDeps) {
       return ok({ userId: user.id })
     },
 
+    /**
+     * Changes the password after checking the current one. Every other session
+     * ends (the one making the change stays), so a stolen session cannot outlive it.
+     */
+    async changePassword(
+      userId: string,
+      current: string,
+      next: string,
+      currentToken?: string,
+    ): Promise<Result<true, AppFailure>> {
+      const user = await repo.userById(userId)
+      if (!user) return err(invalid())
+      if (!(await verifyPassword(user.passwordHash, current))) {
+        await d.auditor?.record(userId, 'password_change_failed')
+        return err(invalid())
+      }
+      const problem = checkPasswordPolicy(next, user.email)
+      if (problem) return err({ kind: 'validation', field: 'password', code: problem })
+      await repo.setPassword(userId, await hashPassword(next))
+      await sessions.revokeAll(userId, currentToken)
+      await d.auditor?.record(userId, 'password_changed')
+      return ok(true)
+    },
+
     startSession: (userId: string, userAgent?: string) => sessions.create(userId, userAgent),
 
     async login(input: {
@@ -104,7 +128,7 @@ export function authService(d: AuthDeps) {
         expiresAt: new Date(now().getTime() + RESET_TTL_MS),
       })
       await d.auditor?.record(user.id, 'password_reset_requested')
-      await d.mailer.sendPasswordReset(user.email, `${d.baseUrl}/reset-password?token=${token}`)
+      await d.mailer.sendPasswordReset(user.email, `${d.baseUrl}/reset/confirm?token=${token}`)
     },
 
     async confirmPasswordReset(

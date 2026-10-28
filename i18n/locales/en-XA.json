@@ -744,6 +744,71 @@
       "privacy": {
         "title": "[Príváçý áñd dátá one]",
         "hint": "[Whát thé ÁÍ réádš, höw löñg máíl íš képt, éxpört áñd délété. one two three]"
+      },
+      "security": {
+        "title": "[Šéçürítý one]",
+        "hint": "[Páššwörd, twö-štép vérífíçátíöñ, šígñéd-íñ bröwšérš áñd šéçürítý évéñtš. one two three four]"
+      }
+    }
+  },
+  "security": {
+    "title": "[Šéçürítý one]",
+    "stepUp": {
+      "title": "[Cöñfírm ít íš ýöü one]"
+    },
+    "password": {
+      "title": "[Cháñgé páššwörd one]",
+      "current": "[Cürréñt páššwörd one]",
+      "hint": "[Öthér dévíçéš áré šígñéd öüt whéñ ýöü çháñgé ít. one two three]",
+      "submit": "[Cháñgé páššwörd one]",
+      "done": "[Páššwörd çháñgéd. Öthér dévíçéš wéré šígñéd öüt. one two three]"
+    },
+    "mfa": {
+      "title": "[Twö-štép vérífíçátíöñ one two]",
+      "off": "[Ádd á šéçöñd štép tö šígñíñg íñ áñd tö šéñšítívé áçtíöñš. one two three]",
+      "enable": "[Šét üp áñ áüthéñtíçátör ápp one two]",
+      "scan": "[Ádd thíš kéý tö ýöür áüthéñtíçátör ápp, théñ éñtér thé çödé ít šhöwš. one two three four]",
+      "confirm": "[Türñ öñ one]",
+      "on": "[Twö-štép vérífíçátíöñ íš öñ. Réçövérý çödéš léft: {n}. one two three]",
+      "needCode": "[Cödé fröm ýöür ápp, ör á réçövérý çödé one two]",
+      "renew": "[Ñéw réçövérý çödéš one]",
+      "disable": "[Türñ öff one]",
+      "saveCodes": "[Šávé théšé réçövérý çödéš ñöw. Éáçh wörkš öñçé áñd théý áré ñöt šhöwñ ágáíñ. one two three four]",
+      "codesSaved": "[Í šávéd thém one]"
+    },
+    "sessions": {
+      "title": "[Whéré ýöü áré šígñéd íñ one two]",
+      "unknown": "[Üñkñöwñ bröwšér one]",
+      "current": "[Thíš bröwšér one]",
+      "lastSeen": "[Lášt áçtívé {when} one]",
+      "revoke": "[Šígñ öüt one]",
+      "signOutHere": "[Šígñ öüt héré one]",
+      "revokeOthers": "[Šígñ öüt évérýwhéré élšé one two]"
+    },
+    "audit": {
+      "title": "[Réçéñt šéçürítý évéñtš one two]",
+      "empty": "[Ñöthíñg réçördéd ýét. one two]",
+      "events": {
+        "signup": "[Áççöüñt çréátéd one]",
+        "login_success": "[Šígñéd íñ one]",
+        "login_failed": "[Fáíléd šígñ-íñ one]",
+        "login_locked": "[Šígñ-íñ blöçkéd (töö máñý tríéš) one two]",
+        "logout": "[Šígñéd öüt one]",
+        "password_reset_requested": "[Páššwörd réšét réqüéštéd one two]",
+        "password_changed": "[Páššwörd çháñgéd one]",
+        "password_change_failed": "[Páššwörd çháñgé réfüšéd one two]",
+        "mfa_enabled": "[Twö-štép türñéd öñ one]",
+        "mfa_disabled": "[Twö-štép türñéd öff one]",
+        "mfa_failed": "[Wröñg twö-štép çödé one]",
+        "recovery_codes_regenerated": "[Réçövérý çödéš réñéwéd one two]",
+        "step_up": "[Ídéñtítý ré-çhéçkéd one]",
+        "account_connected": "[Máíl áççöüñt çöññéçtéd one two]",
+        "account_removed": "[Máíl áççöüñt rémövéd one]",
+        "send_authorized": "[Šéñd çöñfírméd one]",
+        "send_completed": "[Méššágé šéñt one]",
+        "data_exported": "[Dátá éxpörtéd one]",
+        "account_deleted": "[Áççöüñt délétéd one]",
+        "session_revoked": "[Šéššíöñ éñdéd one]"
       }
     }
   }

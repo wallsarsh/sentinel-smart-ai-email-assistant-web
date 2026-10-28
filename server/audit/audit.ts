@@ -22,6 +22,7 @@ export type AuditEvent =
   | 'data_exported'
   | 'account_deleted'
   | 'session_revoked'
+  | 'password_change_failed'
 
 export const AUDIT_EVENTS: readonly AuditEvent[] = [
   'signup',
@@ -43,6 +44,7 @@ export const AUDIT_EVENTS: readonly AuditEvent[] = [
   'data_exported',
   'account_deleted',
   'session_revoked',
+  'password_change_failed',
 ]
 
 export type Auditor = {

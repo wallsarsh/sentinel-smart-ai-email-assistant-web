@@ -10,4 +10,5 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   { to: '/settings/sending', key: 'sending' },
   { to: '/settings/background', key: 'background' },
   { to: '/settings/privacy', key: 'privacy' },
+  { to: '/settings/security', key: 'security' },
 ]

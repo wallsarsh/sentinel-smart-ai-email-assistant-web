@@ -52,6 +52,8 @@ export function mfaService(d: MfaDeps) {
 
     /** Starts enrolment: a fresh secret (not active until confirmed). */
     async begin(userId: string, accountEmail: string) {
+      // A new secret would switch the factor off until confirmed: never while it protects the account.
+      if (await this.isEnabled(userId)) throw new Error('mfa_already_enabled')
       const secret = newTotpSecret()
       await secretsFor(userId).put(SECRET, secret)
       await forUser(d.db, userId).mfa.upsert(SECRET)

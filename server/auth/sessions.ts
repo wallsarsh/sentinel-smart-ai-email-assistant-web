@@ -54,6 +54,26 @@ export function sessionService(db: Db, now: Clock = () => new Date()) {
     async revoke(token: string) {
       await repo.revokeSession(hashToken(token), now())
     },
+    /**
+     * The user's live sessions as the settings page shows them. The handle is
+     * a prefix of the stored hash: enough to pick one to revoke, useless as a credential.
+     */
+    async list(userId: string, currentToken?: string) {
+      const cur = currentToken ? hashToken(currentToken) : null
+      return (await repo.listSessions(userId, now())).map((s) => ({
+        handle: s.id.slice(0, 16),
+        userAgent: s.userAgent,
+        createdAt: s.createdAt,
+        lastSeenAt: s.lastSeenAt,
+        current: s.id === cur,
+      }))
+    },
+    /** Ends one of the user's own sessions; it stops working immediately. False when not found. */
+    async revokeByHandle(userId: string, handle: string) {
+      if (!/^[0-9a-f]{16}$/.test(handle)) return false
+      const match = (await repo.listSessions(userId, now())).find((s) => s.id.startsWith(handle))
+      return match ? repo.revokeOwnSession(userId, match.id, now()) : false
+    },
     revokeAll: (userId: string, exceptToken?: string) =>
       repo.revokeAllSessions(userId, now(), exceptToken ? hashToken(exceptToken) : undefined),
   }
