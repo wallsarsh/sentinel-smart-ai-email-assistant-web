@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 40/111 done · ready now: T009, T010, T011, T060, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
+**Progress:** 41/111 done · ready now: T009, T010, T011, T061, T062, T063, T068, T070, T073, T080, T090, T092, T093, T100, T105, T122, T127, T141, T142, T154
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -65,7 +65,7 @@ flowchart LR
     T055["T055"]:::done
   end
   subgraph P3
-    T060["T060"]:::todo
+    T060["T060"]:::done
     T061["T061"]:::todo
     T062["T062"]:::todo
     T063["T063"]:::todo
@@ -426,7 +426,7 @@ flowchart LR
 
 | | ID | Task | Size | Type | Depends on | Owner |
 |---|---|---|---|---|---|---|
-| ⬜ | [T060](items/T060-sync-service.md) | Sync service | L | code | T045, T047, T050, T021 |  |
+| ✅ | [T060](items/T060-sync-service.md) | Sync service | L | code | T045, T047, T050, T021 | claude |
 | ⬜ | [T061](items/T061-sync-scheduling.md) | Sync scheduling | S | code | T060, T033 |  |
 | ⬜ | [T062](items/T062-inbox-query-api.md) | Inbox query API | M | code | T060 |  |
 | ⬜ | [T063](items/T063-full-text-search.md) | Full-text search | M | code | T060 |  |

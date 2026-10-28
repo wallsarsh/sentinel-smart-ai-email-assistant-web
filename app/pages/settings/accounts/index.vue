@@ -20,6 +20,10 @@ const failure = ref<WireFailure | null>(null)
 const outcome = computed(() => String(route.query.connect ?? ''))
 const adminHelp = computed(() => route.query.help === 'admin_consent_required')
 
+function onAdded() {
+  adding.value = false
+  void refresh()
+}
 async function toggleAi(a: Account) {
   try {
     await $fetch(`/api/accounts/${a.id}`, { method: 'PATCH', body: { aiExcluded: !a.aiExcluded } })
@@ -108,13 +112,6 @@ const reconnectUrl = (a: Account) =>
         {{ $t('accounts.connectImap') }}
       </button>
     </div>
-    <AccountsImapWizard
-      v-else
-      @added="
-        adding = false
-        refresh()
-      "
-      @cancel="adding = false"
-    />
+    <AccountsImapWizard v-else @added="onAdded" @cancel="adding = false" />
   </section>
 </template>
