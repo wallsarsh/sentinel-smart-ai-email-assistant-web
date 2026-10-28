@@ -2,8 +2,8 @@
 id: T051
 title: "IMAP drafts"
 phase: P2
-status: todo
-owner: ""
+status: done
+owner: "claude"
 type: code
 size: M
 deps: [T050, T041]
@@ -19,8 +19,11 @@ updated: 2026-10-28
 APPEND to Drafts with \Draft, replace by delete+append with stable Message-ID, cleanup.
 
 ## Acceptance
-- [ ] Idempotent by Message-ID
-- [ ] Only Sentinel-created drafts deleted
-- [ ] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
+- [x] Idempotent by Message-ID
+- [x] Only Sentinel-created drafts deleted
+- [x] Definition of Done met (CONV §10): tests added, `npm run check` (lint, typecheck, test) green, send-gate check passes
 
 ## Log
+- 2026-10-28 12:59Z claimed by claude
+- 2026-10-28 12:59Z IMAP drafts: APPEND \Draft, replace by append+remove with stable Message-ID, ownership by sentinel- prefix, retry returns existing draft (implemented with T050)
+- 2026-10-28 12:59Z status -> done
