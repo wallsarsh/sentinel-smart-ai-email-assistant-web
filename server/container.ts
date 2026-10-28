@@ -23,6 +23,7 @@ import { aiGateway } from './ai/gateway'
 import { aiRouter } from './ai/router'
 import { triageCorrections } from './triage/corrections'
 import { triageService } from './triage/service'
+import { draftGenerator } from './drafts/generator'
 import { createSystemMailer } from './mail/send/system-mailer'
 
 let db: Db | undefined
@@ -154,3 +155,6 @@ export const useTriage = () =>
         .publish(userId, { type: 'triage.done', data: { count } })
         .catch(() => undefined),
   })
+
+export const useDraftGenerator = () =>
+  draftGenerator({ db: useDb(), gateway: useAiGateway(), router: useAiRouter() })

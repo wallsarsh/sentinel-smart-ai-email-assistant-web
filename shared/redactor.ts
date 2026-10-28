@@ -49,7 +49,7 @@ export function isValidIban(iban: string): boolean {
   return rem === 1
 }
 
-function isPhone(s: string): boolean {
+export function isPhone(s: string): boolean {
   const t = s.trim()
   if (DATE_LIKE.test(t)) return false
   const digits = t.replace(/\D/g, '')
