@@ -25,6 +25,8 @@ const schema = z
     VAPID_PUBLIC_KEY: z.string().default(''),
     VAPID_PRIVATE_KEY: z.string().default(''),
     VAPID_SUBJECT: z.string().default('mailto:admin@localhost'),
+    SYSTEM_SMTP_URL: z.string().default('smtp://localhost:1025'),
+    SYSTEM_MAIL_FROM: z.string().default('Sentinel <no-reply@localhost>'),
   })
   .superRefine((v, ctx) => {
     if (v.NODE_ENV !== 'production') return
@@ -45,6 +47,7 @@ export type AppConfig = {
   google: { clientId: string; clientSecret: string }
   microsoft: { clientId: string; clientSecret: string; authority: string }
   vapid: { publicKey: string; privateKey: string; subject: string }
+  systemMail: { smtpUrl: string; from: string }
 }
 
 export class ConfigError extends Error {
@@ -79,6 +82,7 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
       privateKey: v.VAPID_PRIVATE_KEY,
       subject: v.VAPID_SUBJECT,
     },
+    systemMail: { smtpUrl: v.SYSTEM_SMTP_URL, from: v.SYSTEM_MAIL_FROM },
   }
 }
 
