@@ -8,6 +8,7 @@ import { mailRepo } from './mail'
 import { mfaRepo } from './mfa'
 import { searchRepo } from './search'
 import { secretsRepo } from './secrets'
+import { senderRulesRepo } from './sender-rules'
 import { settingsRepo } from './settings'
 import { inTransaction, type Scope } from './scope'
 
@@ -20,6 +21,7 @@ export type UserRepos = {
   inbox: ReturnType<typeof inboxRepo>
   search: ReturnType<typeof searchRepo>
   ai: ReturnType<typeof aiProvidersRepo>
+  rules: ReturnType<typeof senderRulesRepo>
   secrets: ReturnType<typeof secretsRepo>
   mfa: ReturnType<typeof mfaRepo>
   audit: ReturnType<typeof auditRepo>
@@ -41,6 +43,7 @@ export function forUser(db: Db, userId: string): UserRepos {
     inbox: inboxRepo(scope),
     search: searchRepo(scope),
     ai: aiProvidersRepo(scope),
+    rules: senderRulesRepo(scope),
     secrets: secretsRepo(scope),
     mfa: mfaRepo(scope),
     audit: auditRepo(scope),
