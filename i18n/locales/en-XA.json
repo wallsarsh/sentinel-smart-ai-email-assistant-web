@@ -77,7 +77,8 @@
   },
   "common": {
     "cancel": "[Cáñçél one]",
-    "save": "[Šávé one]"
+    "save": "[Šávé one]",
+    "saving": "[Šávíñg… one]"
   },
   "accounts": {
     "title": "[Máíl áççöüñtš one]",
@@ -548,5 +549,50 @@
       "result": "[Šümmárý öf {from} tö {to} one two]",
       "notSaved": "[Ñöt šávéd tö ýöür híštörý. one two]"
     }
+  },
+  "bg": {
+    "title": "[Báçkgröüñd çhéçkš one]",
+    "limits": "[Á šérvér çhéçkš ýöür máíl för ýöü, šö Šéñtíñél wörkš évéñ whéñ thíš págé íš çlöšéd. Ñötífíçátíöñš réáçh bröwšérš thát állöwéd thém. one two three four]",
+    "checking": "[Chéçkíñg máíl one]",
+    "interval": "[Chéçk évérý one]",
+    "everyMinutes": "[{n} míñütéš one]",
+    "ai": "[Šört máíl wíth ÁÍ íñ thé báçkgröüñd one two]",
+    "aiHint": "[Üšéš ýöür ÁÍ prövídér whílé ýöü áré áwáý. Cöüñtš töwárd ýöür dáílý çápš. one two three four]",
+    "notify": "[Ñötífíçátíöñš one]",
+    "mode": "[Ñötífý mé áböüt one]",
+    "modes": {
+      "important": "[Ímpörtáñt máíl one]",
+      "needs_reply": "[Ímpörtáñt máíl áñd máíl thát ñéédš á réplý one two three]",
+      "all": "[Áll ñéw máíl one]",
+      "none": "[Ñöthíñg one]"
+    },
+    "previews": "[Šhöw prévíéwš one]",
+    "previewsHint": "[Öff bý défáült: ñötífíçátíöñš dö ñöt çárrý šéñdér ör šübjéçt téxt. one two three four]",
+    "quiet": "[Qüíét höürš one]",
+    "quietFrom": "[Fröm one]",
+    "quietTo": "[Üñtíl one]",
+    "quietHint": "[Máíl thát árrívéš düríñg qüíét höürš íš áññöüñçéd áftérwárdš. one two three four]",
+    "muteAccounts": "[Müté áççöüñtš one]",
+    "briefSection": "[Dáílý bríéf one]",
+    "briefTime": "[Wríté mý bríéf át one]",
+    "briefNotify": "[Téll mé whéñ thé bríéf íš réádý one two]",
+    "pushTitle": "[Bröwšér ñötífíçátíöñš one two]",
+    "accountsTitle": "[Áççöüñtš one]",
+    "noAccounts": "[Ñö áççöüñtš çöññéçtéd. one two]",
+    "accountNeedsAttention": "[Ñéédš áttéñtíöñ one]",
+    "lastFetched": "[Lášt çhéçkéd {when} one]",
+    "noMailYet": "[Ñöt çhéçkéd ýét one]",
+    "runsTitle": "[Réçéñt çhéçkš one]",
+    "neverRan": "[Ñö çhéçkš hávé rüñ ýét. one two]",
+    "runSummary": "[{new} ñéw, {triaged} šörtéd one two]",
+    "lastError": "[Pröblém: {code} one]",
+    "outcome": {
+      "ok": "[Döñé one]",
+      "partial": "[Pártlý döñé one]",
+      "error": "[Fáíléd one]",
+      "timeout": "[Ráñ öüt öf tímé one]",
+      "running": "[Rüññíñg one]"
+    },
+    "reload": "[Rélöád one]"
   }
 }

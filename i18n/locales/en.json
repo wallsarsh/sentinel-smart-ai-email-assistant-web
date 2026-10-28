@@ -77,7 +77,8 @@
   },
   "common": {
     "cancel": "Cancel",
-    "save": "Save"
+    "save": "Save",
+    "saving": "Saving…"
   },
   "accounts": {
     "title": "Mail accounts",
@@ -548,5 +549,50 @@
       "result": "Summary of {from} to {to}",
       "notSaved": "Not saved to your history."
     }
+  },
+  "bg": {
+    "title": "Background checks",
+    "limits": "A server checks your mail for you, so Sentinel works even when this page is closed. Notifications reach browsers that allowed them.",
+    "checking": "Checking mail",
+    "interval": "Check every",
+    "everyMinutes": "{n} minutes",
+    "ai": "Sort mail with AI in the background",
+    "aiHint": "Uses your AI provider while you are away. Counts toward your daily caps.",
+    "notify": "Notifications",
+    "mode": "Notify me about",
+    "modes": {
+      "important": "Important mail",
+      "needs_reply": "Important mail and mail that needs a reply",
+      "all": "All new mail",
+      "none": "Nothing"
+    },
+    "previews": "Show previews",
+    "previewsHint": "Off by default: notifications do not carry sender or subject text.",
+    "quiet": "Quiet hours",
+    "quietFrom": "From",
+    "quietTo": "Until",
+    "quietHint": "Mail that arrives during quiet hours is announced afterwards.",
+    "muteAccounts": "Mute accounts",
+    "briefSection": "Daily brief",
+    "briefTime": "Write my brief at",
+    "briefNotify": "Tell me when the brief is ready",
+    "pushTitle": "Browser notifications",
+    "accountsTitle": "Accounts",
+    "noAccounts": "No accounts connected.",
+    "accountNeedsAttention": "Needs attention",
+    "lastFetched": "Last checked {when}",
+    "noMailYet": "Not checked yet",
+    "runsTitle": "Recent checks",
+    "neverRan": "No checks have run yet.",
+    "runSummary": "{new} new, {triaged} sorted",
+    "lastError": "Problem: {code}",
+    "outcome": {
+      "ok": "Done",
+      "partial": "Partly done",
+      "error": "Failed",
+      "timeout": "Ran out of time",
+      "running": "Running"
+    },
+    "reload": "Reload"
   }
 }
