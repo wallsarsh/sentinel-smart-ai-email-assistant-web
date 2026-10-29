@@ -1,52 +1,57 @@
-/* The only bundled frontend code allowed to invoke native commands. */
-const form = document.querySelector('#server-form');
-const input = document.querySelector('#server-url');
-const button = document.querySelector('#connect');
-const status = document.querySelector('#status');
-
-function setStatus(message, ok = false) {
+/* Local native settings only. The Nitro WebView never receives native IPC. */
+const invoke = window.__TAURI__?.core?.invoke;
+const status = document.getElementById('status');
+const form = document.getElementById('providers');
+const save = document.getElementById('save');
+const fields = {
+  googleClientId: document.getElementById('google-id'),
+  googleClientSecret: document.getElementById('google-secret'),
+  msClientId: document.getElementById('ms-id'),
+  msClientSecret: document.getElementById('ms-secret')
+};
+const notice = (message, ok = false) => {
   status.textContent = message;
   status.classList.toggle('ok', ok);
-}
-
-function normalizeServer(value) {
-  const url = new URL(value.trim());
-  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
-    throw new Error('HTTPS is required, except for localhost development.');
-  }
-  if (url.username || url.password || url.search || url.hash || url.pathname !== '/') {
-    throw new Error('Use only a server address; omit credentials, paths and parameters.');
-  }
-  return url.origin;
-}
-
-const invoke = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+};
 if (!invoke) {
-  setStatus('Launch this page with the Sentinel desktop application.');
-  button.disabled = true;
+  notice('Launch this page with the Sentinel desktop application.');
+  save.disabled = true;
 } else {
-  invoke('get_server').then((url) => {
-    if (url) input.value = url;
-  }).catch(() => setStatus('Cannot read saved server settings.'));
+  invoke('provider_settings').then(data => {
+    fields.googleClientId.value = data.googleClientId || '';
+    fields.msClientId.value = data.msClientId || '';
+    if (data.googleSecretConfigured) fields.googleClientSecret.placeholder = 'Secret already saved';
+    if (data.msSecretConfigured) fields.msClientSecret.placeholder = 'Secret already saved';
+  }).catch(() => notice('OS keychain is unavailable. Unlock your credential vault and restart.'));
+  const check = async () => {
+    try {
+      const data = await invoke('desktop_status');
+      if (data.error) {
+        notice(data.error);
+        return;
+      }
+      notice(data.ready ? 'Local email service is ready.' : 'Starting local email service…', data.ready);
+    } catch {
+      notice('Cannot check local service status.');
+    }
+  };
+  void check();
+  setInterval(check, 1500);
 }
-
-form.addEventListener('submit', async (event) => {
+form.addEventListener('submit', async event => {
   event.preventDefault();
   if (!invoke) return;
-  let url;
+  save.disabled = true;
   try {
-    url = normalizeServer(input.value);
+    await invoke('save_provider_settings', Object.fromEntries(
+      Object.entries(fields).map(([name, el]) => [name, el.value])
+    ));
+    fields.googleClientSecret.value = '';
+    fields.msClientSecret.value = '';
+    notice('Saved securely to your operating system credential vault. Restarting…', true);
   } catch (error) {
-    setStatus(error.message);
-    return;
-  }
-  button.disabled = true;
-  setStatus('Opening the configured workspace…', true);
-  try {
-    await invoke('connect_server', { url });
-  } catch (error) {
-    setStatus(String(error || 'Could not save this server.'));
-    button.disabled = false;
+    notice(String(error));
+  } finally {
+    save.disabled = false;
   }
 });

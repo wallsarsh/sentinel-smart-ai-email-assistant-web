@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Sentinel AI Email Assistant",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "in.simplifyit.sentinel.email.desktop",
   "build": {
     "frontendDist": "../ui"
@@ -17,7 +17,8 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
-    "shortDescription": "Sentinel AI Email Assistant",
+    "shortDescription": "Standalone Sentinel AI Email Assistant",
+    "resources": { "runtime/": "runtime" },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

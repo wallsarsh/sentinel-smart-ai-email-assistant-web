@@ -1,10 +1,19 @@
-//! Native shell for the existing Sentinel service.
-//! The loaded HTTPS application is deliberately NOT granted native IPC permissions.
-//! All mail, secrets, background work and send authorization remain on the server.
-use std::fs;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
-
+//! Self-contained Tauri shell. The bundled Node/Nitro runtime binds only to
+//! 127.0.0.1 and uses persistent PGlite; no hosted backend is required.
+//! Tokens, IMAP/SMTP credentials and BYO AI keys remain encrypted in PGlite.
+//! Session/KEK material and optional OAuth client configuration live in the OS keyring.
+use std::{
+    fs,
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+    path::PathBuf,
+    process::{Child, Command, Stdio},
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+use keyring::{Entry, Error as KeyringError};
+use rand::RngCore;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -12,27 +21,26 @@ use tauri::{
     AppHandle, Manager, State, Url, WebviewUrl, WebviewWindow,
 };
 
-#[derive(Clone, Default)]
-struct ServerState {
-    origin: Arc<Mutex<Option<String>>>,
+const PORT: u16 = 17861;
+const ORIGIN: &str = "http://127.0.0.1:17861";
+const KEYRING_SERVICE: &str = "in.simplifyit.sentinel.email.desktop";
+
+#[derive(Default)]
+struct RuntimeState {
+    child: Mutex<Option<Child>>,
+    error: Mutex<Option<String>>,
+    ready: Mutex<bool>,
 }
 
-/// Only HTTPS remote services (or genuine local loopback development servers).
-/// No paths/queries/embedded credentials: the Nuxt API and OAuth callbacks live at /.
-fn validate_server(input: &str) -> Result<Url, String> {
-    let url = Url::parse(input.trim()).map_err(|_| "Enter a complete server URL.".to_string())?;
-    let host = url.host_str().ok_or("The server must have a hostname.")?;
-    let loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
-    if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
-        return Err("Use HTTPS. HTTP is allowed only for localhost and loopback testing.".into());
+impl Drop for RuntimeState {
+    fn drop(&mut self) {
+        if let Ok(mut slot) = self.child.lock() {
+            if let Some(mut child) = slot.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
     }
-    if !url.username().is_empty() || url.password().is_some() {
-        return Err("Credentials must not be embedded in a server URL.".into());
-    }
-    if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
-        return Err("Enter only the server origin, without a path, query or fragment.".into());
-    }
-    Ok(url)
 }
 
 fn app_page(url: &Url) -> bool {
@@ -41,154 +49,269 @@ fn app_page(url: &Url) -> bool {
             && url.host_str() == Some("tauri.localhost"))
 }
 
-// Kept for explicit identity-domain regression tests; these are not used for embedded auth.
-#[cfg(test)]
-fn is_identity_provider(url: &Url) -> bool {
-    if url.scheme() != "https" {
-        return false;
-    }
-    matches!(
-        url.host_str(),
-        Some("accounts.google.com"
-            | "login.microsoftonline.com"
-            | "login.live.com"
-            | "login.microsoft.com"
-            | "account.live.com"
-            | "login.windows.net")
-    )
-}
-
-fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_config_dir()
-        .map(|dir| dir.join("server.json"))
-        .map_err(|_| "Cannot locate the desktop configuration directory.".into())
-}
-
-fn read_server(app: &AppHandle) -> Option<Url> {
-    let path = config_path(app).ok()?;
-    let data = fs::read(path).ok()?;
-    let value: serde_json::Value = serde_json::from_slice(&data).ok()?;
-    validate_server(value.get("url")?.as_str()?).ok()
-}
-
-fn write_server(app: &AppHandle, url: &Url) -> Result<(), String> {
-    let path = config_path(app)?;
-    fs::create_dir_all(path.parent().ok_or("Invalid configuration directory.")?)
-        .map_err(|_| "Could not create the desktop configuration directory.")?;
-    let body = serde_json::to_vec(&serde_json::json!({ "url": url.as_str() }))
-        .map_err(|_| "Could not serialize the server address.")?;
-    fs::write(path, body).map_err(|_| "Could not save the server address.".into())
-}
-
-// The URL is configuration, never a password, refresh token, cookie or API key.
-// For every sensitive operation, require the original app's server-side auth.
-fn local_caller(window: &WebviewWindow) -> Result<(), String> {
+fn native_caller(window: &WebviewWindow) -> Result<(), String> {
     if !matches!(window.label(), "main" | "settings") {
-        return Err("Unexpected application window.".into());
+        return Err("Unexpected desktop window".into());
     }
-    if !app_page(&window.url().map_err(|_| "Cannot verify the calling window.")?) {
-        return Err("Remote pages cannot change native settings.".into());
+    if !app_page(&window.url().map_err(|_| "Cannot read calling origin")?) {
+        return Err("Native commands are forbidden in remote webpages".into());
     }
     Ok(())
 }
 
-#[tauri::command]
-fn get_server(window: WebviewWindow, app: AppHandle) -> Result<Option<String>, String> {
-    local_caller(&window)?;
-    Ok(read_server(&app).map(|url| url.to_string()))
+fn store(name: &str) -> Result<Entry, String> {
+    Entry::new(KEYRING_SERVICE, name).map_err(|_| "Operating system keychain unavailable".into())
+}
+
+fn secret(name: &str) -> Result<Option<String>, String> {
+    match store(name)?.get_password() {
+        Ok(value) => Ok(Some(value)),
+        Err(KeyringError::NoEntry) => Ok(None),
+        Err(_) => Err(format!("Cannot unlock the OS credential vault for {name}")),
+    }
+}
+
+fn random_key(bytes: usize) -> String {
+    use base64::Engine;
+    let mut buf = vec![0u8; bytes];
+    rand::thread_rng().fill_bytes(&mut buf);
+    base64::engine::general_purpose::STANDARD.encode(buf)
+}
+
+fn stable_secret(name: &str, bytes: usize) -> Result<String, String> {
+    if let Some(value) = secret(name)? {
+        return Ok(value);
+    }
+    let value = random_key(bytes);
+    store(name)?
+        .set_password(&value)
+        .map_err(|_| "Cannot save the desktop encryption key to the OS keychain".to_string())?;
+    Ok(value)
+}
+
+fn optional_env(command: &mut Command, name: &str, key: &str) -> Result<(), String> {
+    command.env(name, secret(key)?.unwrap_or_default());
+    Ok(())
+}
+
+fn resource_root(app: &AppHandle) -> Result<PathBuf, String> {
+    let target = app.path().resource_dir().map_err(|_| "Resource directory unavailable")?
+        .join("runtime");
+    if target.join(".output/server/index.mjs").exists() {
+        return Ok(target);
+    }
+    #[cfg(debug_assertions)]
+    {
+        let local = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("runtime");
+        if local.join(".output/server/index.mjs").exists() {
+            return Ok(local);
+        }
+    }
+    Err("Bundled Node runtime missing. Run npm run prepare in desktop/.".into())
+}
+
+fn node_bin(root: &PathBuf) -> PathBuf {
+    if cfg!(windows) {
+        root.join("bin/node.exe")
+    } else {
+        root.join("bin/node")
+    }
+}
+
+fn runtime_command(app: &AppHandle, entrypoint: &str, probe: &str) -> Result<Command, String> {
+    let root = resource_root(app)?;
+    let data = app.path().app_local_data_dir().map_err(|_| "Data path unavailable")?;
+    fs::create_dir_all(&data).map_err(|_| "Cannot create local application data")?;
+    let db = data.join("pglite");
+    let node = node_bin(&root);
+    if !node.is_file() { return Err("Bundled Node executable missing".into()); }
+
+    let session = stable_secret("session-secret", 48)?;
+    let kek = stable_secret("kek-v1", 32)?;
+    let mut command = Command::new(node);
+    command.arg(root.join(entrypoint))
+        .current_dir(&root)
+        .env("NODE_ENV", "production")
+        .env("PORT", PORT.to_string())
+        .env("HOST", "127.0.0.1")
+        .env("BASE_URL", ORIGIN)
+        .env("DATABASE_URL", "pglite:local")
+        .env("SENTINEL_DESKTOP_DB_DIR", db)
+        .env("SENTINEL_DESKTOP_MODE", "true")
+        .env("SENTINEL_DESKTOP_PROBE", probe)
+        .env("ALLOW_INSECURE_HTTP", "true")
+        .env("SESSION_SECRET", session)
+        .env("KEK_BASE64", kek)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null());
+    optional_env(&mut command, "GOOGLE_CLIENT_ID", "google-client-id")?;
+    optional_env(&mut command, "GOOGLE_CLIENT_SECRET", "google-client-secret")?;
+    optional_env(&mut command, "MS_CLIENT_ID", "ms-client-id")?;
+    optional_env(&mut command, "MS_CLIENT_SECRET", "ms-client-secret")?;
+    Ok(command)
+}
+
+fn probe_runtime(probe: &str) -> bool {
+    let Ok(mut stream) = TcpStream::connect_timeout(
+        &format!("127.0.0.1:{PORT}").parse().unwrap(),
+        Duration::from_millis(400)
+    ) else { return false };
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+    let request = format!(
+        "GET /api/desktop/health HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nx-sentinel-desktop-probe: {probe}\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(request.as_bytes()).is_err() { return false; }
+    let mut buf = [0u8; 2048];
+    let Ok(n) = stream.read(&mut buf) else { return false };
+    let response = String::from_utf8_lossy(&buf[..n]);
+    response.starts_with("HTTP/1.1 200") && response.contains("sentinel-desktop")
+}
+
+fn stop_backend(state: &RuntimeState) {
+    if let Ok(mut slot) = state.child.lock() {
+        if let Some(mut child) = slot.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+fn launch_runtime(app: AppHandle, state: Arc<RuntimeState>) {
+    thread::spawn(move || {
+        *state.ready.lock().unwrap() = false;
+        *state.error.lock().unwrap() = None;
+        stop_backend(&state);
+        let result: Result<(), String> = (|| {
+            // Refuse an occupied loopback port: never display someone else's
+            // local HTTP service in our app window.
+            let listener = TcpListener::bind(("127.0.0.1", PORT))
+                .map_err(|_| format!("Port {PORT} is occupied. Close the other application."))?;
+            let probe = random_key(24);
+            let mut migrate = runtime_command(&app, "dist/migrate.mjs", &probe)?;
+            drop(listener);
+            let status = migrate.status().map_err(|_| "Failed to start local migrations")?;
+            if !status.success() { return Err("Local database migration failed".into()); }
+
+            let mut child = runtime_command(&app, ".output/server/index.mjs", &probe)?
+                .spawn().map_err(|_| "Failed to launch bundled local service")?;
+            for _ in 0..160 {
+                if probe_runtime(&probe) {
+                    *state.child.lock().unwrap() = Some(child);
+                    *state.ready.lock().unwrap() = true;
+                    if let Some(main) = app.get_webview_window("main") {
+                        let _ = main.navigate(Url::parse(ORIGIN).unwrap());
+                    }
+                    return Ok(());
+                }
+                if let Ok(Some(_)) = child.try_wait() {
+                    return Err("Local service exited before becoming ready".into());
+                }
+                thread::sleep(Duration::from_millis(250));
+            }
+            let _ = child.kill();
+            let _ = child.wait();
+            Err("Local service did not become ready".into())
+        })();
+        if let Err(error) = result {
+            *state.error.lock().unwrap() = Some(error);
+        }
+    });
 }
 
 #[tauri::command]
-fn connect_server(
+fn desktop_status(window: WebviewWindow, state: State<'_, Arc<RuntimeState>>) -> Result<serde_json::Value, String> {
+    native_caller(&window)?;
+    Ok(serde_json::json!({
+        "ready": *state.ready.lock().unwrap(),
+        "error": *state.error.lock().unwrap(),
+    }))
+}
+
+#[tauri::command]
+fn provider_settings(window: WebviewWindow) -> Result<serde_json::Value, String> {
+    native_caller(&window)?;
+    Ok(serde_json::json!({
+        "googleClientId": secret("google-client-id")?.unwrap_or_default(),
+        "googleSecretConfigured": secret("google-client-secret")?.is_some(),
+        "msClientId": secret("ms-client-id")?.unwrap_or_default(),
+        "msSecretConfigured": secret("ms-client-secret")?.is_some(),
+    }))
+}
+
+#[tauri::command]
+fn save_provider_settings(
     window: WebviewWindow,
     app: AppHandle,
-    state: State<'_, ServerState>,
-    url: String,
+    state: State<'_, Arc<RuntimeState>>,
+    google_client_id: String,
+    google_client_secret: String,
+    ms_client_id: String,
+    ms_client_secret: String,
 ) -> Result<(), String> {
-    local_caller(&window)?;
-    let parsed = validate_server(&url)?;
-    write_server(&app, &parsed)?;
-    let origin = parsed.origin().ascii_serialization();
-    *state.origin.lock().map_err(|_| "Could not update navigation policy.")? = Some(origin);
-    let main = app
-        .get_webview_window("main")
-        .ok_or("The main desktop window is unavailable.")?;
-    main.navigate(parsed).map_err(|_| "Could not open the configured server.")?;
-    if window.label() == "settings" {
-        let _ = window.close();
+    native_caller(&window)?;
+    if google_client_id.len() > 512 || ms_client_id.len() > 512 ||
+       google_client_secret.len() > 2048 || ms_client_secret.len() > 2048 {
+        return Err("Provider configuration exceeds maximum length".into());
     }
-    Ok(())
-}
-
-fn open_settings(app: &AppHandle) -> tauri::Result<()> {
-    if let Some(window) = app.get_webview_window("settings") {
-        let _ = window.show();
-        let _ = window.set_focus();
-        return Ok(());
+    for (key, value) in [
+        ("google-client-id", google_client_id),
+        ("ms-client-id", ms_client_id),
+    ] {
+        store(key)?.set_password(value.trim()).map_err(|_| "Cannot save provider configuration")?;
     }
-    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
-        .title("Sentinel — Server settings")
-        .inner_size(520.0, 570.0)
-        .resizable(false)
-        .on_navigation(app_page)
-        .build()?;
+    // Empty secret input keeps the previously saved secret.
+    for (key, value) in [
+        ("google-client-secret", google_client_secret),
+        ("ms-client-secret", ms_client_secret),
+    ] {
+        if !value.is_empty() {
+            store(key)?.set_password(&value).map_err(|_| "Cannot save provider secret")?;
+        }
+    }
+    launch_runtime(app, state.inner().clone());
     Ok(())
 }
 
 fn focus_main(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.unminimize();
-        let _ = window.show();
-        let _ = window.set_focus();
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.unminimize();
+        let _ = main.set_focus();
     }
 }
 
+fn open_settings(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
+        .title("Sentinel — Provider settings")
+        .inner_size(580.0, 680.0)
+        .on_navigation(app_page)
+        .build();
+}
+
 pub fn run() {
+    let runtime = Arc::new(RuntimeState::default());
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| focus_main(app)))
-        .manage(ServerState::default())
-        .invoke_handler(tauri::generate_handler![get_server, connect_server])
-        .setup(|app| {
-            let saved = read_server(app.handle());
-            let state = app.state::<ServerState>();
-            *state.origin.lock().expect("server navigation mutex poisoned") =
-                saved.as_ref().map(|url| url.origin().ascii_serialization());
-
-            let allowed = Arc::clone(&state.origin);
+        .manage(runtime.clone())
+        .invoke_handler(tauri::generate_handler![desktop_status, provider_settings, save_provider_settings])
+        .setup(move |app| {
             let main = WebviewWindowBuilder::new(
-                app,
-                "main",
-                WebviewUrl::App("index.html".into()),
+                app, "main", WebviewUrl::App("index.html".into())
             )
             .title("Sentinel AI Email Assistant")
             .inner_size(1190.0, 820.0)
             .min_inner_size(790.0, 580.0)
-            .on_navigation(move |url| {
-                if app_page(url) {
-                    return true;
-                }
-                let configured = allowed.lock().ok().and_then(|state| state.clone());
-                if configured.as_deref() == Some(url.origin().ascii_serialization().as_str()) {
-                    // Provider authorization is completed in the system browser.
-                    // The desktop WebView and system browser have different cookie
-                    // stores; launch the Accounts page, not the protected /connect
-                    // URL, so the user can sign in on the web then grant consent.
-                    if matches!(
-                        url.path(),
-                        "/api/accounts/google/connect" | "/api/accounts/microsoft/connect"
-                    ) {
-                        let mut accounts = url.clone();
-                        accounts.set_path("/settings/accounts");
-                        accounts.set_query(None);
-                        accounts.set_fragment(None);
-                        let _ = open::that(accounts.as_str());
-                        return false;
-                    }
-                    return true;
-                }
-                // Untrusted links and identity-provider pages always open in the
-                // OS browser, never as additional privileged app windows.
+            .on_navigation(|url| {
+                if app_page(url) { return true; }
+                if url.origin().ascii_serialization() == ORIGIN { return true; }
+                // Native Google/Microsoft OAuth is initiated by the signed-in
+                // WebView, then provider consent runs in the default browser.
                 if url.scheme() == "https" {
                     let _ = open::that(url.as_str());
                 }
@@ -202,27 +325,26 @@ pub fn run() {
             })
             .build()?;
 
-            let open_item = MenuItem::with_id(app, "open", "Open Sentinel", true, None::<&str>)?;
-            let settings_item =
-                MenuItem::with_id(app, "settings", "Server settings", true, None::<&str>)?;
-            let reload_item =
-                MenuItem::with_id(app, "reload", "Reload workspace", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_item, &reload_item, &settings_item, &quit_item])?;
+            let open = MenuItem::with_id(app, "open", "Open Sentinel", true, None::<&str>)?;
+            let settings = MenuItem::with_id(app, "settings", "Provider settings", true, None::<&str>)?;
+            let reload = MenuItem::with_id(app, "reload", "Reload workspace", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &reload, &settings, &quit])?;
+            let state = runtime.clone();
             let mut tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .tooltip("Sentinel AI Email Assistant")
-                .on_menu_event(|app, event| match event.id.as_ref() {
+                .on_menu_event(move |app, event| match event.id.as_ref() {
                     "open" => focus_main(app),
+                    "settings" => open_settings(app),
                     "reload" => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.reload();
+                        if let Some(w) = app.get_webview_window("main") {
+                            let _ = w.reload();
                             focus_main(app);
                         }
                     }
-                    "settings" => { let _ = open_settings(app); }
-                    "quit" => app.exit(0),
+                    "quit" => { stop_backend(&state); app.exit(0); }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -230,54 +352,33 @@ pub fn run() {
                         button: MouseButton::Left,
                         button_state: MouseButtonState::Up,
                         ..
-                    } = event {
-                        focus_main(tray.app_handle());
-                    }
+                    } = event { focus_main(tray.app_handle()); }
                 });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
+            if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
             tray.build(app)?;
-            if let Some(url) = saved {
-                // A missing/offline service cannot change the saved URL; use tray
-                // Settings to recover. No Node, Postgres or SMTP server is bundled.
-                let _ = main.navigate(url);
-            }
+            main.on_window_event(|event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close(); // keep brief/sync tasks running in tray
+                }
+            });
+            launch_runtime(app.handle().clone(), runtime.clone());
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("failed to run Sentinel desktop");
+        .expect("failed to run Sentinel standalone desktop");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn accepts_https_and_loopback_only() {
-        assert!(validate_server("https://sentinel.example.org").is_ok());
-        assert!(validate_server("http://localhost:3000").is_ok());
-        assert!(validate_server("http://127.0.0.1:3000").is_ok());
-        assert!(validate_server("http://[::1]:3000").is_ok());
-        for invalid in [
-            "http://sentinel.example.org",
-            "http://localhost.evil.org",
-            "file:///etc/passwd",
-            "javascript:alert(1)",
-            "https://user:pass@example.org",
-            "https://example.org/extra",
-            "https://example.org/?token=secret",
-            "https://example.org/#fragment",
-        ] {
-            assert!(validate_server(invalid).is_err(), "{invalid}");
-        }
+    fn only_native_pages_are_trusted() {
+        assert!(app_page(&Url::parse("tauri://localhost/index.html").unwrap()));
+        assert!(!app_page(&Url::parse("https://evil.test/").unwrap()));
+        assert!(!app_page(&Url::parse("http://127.0.0.1:17861/").unwrap()));
     }
-
     #[test]
-    fn provider_allowlist_is_narrow() {
-        assert!(is_identity_provider(&Url::parse("https://accounts.google.com/o/oauth2/v2/auth").unwrap()));
-        assert!(is_identity_provider(&Url::parse("https://login.microsoftonline.com/common").unwrap()));
-        assert!(!is_identity_provider(&Url::parse("https://accounts.google.com.evil.org").unwrap()));
-        assert!(!is_identity_provider(&Url::parse("http://accounts.google.com").unwrap()));
+    fn local_address_is_fixed() {
+        assert_eq!(ORIGIN, "http://127.0.0.1:17861");
     }
 }

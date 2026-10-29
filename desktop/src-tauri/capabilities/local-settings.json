@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "local-settings-only",
-  "description": "Native core functions are restricted to bundled local settings pages. Remote webmail has no desktop capabilities.",
+  "description": "Only local bundled pages may call native commands; loopback web application has no Tauri IPC privileges.",
   "local": true,
   "windows": ["main", "settings"],
   "permissions": ["core:default"]
