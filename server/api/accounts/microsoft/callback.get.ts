@@ -20,12 +20,16 @@ export default defineEventHandler(async (event) => {
   const user = pending ? { id: pending.userId } : (await requireUser(event)).user
   const cookie = pending?.cookie ?? getCookie(event, MS_OAUTH_COOKIE)
   deleteCookie(event, MS_OAUTH_COOKIE, { path: '/api/accounts/microsoft' })
-  const back = (r: string, help = '') =>
-    sendRedirect(
-      event,
-      `${useConfig().baseUrl}/settings/accounts?connect=${r}${help ? `&help=${help}` : ''}`,
-      302,
-    )
+  const back = (r: string, help = '') => {
+    if (process.env.SENTINEL_DESKTOP_MODE === 'true') {
+      setResponseHeader(event, 'content-type', 'text/html; charset=utf-8')
+      setResponseHeader(event, 'cache-control', 'no-store')
+      const ok = r === 'ok'
+      return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Sentinel</title><main><h1>${ok ? 'Account connected' : 'Account connection unsuccessful'}</h1><p>${ok ? 'Return to the Sentinel desktop application and choose Reload workspace.' : 'Return to Sentinel desktop, check your Microsoft tenant consent and try again.'}</p></main></html>`
+    }
+    return sendRedirect(event,
+      `${useConfig().baseUrl}/settings/accounts?connect=${r}${help ? `&help=${help}` : ''}`, 302)
+  }
   try {
     const { tokens, profile } = await useMicrosoftOAuth().complete({
       userId: user.id,

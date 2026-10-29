@@ -162,9 +162,9 @@ fn probe_runtime(probe: &str) -> bool {
         "GET /api/desktop/health HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nx-sentinel-desktop-probe: {probe}\r\nConnection: close\r\n\r\n"
     );
     if stream.write_all(request.as_bytes()).is_err() { return false; }
-    let mut buf = [0u8; 2048];
-    let Ok(n) = stream.read(&mut buf) else { return false };
-    let response = String::from_utf8_lossy(&buf[..n]);
+    let mut bytes = Vec::new();
+    if stream.read_to_end(&mut bytes).is_err() { return false; }
+    let response = String::from_utf8_lossy(&bytes);
     response.starts_with("HTTP/1.1 200") && response.contains("sentinel-desktop")
 }
 
@@ -356,9 +356,11 @@ pub fn run() {
                 });
             if let Some(icon) = app.default_window_icon() { tray = tray.icon(icon.clone()); }
             tray.build(app)?;
-            main.on_window_event(|event| {
+            let window_to_hide = main.clone();
+            main.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close(); // keep brief/sync tasks running in tray
+                    api.prevent_close(); // continue mail checks in the system tray
+                    let _ = window_to_hide.hide();
                 }
             });
             launch_runtime(app.handle().clone(), runtime.clone());
