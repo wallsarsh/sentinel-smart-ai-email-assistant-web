@@ -16,7 +16,7 @@
 | Drafts | Existing generation/saving and edit-before-send |
 | Sending | Existing single-use server-side SendAuthorization gate |
 | Export/privacy | Existing local HTTP API |
-| Notification | Web Push is not equivalent to native OS notifications; not implemented |
+| Notification | Existing notifyNewMail policy with private local notification queue and Tauri OS notifications (no message text) |
 | Packaging | Tauri Windows/macOS/Linux with bundled Node and complete runtime |
 | Updates | Manually installed version upgrades; auto-update not yet present |
 

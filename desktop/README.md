@@ -73,7 +73,7 @@ For Google desktop OAuth, the registered desktop app configuration may use an in
 - Browser-based OAuth uses a bounded, single-use PKCE state handoff stored only in the local process; no session cookie is given to the external system browser.
 - Keep a secure backup of the OS credential vault as well as your local app data. Loss of the KEK means encrypted provider credentials cannot be recovered.
 - The user explicitly confirms every send. Automated agents and background jobs are never granted send authorization.
-- No automatic updates, OS-native notifications, offline LLM, code signing, disk encryption or installer notarization are included.
+- Native OS notifications are produced by the existing notification policy and delivered through a private local queue to Tauri. Notification text contains no mail content. No automatic updates, offline LLM, code signing, disk encryption or installer notarization are included.
 
 ## Tests and release gates
 

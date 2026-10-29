@@ -13,6 +13,7 @@ use std::{
     time::Duration,
 };
 use keyring::{Entry, Error as KeyringError};
+use tauri_plugin_notification::NotificationExt;
 use rand::RngCore;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -168,6 +169,66 @@ fn probe_runtime(probe: &str) -> bool {
     response.starts_with("HTTP/1.1 200") && response.contains("sentinel-desktop")
 }
 
+fn fetch_native_events(probe: &str) -> Vec<String> {
+    let Ok(mut stream) = TcpStream::connect_timeout(
+        &format!("127.0.0.1:{PORT}").parse().unwrap(),
+        Duration::from_secs(2)
+    ) else { return vec![] };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let request = format!(
+        "GET /api/desktop/notifications HTTP/1.1\r\nHost: 127.0.0.1:{PORT}\r\nx-sentinel-desktop-probe: {probe}\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(request.as_bytes()).is_err() { return vec![]; }
+    let mut bytes = Vec::new();
+    if stream.read_to_end(&mut bytes).is_err() { return vec![]; }
+    let text = String::from_utf8_lossy(&bytes);
+    let Some((headers, body)) = text.split_once("\r\n\r\n") else { return vec![] };
+    if !headers.starts_with("HTTP/1.1 200") { return vec![]; }
+    let decoded = if headers.to_ascii_lowercase().contains("transfer-encoding: chunked") {
+        // Node can return short API responses using chunked HTTP.
+        let mut payload = String::new();
+        let mut rest = body;
+        while let Some((size, after)) = rest.split_once("\r\n") {
+            let Ok(size) = usize::from_str_radix(size.split(';').next().unwrap_or(""), 16) else { break };
+            if size == 0 || after.len() < size { break; }
+            payload.push_str(&after[..size]);
+            rest = after.get(size + 2..).unwrap_or("");
+        }
+        payload
+    } else {
+        body.to_string()
+    };
+    serde_json::from_str::<serde_json::Value>(&decoded)
+        .ok()
+        .and_then(|body| body.get("events")?.as_array().cloned())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|v| v.as_str().map(str::to_owned))
+        .take(40)
+        .collect()
+}
+
+fn start_native_notifier(app: AppHandle, state: Arc<RuntimeState>, probe: String) {
+    thread::spawn(move || {
+        loop {
+            if !*state.ready.lock().unwrap() { break; }
+            for kind in fetch_native_events(&probe) {
+                let (title, body) = match kind.as_str() {
+                    "message" => ("New email", "A message needs your attention in Sentinel."),
+                    "brief" => ("Daily brief ready", "Your email summary is available."),
+                    "account" => ("Email account", "Review the connection status in Sentinel."),
+                    "send" => ("Email send status", "An approved email's send status changed."),
+                    "test" => ("Sentinel test", "Desktop notifications are working."),
+                    _ => continue,
+                };
+                // Never display sender addresses, subjects or message bodies on the lock screen.
+                let _ = app.notification().builder().title(title).body(body).show();
+            }
+            thread::sleep(Duration::from_secs(12));
+        }
+    });
+}
+
 fn stop_backend(state: &RuntimeState) {
     if let Ok(mut slot) = state.child.lock() {
         if let Some(mut child) = slot.take() {
@@ -199,6 +260,7 @@ fn launch_runtime(app: AppHandle, state: Arc<RuntimeState>) {
                 if probe_runtime(&probe) {
                     *state.child.lock().unwrap() = Some(child);
                     *state.ready.lock().unwrap() = true;
+                    start_native_notifier(app.clone(), state.clone(), probe.clone());
                     if let Some(main) = app.get_webview_window("main") {
                         let _ = main.navigate(Url::parse(ORIGIN).unwrap());
                     }
@@ -298,6 +360,7 @@ pub fn run() {
     let runtime = Arc::new(RuntimeState::default());
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| focus_main(app)))
+        .plugin(tauri_plugin_notification::init())
         .manage(runtime.clone())
         .invoke_handler(tauri::generate_handler![desktop_status, provider_settings, save_provider_settings])
         .setup(move |app| {
