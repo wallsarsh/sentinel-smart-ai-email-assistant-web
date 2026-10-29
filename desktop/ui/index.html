@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Sentinel — Connect to your server</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./main.js" defer></script>
+</head>
+<body>
+  <main class="panel">
+    <div class="logo" aria-hidden="true">S</div>
+    <p class="eyebrow">SENTINEL · DESKTOP</p>
+    <h1>Connect your email workspace</h1>
+    <p class="description">
+      Connect to your existing Sentinel Web deployment. Mailboxes, AI providers,
+      encrypted credentials, daily briefs and draft approval remain on that server.
+    </p>
+    <form id="server-form">
+      <label for="server-url">Server URL</label>
+      <input id="server-url" name="server-url" type="url"
+             placeholder="https://sentinel.example.com" required
+             autocapitalize="none" autocomplete="url" spellcheck="false">
+      <p class="hint">HTTPS required. HTTP is accepted only for localhost testing.</p>
+      <button id="connect" type="submit">Save and open Sentinel</button>
+    </form>
+    <p id="status" class="status" aria-live="polite" role="status"></p>
+    <section class="notes" aria-label="Security and connectivity">
+      <h2>How this works</h2>
+      <p>Your account is authenticated by the Sentinel server. The desktop application
+         stores the server address only. It never stores your email passwords or AI keys.</p>
+      <p>To connect Gmail or Microsoft 365, the desktop app opens your browser so OAuth and MFA work normally. After connecting, use <strong>Reload workspace</strong> from the tray. Change servers using <strong>Server settings</strong>.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "sentinel-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tauri desktop client for Sentinel AI Email Assistant",
+  "scripts": {
+    "icons": "npx --yes @tauri-apps/cli@2 icon ../public/icons/icon-512.png --output src-tauri/icons",
+    "dev": "npm run icons && npx --yes @tauri-apps/cli@2 dev",
+    "build": "npm run icons && npx --yes @tauri-apps/cli@2 build"
+  }
+}
