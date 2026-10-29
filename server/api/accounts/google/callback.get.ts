@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const cookie = getCookie(event, OAUTH_COOKIE)
   deleteCookie(event, OAUTH_COOKIE, { path: '/api/accounts/google' })
   const back = (r: string) =>
-    sendRedirect(event, `${useConfig().baseUrl}/accounts?connect=${r}`, 302)
+    sendRedirect(event, `${useConfig().baseUrl}/settings/accounts?connect=${r}`, 302)
   try {
     const { tokens, profile } = await useGoogleOAuth().complete({
       userId: user.id,
