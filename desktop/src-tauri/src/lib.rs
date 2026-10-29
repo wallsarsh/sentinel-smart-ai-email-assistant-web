@@ -205,14 +205,22 @@ pub fn run() {
             let open_item = MenuItem::with_id(app, "open", "Open Sentinel", true, None::<&str>)?;
             let settings_item =
                 MenuItem::with_id(app, "settings", "Server settings", true, None::<&str>)?;
+            let reload_item =
+                MenuItem::with_id(app, "reload", "Reload workspace", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open_item, &settings_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&open_item, &reload_item, &settings_item, &quit_item])?;
             let mut tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .tooltip("Sentinel AI Email Assistant")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => focus_main(app),
+                    "reload" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.reload();
+                            focus_main(app);
+                        }
+                    }
                     "settings" => { let _ = open_settings(app); }
                     "quit" => app.exit(0),
                     _ => {}
