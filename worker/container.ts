@@ -61,7 +61,7 @@ export function workerContainer(db: Db, o: { hubBridge?: boolean } = {}) {
 
   // Events reach browsers through Postgres NOTIFY (the web instances listen).
   const hub = new EventHub()
-  if (o.hubBridge !== false)
+  if (o.hubBridge !== false && c.databaseUrl !== 'pglite:local')
     void createPgBridge(c.databaseUrl).then(
       (b) => hub.attach(b),
       () => undefined,

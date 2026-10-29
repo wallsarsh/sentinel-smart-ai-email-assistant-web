@@ -2,11 +2,15 @@ import { useConfig } from '../../../config'
 import { useGoogleOAuth } from '../../../container'
 import { OAUTH_COOKIE } from '../../../mail/oauth/google'
 import { requireUser } from '../../../utils/require-user'
+import { rememberDesktopOAuth } from '../../../mail/oauth/desktop-pending'
 
 /** Starts the Google consent flow. A GET navigation; it changes nothing until the callback. */
 export default defineEventHandler(async (event) => {
   const { user } = await requireUser(event)
   const { url, cookie } = useGoogleOAuth().begin(user.id)
+  if (process.env.SENTINEL_DESKTOP_MODE === 'true') {
+    rememberDesktopOAuth(url, user.id, cookie)
+  }
   setCookie(event, OAUTH_COOKIE, cookie, {
     httpOnly: true,
     sameSite: 'lax',
