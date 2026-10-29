@@ -36,7 +36,7 @@ fn validate_server(input: &str) -> Result<Url, String> {
 }
 
 fn app_page(url: &Url) -> bool {
-    url.scheme() == "tauri"
+    (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
         || (matches!(url.scheme(), "http" | "https")
             && url.host_str() == Some("tauri.localhost"))
 }
