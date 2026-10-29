@@ -8,7 +8,8 @@ import { PGlite } from '@electric-sql/pglite'
 import * as schema from './schema'
 
 export type Db = ReturnType<typeof drizzlePglite<typeof schema>>
-const migrationsFolder = fileURLToPath(new URL('./migrations', import.meta.url))
+// Resolved on use: the bundled server rewrites import.meta.url to a placeholder that Windows cannot convert to a path.
+const migrationsFolder = () => fileURLToPath(new URL('./migrations', import.meta.url))
 
 /** Real Postgres connection (server and worker). */
 export function createDb(databaseUrl: string): { db: Db; close: () => Promise<void> } {
@@ -30,7 +31,7 @@ export async function migrateDb(databaseUrl: string): Promise<void> {
     if (!dataDir) throw new Error('SENTINEL_DESKTOP_DB_DIR is required for local PGlite')
     const raw = new PGlite(dataDir)
     try {
-      await migratePglite(drizzlePglite(raw, { schema }), { migrationsFolder })
+      await migratePglite(drizzlePglite(raw, { schema }), { migrationsFolder: migrationsFolder() })
     } finally {
       await raw.close()
     }
@@ -38,7 +39,7 @@ export async function migrateDb(databaseUrl: string): Promise<void> {
   }
   const pool = new Pool({ connectionString: databaseUrl, max: 1 })
   try {
-    await migratePg(drizzlePg(pool), { migrationsFolder })
+    await migratePg(drizzlePg(pool), { migrationsFolder: migrationsFolder() })
   } finally {
     await pool.end()
   }
@@ -48,6 +49,6 @@ export async function migrateDb(databaseUrl: string): Promise<void> {
 export async function createTestDb(): Promise<{ db: Db; raw: PGlite; close: () => Promise<void> }> {
   const raw = new PGlite()
   const db = drizzlePglite(raw, { schema })
-  await migratePglite(db, { migrationsFolder })
+  await migratePglite(db, { migrationsFolder: migrationsFolder() })
   return { db, raw, close: () => raw.close() }
 }
