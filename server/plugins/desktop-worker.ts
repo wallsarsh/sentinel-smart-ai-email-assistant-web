@@ -15,9 +15,11 @@ import { logger } from '../utils/logger'
  */
 export default defineNitroPlugin((nitro) => {
   if (useConfig().databaseUrl !== 'pglite:local') return
+  // A background-task failure must never take the whole local service down with it.
+  process.on('unhandledRejection', (reason) => logger.error('unhandled rejection', {}, reason))
   const db = useDb()
   const queue = jobQueue(db)
-  const runner = startRunner({ queue, handlers: buildHandlers(db), logger })
+  const runner = startRunner({ queue, handlers: buildHandlers(db, { hubBridge: false }), logger })
   let pending = false
   const schedule = async () => {
     if (pending) return
@@ -27,7 +29,7 @@ export default defineNitroPlugin((nitro) => {
       await enqueueUserSyncs(db, queue, now)
       await enqueueRetention(db, queue, now)
     } catch (error) {
-      logger.error({ error: String(error) }, 'desktop scheduler failure')
+      logger.error('desktop scheduler failure', {}, error)
     } finally {
       pending = false
     }

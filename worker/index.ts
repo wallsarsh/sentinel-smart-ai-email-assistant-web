@@ -13,10 +13,8 @@ const runner = startRunner({ queue: jobQueue(db), handlers: buildHandlers(db), l
 const queue = jobQueue(db)
 const scheduler = setInterval(() => {
   const now = new Date()
-  enqueueUserSyncs(db, queue, now).catch((e) => logger.error({ err: String(e) }, 'schedule failed'))
-  enqueueRetention(db, queue, now).catch((e) =>
-    logger.error({ err: String(e) }, 'retention schedule failed'),
-  )
+  enqueueUserSyncs(db, queue, now).catch((e) => logger.error('schedule failed', {}, e))
+  enqueueRetention(db, queue, now).catch((e) => logger.error('retention schedule failed', {}, e))
 }, 60_000)
 logger.info('worker started')
 

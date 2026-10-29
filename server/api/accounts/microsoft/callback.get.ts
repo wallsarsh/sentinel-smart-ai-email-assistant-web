@@ -27,8 +27,11 @@ export default defineEventHandler(async (event) => {
       const ok = r === 'ok'
       return `<!doctype html><html lang="en"><meta charset="utf-8"><title>Sentinel</title><main><h1>${ok ? 'Account connected' : 'Account connection unsuccessful'}</h1><p>${ok ? 'Return to the Sentinel desktop application and choose Reload workspace.' : 'Return to Sentinel desktop, check your Microsoft tenant consent and try again.'}</p></main></html>`
     }
-    return sendRedirect(event,
-      `${useConfig().baseUrl}/settings/accounts?connect=${r}${help ? `&help=${help}` : ''}`, 302)
+    return sendRedirect(
+      event,
+      `${useConfig().baseUrl}/settings/accounts?connect=${r}${help ? `&help=${help}` : ''}`,
+      302,
+    )
   }
   try {
     const { tokens, profile } = await useMicrosoftOAuth().complete({

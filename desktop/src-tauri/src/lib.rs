@@ -174,7 +174,7 @@ fn runtime_command(app: &AppHandle, entrypoint: &str, probe: &str) -> Result<Com
         .env("ALLOW_INSECURE_HTTP", "true")
         .env("SESSION_SECRET", session)
         .env("KEK_BASE64", kek)
-        .stdout(Stdio::null())
+        .stdout(log_file(&data))
         .stderr(log_file(&data))
         .stdin(Stdio::null());
     optional_env(&mut command, "GOOGLE_CLIENT_ID", "google-client-id")?;
@@ -309,7 +309,9 @@ fn launch_runtime(app: AppHandle, state: Arc<RuntimeState>) {
                     return Ok(());
                 }
                 if let Ok(Some(_)) = child.try_wait() {
-                    return Err("Local service exited before becoming ready".into());
+                    let why = log_tail(&app);
+                    return Err(if why.is_empty() { "Local service exited before becoming ready".into() }
+                        else { format!("Local service exited before becoming ready: {why}") });
                 }
                 thread::sleep(Duration::from_millis(250));
             }

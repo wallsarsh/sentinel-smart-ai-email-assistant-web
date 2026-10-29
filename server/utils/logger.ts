@@ -75,7 +75,11 @@ export function createLogger(
         {
           ...cleanFields({ ...base, ...f }),
           errType: err instanceof Error ? err.name : undefined,
-          errMsg: err instanceof Error ? scrub(err.message) : undefined,
+          errMsg: err instanceof Error ? scrub(err.message.slice(0, 300)) : undefined,
+          errCause:
+            err instanceof Error && err.cause instanceof Error
+              ? scrub(err.cause.message.slice(0, 300))
+              : undefined,
         },
         scrub(e),
       ),
