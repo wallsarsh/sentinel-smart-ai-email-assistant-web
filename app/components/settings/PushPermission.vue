@@ -11,7 +11,8 @@ const standalone = ref(false)
 
 onMounted(async () => {
   standalone.value = await $fetch<{ standalone: boolean }>('/api/desktop/mode')
-    .then((data) => data.standalone).catch(() => false)
+    .then((data) => data.standalone)
+    .catch(() => false)
   if (standalone.value) return
   cfg.value = await $fetch<{ configured: boolean; publicKey: string }>('/api/push/config').catch(
     () => ({ configured: false, publicKey: '' }),
@@ -42,7 +43,9 @@ async function turnOff() {
 async function test() {
   tested.value = false
   const endpoint = standalone.value ? '/api/desktop/test-notification' : '/api/push/test'
-  await $fetch(endpoint, { method: 'POST' }).catch(() => { failed.value = true })
+  await $fetch(endpoint, { method: 'POST' }).catch(() => {
+    failed.value = true
+  })
   tested.value = !failed.value
 }
 </script>
@@ -50,12 +53,12 @@ async function test() {
 <template>
   <section class="space-y-2 rounded border p-3" :aria-label="$t('push.title')">
     <h2 class="font-semibold">{{ $t('push.title') }}</h2>
-    <p v-if="standalone" class="text-sm" role="status">Native desktop notifications are available while Sentinel is running. Your existing notification preferences and quiet hours apply.</p>
+    <p v-if="standalone" class="text-sm" role="status">{{ $t('push.desktop') }}</p>
     <p v-else class="text-sm" role="status">{{ $t(`push.state.${state}`) }}</p>
     <p class="text-xs" style="color: var(--muted)">{{ $t('push.privacy') }}</p>
     <div v-if="standalone" class="flex flex-wrap gap-2">
       <button type="button" class="rounded border px-3 py-1" :disabled="busy" @click="test">
-        Test desktop notification
+        {{ $t('push.desktopTest') }}
       </button>
     </div>
     <div v-else class="flex flex-wrap gap-2">

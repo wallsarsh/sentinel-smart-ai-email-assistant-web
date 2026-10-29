@@ -110,7 +110,7 @@ async function remove() {
           required
           minlength="8"
           class="w-full rounded border px-2 py-1"
-        >
+        />
       </div>
       <button type="submit" class="rounded border px-3 py-1">{{ $t('common.save') }}</button>
     </form>

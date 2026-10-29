@@ -65,6 +65,7 @@ onMounted(load)
         $t('brief.history')
       }}</NuxtLink>
     </div>
+    <AiSetupBanner />
     <FailureBanner v-if="failure" :failure="failure" @action="onAction" />
     <BriefSkeleton v-if="loading || generating" />
     <BriefBody v-else-if="brief" :brief="brief" show-stale />

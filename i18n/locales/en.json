@@ -154,6 +154,9 @@
     },
     "urgent": "Urgent",
     "needsReply": "Needs reply",
+    "replyWithAi": "Reply with AI",
+    "analyze": "Summarize with AI",
+    "analyzing": "Working…",
     "unread": "Unread",
     "noSubject": "(no subject)",
     "account": "Account",
@@ -195,6 +198,13 @@
     "none": "No messages match."
   },
   "ai": {
+    "setup": {
+      "title": "Finish setting up AI",
+      "noProvider": "Add an AI provider to sort mail, write the brief and draft replies.",
+      "noModel": "Model to use",
+      "noConsent": "Review and allow AI processing for your provider.",
+      "failed": "The model could not be saved."
+    },
     "title": "AI providers",
     "intro": "Sentinel only sends mail to an AI provider after you review and allow it. Keys are stored encrypted on the server and are never shown again.",
     "providers": {
@@ -204,6 +214,8 @@
       "name": "Display name",
       "baseUrl": "Base URL",
       "baseUrlHint": "Must be https and publicly reachable.",
+      "model": "Model",
+      "modelHint": "The model name to use, for example gpt-4o-mini. It becomes the default for all AI tasks; you can change it later under Routes.",
       "key": "API key",
       "keyHint": "Stored encrypted. You can replace it later but never read it back.",
       "newKey": "New API key",
@@ -489,6 +501,8 @@
   },
   "push": {
     "title": "Notifications on this device",
+    "desktop": "Native desktop notifications are available while Sentinel is running. Your existing notification preferences and quiet hours apply.",
+    "desktopTest": "Test desktop notification",
     "state": {
       "unsupported": "This browser cannot show notifications.",
       "unconfigured": "The server has no notification keys set up, so notifications are not available.",

@@ -1,4 +1,5 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { desktopMode } from '../../config/index'
 
 export const GOOGLE_SCOPES = [
   'openid',
@@ -77,8 +78,7 @@ export function googleOAuth(d: GoogleOAuthDeps) {
     d.fetch ??
     ((url, init) => fetch(url, init).then((r) => ({ status: r.status, json: () => r.json() })))
 
-  const configured = () =>
-    d.clientId !== '' && (d.clientSecret !== '' || process.env.SENTINEL_DESKTOP_MODE === 'true')
+  const configured = () => d.clientId !== '' && (d.clientSecret !== '' || desktopMode())
 
   async function post(url: string, params: Record<string, string>) {
     const res = await doFetch(url, {

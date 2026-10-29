@@ -25,6 +25,16 @@ async function setup(replies = [{ text: '{"data":[{"id":"m1"},{"id":"m2"}]}' }])
 }
 
 describe('ai provider service', () => {
+  it('turns the model given at creation into the default route, once', async () => {
+    const s = await setup()
+    const r = await s.svc.create(s.user.id, { presetId: 'chatgpt', apiKey: KEY, model: 'm2' })
+    if (!r.ok) throw new Error(JSON.stringify(r.error))
+    const routes = await forUser(s.db, s.user.id).ai.routes()
+    expect(routes).toMatchObject([{ task: 'default', providerId: r.value.id, model: 'm2' }])
+    await s.svc.create(s.user.id, { presetId: 'chatgpt', apiKey: KEY, model: 'm1' })
+    expect(await forUser(s.db, s.user.id).ai.routes()).toHaveLength(1)
+  })
+
   it('creates a provider, encrypts the key, refreshes models, and never returns the key', async () => {
     const s = await setup()
     const r = await s.svc.create(s.user.id, { presetId: 'chatgpt', apiKey: KEY })

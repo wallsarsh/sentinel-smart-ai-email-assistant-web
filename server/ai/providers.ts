@@ -41,6 +41,7 @@ const newProvider = z.object({
   displayName: z.string().trim().min(1).max(60).optional(),
   baseUrl: z.string().max(300).optional(),
   apiKey: z.string().min(8).max(500),
+  model: z.string().trim().min(1).max(200).optional(),
   options: optionsSchema.optional(),
 })
 
@@ -139,6 +140,11 @@ export function aiProviderService(d: AiProviderDeps) {
         optionsJson: { ...p.data.options, keyHint: mask(p.data.apiKey) },
       })
       await store(userId).put(keySecret(row.id), p.data.apiKey)
+      // The first model the user names becomes the default for every task, so a new provider works at once.
+      if (p.data.model && !(await repos(userId).ai.routes()).some((r) => r.task === 'default'))
+        await repos(userId).ai.setRoutes('default', [
+          { providerId: row.id, model: p.data.model, paramsJson: {} },
+        ])
       await refreshModels(userId, row.id) // status reflects whether the key works; failure is not fatal
       return ok(view((await repos(userId).ai.get(row.id))!))
     },

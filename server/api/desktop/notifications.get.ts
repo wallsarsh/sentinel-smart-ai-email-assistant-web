@@ -1,13 +1,14 @@
 import { takeNativeNotifications } from '../../desktop/notifications'
+import { desktopMode, desktopProbe } from '../../config/index'
 
 /** Read once with the current sidecar's private challenge, no sessions
  * exposed to native code and no mail content returned. */
 export default defineEventHandler((event) => {
-  if (process.env.SENTINEL_DESKTOP_MODE !== 'true') {
+  if (!desktopMode()) {
     throw createError({ statusCode: 404 })
   }
   const challenge = getRequestHeader(event, 'x-sentinel-desktop-probe')
-  if (!challenge || challenge !== process.env.SENTINEL_DESKTOP_PROBE) {
+  if (!challenge || challenge !== desktopProbe()) {
     throw createError({ statusCode: 403 })
   }
   setResponseHeader(event, 'cache-control', 'no-store')

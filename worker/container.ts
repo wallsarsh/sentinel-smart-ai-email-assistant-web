@@ -77,7 +77,7 @@ export function workerContainer(db: Db, o: { hubBridge?: boolean } = {}) {
     onDone: (userId, count) => publish(userId, 'triage.done', { count }),
   })
 
-  const brief = briefGenerator({ db, router })
+  const brief = briefGenerator({ db, router, triage })
 
   const services = { db, providerFor, hub, publish, ai: { providers, router }, triage, brief }
   type Services = typeof services
