@@ -10,7 +10,7 @@ export default defineEventHandler((event) => {
       setCookie(event, CSRF_COOKIE, newCsrfToken(c.sessionSecret), {
         httpOnly: false,
         sameSite: 'strict',
-        secure: c.env === 'production',
+        secure: c.secureCookies,
         path: '/',
       })
     return
