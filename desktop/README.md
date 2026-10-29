@@ -9,7 +9,7 @@ A native Windows / macOS / Linux launcher for the existing **Sentinel Web** appl
 - **Not bundled**: PostgreSQL, Node/Nitro web server, worker, IMAP agents, or decrypted provider secrets.
 - The local settings UI has Tauri IPC; **no remote origin** has any native capability. Neither the local shell nor the tray contains a mail-send API.
 - Only a sanitized HTTPS origin (or HTTP loopback) is persisted as plain JSON under the OS app config directory.
-- External links open in the OS browser. The allowed embedded IdP domains are deliberately narrow; additional enterprise/federated login domains require a tested external-browser handoff rather than a blanket navigation allowance.
+- External links open in the OS browser. Clicking Gmail or Microsoft account connection in the desktop client opens the **web Accounts page in the system browser** instead of initiating OAuth inside a restricted embedded WebView. Sign in to the same Sentinel account in the browser, complete provider consent there, then choose **Reload workspace** from the desktop tray. The separate browser may ask for a second Sentinel login. No OAuth credentials/tokens cross the desktop IPC boundary.
 
 ## Prerequisites
 
@@ -34,11 +34,11 @@ Or manually: `npx --yes @tauri-apps/cli@2 icon ../public/icons/icon-512.png --ou
 
 Build outputs: `desktop/src-tauri/target/release/bundle/`.
 
-On first launch enter the deployed URL (e.g. `https://mail.example.com`). Later use **Server settings** from the tray menu. The server URL is the only desktop setting stored; users sign in through the original application.
+On first launch enter the deployed URL (e.g. `https://mail.example.com`). Later use **Server settings** from the tray menu. Use **Reload workspace** after connecting an account in your system browser. The server URL is the only desktop setting stored; users sign in through the original application.
 
 ## OAuth and platform caveats
 
-The original Google/Microsoft OAuth starts on the same web origin with a server session and PKCE state cookie. Embedded webviews are **not guaranteed** to be accepted by Google or Microsoft identity policies. Google generally disallows embedded user agents, and federated Microsoft Entra tenants can redirect to an additional IdP not on the embedded allowlist. A production-ready native OAuth experience will require a separate system-browser account-linking handoff (with server-side one-time tickets and anti-replay validation). This implementation **does not claim** to solve that flow; use existing connected accounts or validate each provider on real devices.
+The original Google/Microsoft OAuth uses a server-side web session and PKCE state cookie. Google generally disallows embedded user agents and federated Microsoft Entra policies can require external identity providers. Consequently, desktop Connect/Reconnect intentionally opens the server's **Accounts settings** in the system browser. Complete the connection there with your existing server credentials, then use **Reload workspace** on the tray to see it inside the desktop app. This works without extending OAuth token access to Tauri, but is not a seamless single-session handoff. A future native deep-link / one-time-ticket flow could remove the second login.
 
 Web Push/service workers and downloads vary by WKWebView / WebView2 / WebKitGTK; server-side background processing remains active irrespective of the desktop window. This release does not implement native notifications, auto-updates, offline mail or a bundled server. No notarization or signing identity is provided; release signing must be configured before distribution.
 
@@ -57,6 +57,6 @@ npm run check          # from repository root: original web checks and the send-
 - [ ] Start against an HTTPS Sentinel server and verify session login/logout.
 - [ ] Validate inbox, search, briefs, actions, triage, AI provider settings, draft save, and human-approved send + Undo.
 - [ ] Confirm server worker jobs continue after the window is closed.
-- [ ] Verify Microsoft MFA / Conditional Access and Google consent on real target devices (embedded flows may be blocked).
+- [ ] Verify Microsoft MFA / Conditional Access and Google consent via system-browser Accounts settings and reload the desktop workspace.
 - [ ] Confirm external links cannot access Tauri native commands and disallowed schemes fail.
 - [ ] Add code signing / macOS notarization and distribution update signing before release.
