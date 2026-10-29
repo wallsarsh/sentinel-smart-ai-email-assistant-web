@@ -49,6 +49,11 @@ jobs:
         run: node local/smoke-runtime.mjs
       - name: Enforce human-only email send gate
         run: npm run send-gate
+      - name: Test standalone security invariants
+        run: npx vitest run tests/unit/desktop-standalone.test.ts
+      - name: Typecheck standalone additions
+        if: runner.os == 'Linux'
+        run: npm run typecheck
       - name: Generate icons
         working-directory: desktop
         run: npm run icons
