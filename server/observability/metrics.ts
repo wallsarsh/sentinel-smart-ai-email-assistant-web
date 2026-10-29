@@ -113,11 +113,11 @@ export const statusLabel = (s: number) =>
  */
 export const ROUTE_WORDS = new Set(
   `account accounts actions ai audit auth authorize background begin bench brief
-  callback catch-up clear-cache config confirm connect consent counts delete devices disable discover done drafts
-  events export folders generate google heads health history imap inbox key log login logout me message messages
-  metrics mfa microsoft password password-reset password-reset-confirm prepare prices profile providers push read
+  analyze callback catch-up clear-cache config confirm connect consent counts delete devices disable discover done drafts
+  desktop events export folders generate google heads health history imap inbox key log login logout me message messages
+  metrics mfa microsoft mode notifications password password-reset password-reset-confirm prepare prices profile providers push read
   ready reconcile recovery refresh reply-info revoke-others routes rules search send sessions settings signup snooze
-  status step-up subscribe test triage undo unsubscribe usage`.split(/\s+/),
+  status step-up subscribe test test-notification triage undo unsubscribe usage`.split(/\s+/),
 )
 
 /**

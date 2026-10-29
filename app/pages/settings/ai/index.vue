@@ -22,6 +22,7 @@ function onAdded() {
       <NuxtLink to="/settings/usage" class="underline">{{ $t('ai.usage.title') }}</NuxtLink>
       <NuxtLink to="/settings/ai/bench" class="underline">{{ $t('ai.bench.title') }}</NuxtLink>
     </nav>
+    <AiSetupBanner :key="data?.providers.length" />
     <p v-if="!data?.providers.length">{{ $t('ai.providers.empty') }}</p>
     <AiProviderCard
       v-for="p in data?.providers ?? []"

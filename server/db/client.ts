@@ -6,6 +6,7 @@ import { Pool } from 'pg'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
 import * as schema from './schema'
+import { desktopDbDir } from '../config/index'
 
 export type Db = ReturnType<typeof drizzlePglite<typeof schema>>
 // Resolved on use: the bundled server rewrites import.meta.url to a placeholder that Windows cannot convert to a path.
@@ -14,7 +15,7 @@ const migrationsFolder = () => fileURLToPath(new URL('./migrations', import.meta
 /** Real Postgres connection (server and worker). */
 export function createDb(databaseUrl: string): { db: Db; close: () => Promise<void> } {
   if (databaseUrl === 'pglite:local') {
-    const dataDir = process.env.SENTINEL_DESKTOP_DB_DIR
+    const dataDir = desktopDbDir()
     if (!dataDir) throw new Error('SENTINEL_DESKTOP_DB_DIR is required for local PGlite')
     const raw = new PGlite(dataDir)
     return { db: drizzlePglite(raw, { schema }), close: () => raw.close() }
@@ -27,7 +28,7 @@ export function createDb(databaseUrl: string): { db: Db; close: () => Promise<vo
 
 export async function migrateDb(databaseUrl: string): Promise<void> {
   if (databaseUrl === 'pglite:local') {
-    const dataDir = process.env.SENTINEL_DESKTOP_DB_DIR
+    const dataDir = desktopDbDir()
     if (!dataDir) throw new Error('SENTINEL_DESKTOP_DB_DIR is required for local PGlite')
     const raw = new PGlite(dataDir)
     try {

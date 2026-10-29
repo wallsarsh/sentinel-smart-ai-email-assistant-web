@@ -274,4 +274,5 @@ export function usePush() {
   return (push ??= pushService({ db: useDb(), transport: webPushTransport(useConfig().vapid) }))
 }
 
-export const useBrief = () => briefGenerator({ db: useDb(), router: useAiRouter() })
+export const useBrief = () =>
+  briefGenerator({ db: useDb(), router: useAiRouter(), triage: useTriage() })

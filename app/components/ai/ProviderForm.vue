@@ -17,6 +17,7 @@ const preset = computed(() => props.presets.find((p) => p.id === presetId.value)
 const name = ref('')
 const baseUrl = ref('')
 const apiKey = ref('')
+const model = ref('')
 const busy = ref(false)
 const failure = ref<WireFailure | null>(null)
 
@@ -31,6 +32,7 @@ async function save() {
         displayName: name.value || undefined,
         baseUrl: preset.value?.editableUrl ? baseUrl.value : undefined,
         apiKey: apiKey.value,
+        model: model.value.trim() || undefined,
       },
     })
     apiKey.value = '' // the key is never kept in the page after submitting
@@ -62,7 +64,7 @@ async function save() {
         v-model="name"
         maxlength="60"
         class="mt-1 w-full rounded border px-2 py-1"
-      >
+      />
     </div>
     <div v-if="preset?.editableUrl">
       <label for="prov-url" class="block text-sm font-medium">{{
@@ -75,7 +77,7 @@ async function save() {
         required
         placeholder="https://"
         class="mt-1 w-full rounded border px-2 py-1"
-      >
+      />
       <p class="text-xs" style="color: var(--muted)">{{ $t('ai.providers.baseUrlHint') }}</p>
     </div>
     <div>
@@ -88,8 +90,21 @@ async function save() {
         required
         minlength="8"
         class="mt-1 w-full rounded border px-2 py-1"
-      >
+      />
       <p class="text-xs" style="color: var(--muted)">{{ $t('ai.providers.keyHint') }}</p>
+    </div>
+    <div>
+      <label for="prov-model" class="block text-sm font-medium">{{
+        $t('ai.providers.model')
+      }}</label>
+      <input
+        id="prov-model"
+        v-model="model"
+        autocomplete="off"
+        maxlength="200"
+        class="mt-1 w-full rounded border px-2 py-1"
+      />
+      <p class="text-xs" style="color: var(--muted)">{{ $t('ai.providers.modelHint') }}</p>
     </div>
     <div class="flex gap-2">
       <button type="submit" :disabled="busy" class="rounded border px-3 py-1 font-medium">

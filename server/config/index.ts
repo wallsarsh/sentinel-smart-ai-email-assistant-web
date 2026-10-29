@@ -159,3 +159,8 @@ export function useConfig(): AppConfig {
 export function resetConfigForTests(): void {
   cached = undefined
 }
+
+/** Standalone desktop shell (see desktop/): the shell sets these for the bundled runtime it launches. */
+export const desktopMode = (): boolean => process.env.SENTINEL_DESKTOP_MODE === 'true'
+export const desktopProbe = (): string | undefined => process.env.SENTINEL_DESKTOP_PROBE
+export const desktopDbDir = (): string | undefined => process.env.SENTINEL_DESKTOP_DB_DIR

@@ -22,6 +22,10 @@ export type BriefDeps = {
   router: Pick<ReturnType<typeof aiRouter>, 'complete'>
   now?: () => Date
   newId?: () => string
+  /** Sorts mail that has not been triaged yet, so a brief never says "nothing new" only because that step has not run. */
+  triage?: {
+    triagePending(userId: string, o?: { limit?: number }): Promise<{ failure?: AppFailure }>
+  }
   maxEmails?: number
   maxItemsPerSection?: number
 }
@@ -53,6 +57,14 @@ export function briefGenerator(d: BriefDeps) {
     persist: boolean,
   ): Promise<Result<DailyBrief, AppFailure>> {
     const repos = forUser(d.db, userId)
+    let triageFailure: AppFailure | undefined
+    if (d.triage) {
+      try {
+        triageFailure = (await d.triage.triagePending(userId, { limit: 50 })).failure
+      } catch {
+        // the brief still covers what is already sorted
+      }
+    }
     const ctx = await buildUserContext(d.db, userId, now())
     const triaged = await repos.briefs.triagedBetween(start, end)
     const stats: BriefStats = {
@@ -116,6 +128,8 @@ export function briefGenerator(d: BriefDeps) {
     const dueIds = [...new Set(due.map((a) => a.messageId))].filter((id) => !emails.has(id))
     for (const m of await repos.briefs.triagedByIds(dueIds)) add(m, 1)
 
+    // Nothing could be sorted because the AI is not set up or failed: say so instead of "nothing new".
+    if (!emails.size && triageFailure && !stats.total) return err(triageFailure)
     if (!emails.size) return ok(await store(userId, start, end, '', [], stats, null, null, persist))
 
     ranked.sort((a, b) => a.rank - b.rank || b.at.getTime() - a.at.getTime())

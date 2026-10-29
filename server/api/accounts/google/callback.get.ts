@@ -4,23 +4,23 @@ import { OAUTH_COOKIE, OAuthError } from '../../../mail/oauth/google'
 import { saveGoogleAccount } from '../../../mail/oauth/connect'
 import { requireUser } from '../../../utils/require-user'
 import { takeDesktopOAuth } from '../../../mail/oauth/desktop-pending'
+import { desktopMode } from '../../../config/index'
 
 export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
-  const pending =
-    process.env.SENTINEL_DESKTOP_MODE === 'true' ? takeDesktopOAuth(str(q.state)) : null
+  const pending = desktopMode() ? takeDesktopOAuth(str(q.state)) : null
   // A native OAuth browser has a separate cookie jar from the desktop WebView.
   // A one-time state captured by the authenticated start request bridges it
   // without exposing tokens, granting a session or bypassing OAuth PKCE.
-  if (process.env.SENTINEL_DESKTOP_MODE === 'true' && !pending) {
+  if (desktopMode() && !pending) {
     return sendRedirect(event, '/settings/accounts?connect=bad_state', 302)
   }
   const user = pending ? { id: pending.userId } : (await requireUser(event)).user
   const cookie = pending?.cookie ?? getCookie(event, OAUTH_COOKIE)
   deleteCookie(event, OAUTH_COOKIE, { path: '/api/accounts/google' })
   const back = (r: string) => {
-    if (process.env.SENTINEL_DESKTOP_MODE === 'true') {
+    if (desktopMode()) {
       setResponseHeader(event, 'content-type', 'text/html; charset=utf-8')
       setResponseHeader(event, 'cache-control', 'no-store')
       const ok = r === 'ok'

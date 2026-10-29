@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { OAuthError, type FetchLike, type OAuthTokens } from './google'
+import { desktopMode } from '../../config/index'
 
 export const MS_SCOPES = [
   'openid',
@@ -63,8 +64,7 @@ export function microsoftOAuth(d: MicrosoftOAuthDeps) {
   const doFetch: FetchLike =
     d.fetch ?? ((u, i) => fetch(u, i).then((r) => ({ status: r.status, json: () => r.json() })))
   const base = d.authority.replace(/\/$/, '')
-  const configured = () =>
-    d.clientId !== '' && (d.clientSecret !== '' || process.env.SENTINEL_DESKTOP_MODE === 'true')
+  const configured = () => d.clientId !== '' && (d.clientSecret !== '' || desktopMode())
 
   async function post(url: string, params: Record<string, string>) {
     const res = await doFetch(url, {
