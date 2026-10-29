@@ -22,7 +22,7 @@ struct ServerState {
 fn validate_server(input: &str) -> Result<Url, String> {
     let url = Url::parse(input.trim()).map_err(|_| "Enter a complete server URL.".to_string())?;
     let host = url.host_str().ok_or("The server must have a hostname.")?;
-    let loopback = matches!(host, "localhost" | "127.0.0.1" | "::1");
+    let loopback = matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]");
     if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
         return Err("Use HTTPS. HTTP is allowed only for localhost and loopback testing.".into());
     }
