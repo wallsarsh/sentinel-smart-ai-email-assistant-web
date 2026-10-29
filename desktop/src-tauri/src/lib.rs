@@ -95,8 +95,31 @@ fn optional_env(command: &mut Command, name: &str, key: &str) -> Result<(), Stri
     Ok(())
 }
 
+/// Windows hands out `\\?\C:\...` paths. Node cannot turn a script path with that prefix into a module URL
+/// (it becomes `file://?/C:/...`), so the bundled runtime failed to start and migrations "failed".
+fn plain_path(path: PathBuf) -> PathBuf {
+    let stripped = path.to_string_lossy().strip_prefix(r"\\?\").map(str::to_owned);
+    match stripped {
+        Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),
+        _ => path,
+    }
+}
+
+fn runtime_log_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_local_data_dir().ok().map(|d| plain_path(d).join("runtime.log"))
+}
+
+/// Last lines the bundled runtime wrote to its log, for the launch error (never contains our secrets: they are
+/// passed in the environment and the runtime does not print it).
+fn log_tail(app: &AppHandle) -> String {
+    let Some(path) = runtime_log_path(app) else { return String::new() };
+    let text = fs::read_to_string(path).unwrap_or_default();
+    let tail: Vec<&str> = text.lines().rev().take(6).collect();
+    tail.into_iter().rev().collect::<Vec<_>>().join(" | ").chars().take(500).collect()
+}
+
 fn resource_root(app: &AppHandle) -> Result<PathBuf, String> {
-    let target = app.path().resource_dir().map_err(|_| "Resource directory unavailable")?
+    let target = plain_path(app.path().resource_dir().map_err(|_| "Resource directory unavailable")?)
         .join("runtime");
     if target.join(".output/server/index.mjs").exists() {
         return Ok(target);
@@ -121,7 +144,7 @@ fn node_bin(root: &PathBuf) -> PathBuf {
 
 fn runtime_command(app: &AppHandle, entrypoint: &str, probe: &str) -> Result<Command, String> {
     let root = resource_root(app)?;
-    let data = app.path().app_local_data_dir().map_err(|_| "Data path unavailable")?;
+    let data = plain_path(app.path().app_local_data_dir().map_err(|_| "Data path unavailable")?);
     fs::create_dir_all(&data).map_err(|_| "Cannot create local application data")?;
     // The mailbox database contains message metadata and bodies; restrict its
     // parent directory to the current OS user even before PGlite creates files.
@@ -152,13 +175,19 @@ fn runtime_command(app: &AppHandle, entrypoint: &str, probe: &str) -> Result<Com
         .env("SESSION_SECRET", session)
         .env("KEK_BASE64", kek)
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(log_file(&data))
         .stdin(Stdio::null());
     optional_env(&mut command, "GOOGLE_CLIENT_ID", "google-client-id")?;
     optional_env(&mut command, "GOOGLE_CLIENT_SECRET", "google-client-secret")?;
     optional_env(&mut command, "MS_CLIENT_ID", "ms-client-id")?;
     optional_env(&mut command, "MS_CLIENT_SECRET", "ms-client-secret")?;
     Ok(command)
+}
+
+/// Both runtime processes append their errors here, so a failed launch can say why.
+fn log_file(data: &PathBuf) -> Stdio {
+    fs::OpenOptions::new().create(true).append(true).open(data.join("runtime.log"))
+        .map(Stdio::from).unwrap_or_else(|_| Stdio::null())
 }
 
 fn probe_runtime(probe: &str) -> bool {
@@ -251,6 +280,7 @@ fn launch_runtime(app: AppHandle, state: Arc<RuntimeState>) {
         *state.ready.lock().unwrap() = false;
         *state.error.lock().unwrap() = None;
         stop_backend(&state);
+        if let Some(log) = runtime_log_path(&app) { let _ = fs::remove_file(log); }
         let result: Result<(), String> = (|| {
             // Refuse an occupied loopback port: never display someone else's
             // local HTTP service in our app window.
@@ -260,7 +290,11 @@ fn launch_runtime(app: AppHandle, state: Arc<RuntimeState>) {
             let mut migrate = runtime_command(&app, "dist/migrate.mjs", &probe)?;
             drop(listener);
             let status = migrate.status().map_err(|_| "Failed to start local migrations")?;
-            if !status.success() { return Err("Local database migration failed".into()); }
+            if !status.success() {
+                let why = log_tail(&app);
+                return Err(if why.is_empty() { "Local database migration failed".into() }
+                    else { format!("Local database migration failed: {why}") });
+            }
 
             let mut child = runtime_command(&app, ".output/server/index.mjs", &probe)?
                 .spawn().map_err(|_| "Failed to launch bundled local service")?;
