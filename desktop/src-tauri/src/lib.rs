@@ -123,6 +123,14 @@ fn runtime_command(app: &AppHandle, entrypoint: &str, probe: &str) -> Result<Com
     let root = resource_root(app)?;
     let data = app.path().app_local_data_dir().map_err(|_| "Data path unavailable")?;
     fs::create_dir_all(&data).map_err(|_| "Cannot create local application data")?;
+    // The mailbox database contains message metadata and bodies; restrict its
+    // parent directory to the current OS user even before PGlite creates files.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&data, fs::Permissions::from_mode(0o700))
+            .map_err(|_| "Cannot secure local data directory")?;
+    }
     let db = data.join("pglite");
     let node = node_bin(&root);
     if !node.is_file() { return Err("Bundled Node executable missing".into()); }
