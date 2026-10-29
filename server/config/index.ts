@@ -12,7 +12,10 @@ const schema = z
     BASE_URL: z.url(),
     DATABASE_URL: z
       .string()
-      .regex(/^(postgres(ql)?|sqlite|file|pglite):/, 'DATABASE_URL must be a postgres, sqlite or desktop PGlite URL'),
+      .regex(
+        /^(postgres(ql)?|sqlite|file|pglite):/,
+        'DATABASE_URL must be a postgres, sqlite or desktop PGlite URL',
+      ),
     SESSION_SECRET: secret(32, 'SESSION_SECRET'),
     KEK_BASE64: z.string().refine((v) => Buffer.from(v, 'base64').length === 32, {
       message: 'KEK_BASE64 must be exactly 32 bytes, base64',

@@ -77,7 +77,8 @@ export function googleOAuth(d: GoogleOAuthDeps) {
     d.fetch ??
     ((url, init) => fetch(url, init).then((r) => ({ status: r.status, json: () => r.json() })))
 
-  const configured = () => d.clientId !== '' && (d.clientSecret !== '' || process.env.SENTINEL_DESKTOP_MODE === 'true')
+  const configured = () =>
+    d.clientId !== '' && (d.clientSecret !== '' || process.env.SENTINEL_DESKTOP_MODE === 'true')
 
   async function post(url: string, params: Record<string, string>) {
     const res = await doFetch(url, {

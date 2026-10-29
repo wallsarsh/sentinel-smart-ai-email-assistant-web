@@ -18,16 +18,19 @@ const briefStepFor = (ports: ReturnType<typeof defaultBriefPorts>) => {
 }
 
 /** Job handlers by name. */
-export function buildHandlers(db: Db): Record<string, JobHandler> {
-  const c = workerContainer(db)
+export function buildHandlers(db: Db, o: { hubBridge?: boolean } = {}): Record<string, JobHandler> {
+  const c = workerContainer(db, o)
   // The same notifyNewMail/brief notification-policy checks still apply.
   // The device-local delivery port does not require a Web Push subscription.
-  const push: Notifier = useConfig().databaseUrl === 'pglite:local'
-    ? { async send(_userId, payload) {
-        queueNativeNotification(payload.type)
-        return { delivered: 1, removed: 0, failed: 0 }
-      } }
-    : pushService({ db, transport: webPushTransport(useConfig().vapid) })
+  const push: Notifier =
+    useConfig().databaseUrl === 'pglite:local'
+      ? {
+          async send(_userId, payload) {
+            queueNativeNotification(payload.type)
+            return { delivered: 1, removed: 0, failed: 0 }
+          },
+        }
+      : pushService({ db, transport: webPushTransport(useConfig().vapid) })
   const onPage = (userId: string, p: { added: string[]; removed: number }) =>
     c.publish(userId, 'inbox.changed', { added: p.added.length, removed: p.removed })
   return {
