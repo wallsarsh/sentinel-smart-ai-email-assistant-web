@@ -63,7 +63,7 @@ export function microsoftOAuth(d: MicrosoftOAuthDeps) {
   const doFetch: FetchLike =
     d.fetch ?? ((u, i) => fetch(u, i).then((r) => ({ status: r.status, json: () => r.json() })))
   const base = d.authority.replace(/\/$/, '')
-  const configured = () => d.clientId !== '' && d.clientSecret !== ''
+  const configured = () => d.clientId !== '' && (d.clientSecret !== '' || process.env.SENTINEL_DESKTOP_MODE === 'true')
 
   async function post(url: string, params: Record<string, string>) {
     const res = await doFetch(url, {
@@ -132,7 +132,7 @@ export function microsoftOAuth(d: MicrosoftOAuthDeps) {
 
       const { status, body } = await post(`${base}/oauth2/v2.0/token`, {
         client_id: d.clientId,
-        client_secret: d.clientSecret,
+        ...(d.clientSecret ? { client_secret: d.clientSecret } : {}),
         code: input.code,
         redirect_uri: d.redirectUri,
         grant_type: 'authorization_code',
@@ -175,7 +175,7 @@ export function microsoftOAuth(d: MicrosoftOAuthDeps) {
     > {
       const { status, body } = await post(`${base}/oauth2/v2.0/token`, {
         client_id: d.clientId,
-        client_secret: d.clientSecret,
+        ...(d.clientSecret ? { client_secret: d.clientSecret } : {}),
         grant_type: 'refresh_token',
         refresh_token: t.refreshToken,
         scope: MS_SCOPES.join(' '),
