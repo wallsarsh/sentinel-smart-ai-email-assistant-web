@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   const back = (r: string, help = '') =>
     sendRedirect(
       event,
-      `${useConfig().baseUrl}/accounts?connect=${r}${help ? `&help=${help}` : ''}`,
+      `${useConfig().baseUrl}/settings/accounts?connect=${r}${help ? `&help=${help}` : ''}`,
       302,
     )
   try {
