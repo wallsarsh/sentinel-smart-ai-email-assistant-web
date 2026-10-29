@@ -1,0 +1,70 @@
+name: Standalone Tauri Desktop (unsigned)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['feature/standalone-tauri-desktop']
+    paths:
+      - 'desktop/**'
+      - 'server/**'
+      - 'worker/**'
+      - '.github/workflows/desktop-standalone.yml'
+
+concurrency:
+  group: standalone-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install web application build dependencies
+        run: npm ci --no-audit --no-fund
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
+      - name: Prepare embedded runtime
+        working-directory: desktop
+        run: npm run prepare
+      - name: Verify PGlite local persistence
+        working-directory: desktop
+        run: npm run test:db
+      - name: Verify packaged local API and restart persistence
+        working-directory: desktop
+        run: node local/smoke-runtime.mjs
+      - name: Enforce human-only email send gate
+        run: npm run send-gate
+      - name: Test standalone security invariants
+        run: npx vitest run tests/unit/desktop-standalone.test.ts
+      - name: Typecheck standalone additions
+        if: runner.os == 'Linux'
+        run: npm run typecheck
+      - name: Generate icons
+        working-directory: desktop
+        run: npm run icons
+      - name: Rust unit tests
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
+      - name: Build unsigned installers
+        working-directory: desktop
+        run: npx --yes @tauri-apps/cli@2 build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-standalone-${{ matrix.os }}
+          path: desktop/src-tauri/target/release/bundle/**
+          if-no-files-found: error
+          retention-days: 14

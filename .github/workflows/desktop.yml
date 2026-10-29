@@ -1,0 +1,54 @@
+name: Tauri desktop (unsigned verification)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+      - 'public/icons/icon-512.png'
+  push:
+    branches:
+      - feature/tauri-desktop
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+      - 'public/icons/icon-512.png'
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
+      - name: Generate platform icons
+        working-directory: desktop
+        run: npm run icons
+      - name: Rust tests
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
+      - name: Build installer
+        working-directory: desktop
+        run: npx --yes @tauri-apps/cli@2 build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sentinel-desktop-${{ matrix.os }}
+          path: desktop/src-tauri/target/release/bundle/**
+          if-no-files-found: error
+          retention-days: 14

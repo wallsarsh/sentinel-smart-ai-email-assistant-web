@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Sentinel — Standalone Desktop</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./main.js" defer></script>
+</head>
+<body>
+  <main class="panel">
+    <div class="logo" aria-hidden="true">S</div>
+    <p class="eyebrow">SENTINEL · STANDALONE DESKTOP</p>
+    <h1>Your private AI email assistant</h1>
+    <p class="description">
+      Mail, searches, analysis, briefs, drafts and credentials are processed on this device.
+      No Sentinel account, hosted backend, PostgreSQL service or Node.js installation is required.
+    </p>
+    <p id="status" class="status" aria-live="polite" role="status">Starting the embedded email service…</p>
+
+    <form id="providers">
+      <h2>Email OAuth configuration</h2>
+      <p class="hint">Optional. Needed only for Gmail and Microsoft 365. For IMAP/SMTP, configure an account directly inside Sentinel after it starts.</p>
+      <label for="google-id">Google OAuth Desktop client ID</label>
+      <input id="google-id" autocomplete="off" placeholder="Google client ID">
+      <label for="google-secret">Google client secret (optional)</label>
+      <input id="google-secret" type="password" autocomplete="off" placeholder="Leave blank to keep saved value">
+      <label for="ms-id">Microsoft Entra application client ID</label>
+      <input id="ms-id" autocomplete="off" placeholder="Microsoft application ID">
+      <label for="ms-secret">Microsoft client secret (optional)</label>
+      <input id="ms-secret" type="password" autocomplete="off" placeholder="Leave blank to keep saved value">
+      <p class="hint">Register Google/Microsoft native/public-client OAuth access with redirect URI <code>http://127.0.0.1:17861/api/accounts/google/callback</code> or <code>.../microsoft/callback</code>, according to provider policy. Do not paste corporate confidential client secrets into a distributed desktop installer.</p>
+      <button type="submit" id="save">Save provider configuration and restart local service</button>
+    </form>
+    <p class="hint">After a browser consent flow, return to Sentinel and choose Reload workspace from the tray menu.</p>
+  </main>
+</body>
+</html>

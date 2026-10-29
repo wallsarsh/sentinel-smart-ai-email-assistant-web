@@ -101,6 +101,7 @@ let hub: EventHub | undefined
 export function useHub(): EventHub {
   if (hub) return hub
   hub = new EventHub()
+  if (useConfig().databaseUrl === 'pglite:local') return hub
   void createPgBridge(useConfig().databaseUrl).then(
     (bridge) => hub?.attach(bridge),
     () => undefined, // single-instance mode until the bridge connects

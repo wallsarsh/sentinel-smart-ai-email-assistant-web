@@ -1,0 +1,13 @@
+{
+  "name": "sentinel-desktop",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Standalone Windows, macOS and Linux Tauri client with bundled Nitro/PGlite runtime",
+  "scripts": {
+    "icons": "npx --yes @tauri-apps/cli@2 icon ../public/icons/icon-512.png --output src-tauri/icons",
+    "prepare": "node scripts/prepare-runtime.mjs",
+    "dev": "npm run prepare && npm run icons && npx --yes @tauri-apps/cli@2 dev",
+    "build": "npm run prepare && npm run icons && npx --yes @tauri-apps/cli@2 build",
+    "test:db": "node local/check-pglite.mjs"
+  }
+}

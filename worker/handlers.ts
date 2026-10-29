@@ -4,6 +4,8 @@ import type { Deadline } from '../server/jobs/deadline'
 import type { JobHandler } from '../server/jobs/runner'
 import { pushService } from '../server/push/service'
 import { webPushTransport } from '../server/push/web-push-transport'
+import { queueNativeNotification } from '../server/desktop/notifications'
+import type { Notifier } from '../server/push/rules'
 import { useConfig } from '../server/config'
 import { retentionHandler, RETENTION_JOB } from './jobs/retention'
 import { workerContainer } from './container'
@@ -18,7 +20,14 @@ const briefStepFor = (ports: ReturnType<typeof defaultBriefPorts>) => {
 /** Job handlers by name. */
 export function buildHandlers(db: Db): Record<string, JobHandler> {
   const c = workerContainer(db)
-  const push = pushService({ db, transport: webPushTransport(useConfig().vapid) })
+  // The same notifyNewMail/brief notification-policy checks still apply.
+  // The device-local delivery port does not require a Web Push subscription.
+  const push: Notifier = useConfig().databaseUrl === 'pglite:local'
+    ? { async send(_userId, payload) {
+        queueNativeNotification(payload.type)
+        return { delivered: 1, removed: 0, failed: 0 }
+      } }
+    : pushService({ db, transport: webPushTransport(useConfig().vapid) })
   const onPage = (userId: string, p: { added: string[]; removed: number }) =>
     c.publish(userId, 'inbox.changed', { added: p.added.length, removed: p.removed })
   return {

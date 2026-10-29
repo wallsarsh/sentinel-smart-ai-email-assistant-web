@@ -77,7 +77,7 @@ export function googleOAuth(d: GoogleOAuthDeps) {
     d.fetch ??
     ((url, init) => fetch(url, init).then((r) => ({ status: r.status, json: () => r.json() })))
 
-  const configured = () => d.clientId !== '' && d.clientSecret !== ''
+  const configured = () => d.clientId !== '' && (d.clientSecret !== '' || process.env.SENTINEL_DESKTOP_MODE === 'true')
 
   async function post(url: string, params: Record<string, string>) {
     const res = await doFetch(url, {
@@ -143,7 +143,7 @@ export function googleOAuth(d: GoogleOAuthDeps) {
       const { status, body } = await post(TOKEN_URL, {
         code: input.code,
         client_id: d.clientId,
-        client_secret: d.clientSecret,
+        ...(d.clientSecret ? { client_secret: d.clientSecret } : {}),
         redirect_uri: d.redirectUri,
         grant_type: 'authorization_code',
         code_verifier: c.v,
@@ -178,7 +178,7 @@ export function googleOAuth(d: GoogleOAuthDeps) {
     ): Promise<{ ok: true; tokens: OAuthTokens } | { ok: false; reason: 'revoked' | 'transient' }> {
       const { status, body } = await post(TOKEN_URL, {
         client_id: d.clientId,
-        client_secret: d.clientSecret,
+        ...(d.clientSecret ? { client_secret: d.clientSecret } : {}),
         grant_type: 'refresh_token',
         refresh_token: t.refreshToken,
       })
