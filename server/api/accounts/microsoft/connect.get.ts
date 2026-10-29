@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   setCookie(event, MS_OAUTH_COOKIE, cookie, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: useConfig().env === 'production',
+    secure: useConfig().secureCookies,
     path: '/api/accounts/microsoft',
     maxAge: 600,
   })

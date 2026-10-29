@@ -33,6 +33,8 @@ const schema = z
     // Observability. Both are off when empty.
     METRICS_TOKEN: z.string().default(''),
     ERROR_REPORT_URL: z.string().default(''),
+    // Local testing over http only. Off by default; see .env.example.
+    ALLOW_INSECURE_HTTP: z.enum(['true', 'false']).default('false'),
     BUILD_ID: z.string().max(60).default('unknown'),
   })
   .superRefine((v, ctx) => {
@@ -49,8 +51,13 @@ const schema = z
       ctx.addIssue({ code: 'custom', path: ['KEK_PREVIOUS'], message: (e as Error).message })
     }
     if (v.NODE_ENV !== 'production') return
-    if (!v.BASE_URL.startsWith('https://'))
-      ctx.addIssue({ code: 'custom', path: ['BASE_URL'], message: 'must be https in production' })
+    if (!v.BASE_URL.startsWith('https://') && v.ALLOW_INSECURE_HTTP !== 'true')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['BASE_URL'],
+        message:
+          'must be https in production (set ALLOW_INSECURE_HTTP=true only for local testing)',
+      })
     for (const k of ['SESSION_SECRET', 'KEK_BASE64'] as const) {
       if (WEAK.test(v[k]) || WEAK.test(Buffer.from(v.KEK_BASE64, 'base64').toString()))
         ctx.addIssue({ code: 'custom', path: [k], message: 'looks like a development placeholder' })
@@ -89,6 +96,10 @@ export type AppConfig = {
   errorReportUrl: string
   /** Identifies the deployed build in error reports (a version or commit). */
   buildId: string
+  /** Local testing over plain http: cookies are not Secure and HSTS / upgrade-insecure-requests are not sent. */
+  allowInsecureHttp: boolean
+  /** Cookies get the Secure flag. */
+  secureCookies: boolean
 }
 
 export class ConfigError extends Error {
@@ -129,6 +140,8 @@ export function loadConfig(env: Record<string, string | undefined>): AppConfig {
     metricsToken: v.METRICS_TOKEN,
     errorReportUrl: v.ERROR_REPORT_URL,
     buildId: v.BUILD_ID,
+    allowInsecureHttp: v.ALLOW_INSECURE_HTTP === 'true',
+    secureCookies: v.NODE_ENV === 'production' && v.ALLOW_INSECURE_HTTP !== 'true',
   }
 }
 

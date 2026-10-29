@@ -117,3 +117,22 @@ describe('KEK rotation settings', () => {
     expect(message).not.toContain(k(9))
   })
 })
+
+describe('ALLOW_INSECURE_HTTP', () => {
+  const env = {
+    NODE_ENV: 'production',
+    BASE_URL: 'http://localhost:3000',
+    DATABASE_URL: 'postgres://u:p@h/db',
+    SESSION_SECRET: 'x'.repeat(40),
+    KEK_BASE64: Buffer.alloc(32, 5).toString('base64'),
+  }
+  it('production over http is refused by default and allowed with the flag, without Secure cookies', () => {
+    expect(() => loadConfig(env)).toThrow(/ALLOW_INSECURE_HTTP/)
+    const c = loadConfig({ ...env, ALLOW_INSECURE_HTTP: 'true' })
+    expect(c.allowInsecureHttp).toBe(true)
+    expect(c.secureCookies).toBe(false)
+  })
+  it('https production keeps Secure cookies', () => {
+    expect(loadConfig({ ...env, BASE_URL: 'https://a.example.org' }).secureCookies).toBe(true)
+  })
+})
