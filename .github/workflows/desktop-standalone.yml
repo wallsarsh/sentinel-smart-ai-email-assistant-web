@@ -46,6 +46,11 @@ jobs:
       - name: Verify PGlite local persistence
         working-directory: desktop
         run: npm run test:db
+      - name: Verify packaged local API and restart persistence
+        working-directory: desktop
+        run: node local/smoke-runtime.mjs
+      - name: Enforce human-only email send gate
+        run: npm run send-gate
       - name: Generate icons
         working-directory: desktop
         run: npm run icons
