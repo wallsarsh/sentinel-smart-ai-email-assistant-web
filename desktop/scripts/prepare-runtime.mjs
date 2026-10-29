@@ -22,8 +22,10 @@ cpSync(join(root, '.output'), join(payload, '.output'), { recursive: true })
 cpSync(join(root, 'dist'), join(payload, 'dist'), { recursive: true })
 cpSync(join(root, 'package.json'), join(payload, 'package.json'))
 cpSync(join(root, 'package-lock.json'), join(payload, 'package-lock.json'))
-run(process.platform === 'win32' ? 'npm.cmd' : 'npm',
-  ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], payload)
+const npmCli = process.env.npm_execpath
+if (!npmCli) throw new Error('Run preparation via npm run prepare so npm_execpath is set')
+run(process.execPath,
+  [npmCli, 'ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], payload)
 const runtimeExe = join(payload, 'bin', process.platform === 'win32' ? 'node.exe' : 'node')
 cpSync(process.execPath, runtimeExe)
 if (process.platform !== 'win32') chmodSync(runtimeExe, 0o755)
