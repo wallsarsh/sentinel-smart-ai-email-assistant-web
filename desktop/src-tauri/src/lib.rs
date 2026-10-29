@@ -41,6 +41,8 @@ fn app_page(url: &Url) -> bool {
             && url.host_str() == Some("tauri.localhost"))
 }
 
+// Kept for explicit identity-domain regression tests; these are not used for embedded auth.
+#[cfg(test)]
 fn is_identity_provider(url: &Url) -> bool {
     if url.scheme() != "https" {
         return false;
@@ -163,16 +165,30 @@ pub fn run() {
             .inner_size(1190.0, 820.0)
             .min_inner_size(790.0, 580.0)
             .on_navigation(move |url| {
-                if app_page(url) || is_identity_provider(url) {
+                if app_page(url) {
                     return true;
                 }
                 let configured = allowed.lock().ok().and_then(|state| state.clone());
                 if configured.as_deref() == Some(url.origin().ascii_serialization().as_str()) {
+                    // Provider authorization is completed in the system browser.
+                    // The desktop WebView and system browser have different cookie
+                    // stores; launch the Accounts page, not the protected /connect
+                    // URL, so the user can sign in on the web then grant consent.
+                    if matches!(
+                        url.path(),
+                        "/api/accounts/google/connect" | "/api/accounts/microsoft/connect"
+                    ) {
+                        let mut accounts = url.clone();
+                        accounts.set_path("/settings/accounts");
+                        accounts.set_query(None);
+                        accounts.set_fragment(None);
+                        let _ = open::that(accounts.as_str());
+                        return false;
+                    }
                     return true;
                 }
-                // Normal external links open in the OS browser, not a privileged app webview.
-                // A federated/custom IdP will also be external, and needs a future
-                // system-browser OAuth handoff to finish correctly.
+                // Untrusted links and identity-provider pages always open in the
+                // OS browser, never as additional privileged app windows.
                 if url.scheme() == "https" {
                     let _ = open::that(url.as_str());
                 }
