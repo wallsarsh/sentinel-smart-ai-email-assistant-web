@@ -8,7 +8,7 @@ async function current() {
   // Thunderbird returns a page of messages (one for a single selection); older builds had a singular form.
   const md = browser.messageDisplay
   const shown = md.getDisplayedMessages
-    ? (await md.getDisplayedMessages(tab.id))?.messages
+    ? await md.getDisplayedMessages(tab.id).then((r) => (Array.isArray(r) ? r : r?.messages))
     : [await md.getDisplayedMessage(tab.id)]
   const msg = shown?.[0]
   if (!msg) throw new Error('Open a message first.')
