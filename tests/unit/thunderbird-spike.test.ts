@@ -7,6 +7,7 @@ import {
   extractText,
   replyMessages,
   summaryMessages,
+  withDraft,
 } from '../../thunderbird/src/core.js'
 
 describe('thunderbird spike core', () => {
