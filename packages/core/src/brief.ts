@@ -1,4 +1,4 @@
-import { PromptBuilder, type BriefEmail, type UserContext } from './prompts/builder'
+import type { PromptBuilder, BriefEmail, UserContext } from './prompts/builder'
 import { briefPrompt } from './prompts/registry'
 import { structuredCall, type Attempt, type Caller } from './ai/structured'
 import type { AiRequest } from './ai/types'
