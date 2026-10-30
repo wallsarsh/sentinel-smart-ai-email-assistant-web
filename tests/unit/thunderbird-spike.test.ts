@@ -121,7 +121,7 @@ describe('extension AI calls use the shared core', () => {
     expect(user).not.toContain('SECRET-ATTACHMENT-BYTES')
     expect(user).toContain('attachments: 1')
     expect(user).toContain('to: me + others')
-    expect(calls[0]!.body.max_tokens).toBe(450)
+    expect(calls[0]!.body.max_tokens).toBe(1200)
     expect(calls[0]!.url).toBe('https://api.example.com/v1/chat/completions')
   })
   it('repairs once when the first answer is not valid, then gives up with a readable error', async () => {
@@ -145,7 +145,7 @@ describe('extension AI calls use the shared core', () => {
     expect(user).toContain('<thread boundary=')
     expect(user).toContain('intent: accept')
     expect(user).not.toContain('Q3-draft.pdf')
-    expect(calls[0]!.body.max_tokens).toBe(800)
+    expect(calls[0]!.body.max_tokens).toBe(1500)
   })
   it('reports provider errors in plain words', async () => {
     const f = (async () => new Response('', { status: 401 })) as typeof fetch
