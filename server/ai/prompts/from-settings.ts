@@ -10,6 +10,7 @@ export function builderOptions(s: {
   [K in Extract<SettingKey, `privacy.${string}`>]: SettingValue<K>
 }): BuilderOptions {
   return {
+    compact: true,
     triageBodyCap: s['privacy.maxChars'],
     draftBodyCap: Math.max(s['privacy.maxChars'], 6000),
     triageSubjectOnly: s['privacy.subjectOnly'],

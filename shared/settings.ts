@@ -27,7 +27,7 @@ export const settingsSchema = {
   /** Also send newsletters and automated notifications to the AI (off: they are labelled by rules). */
   'ai.processBulk': bool(false),
   'privacy.subjectOnly': bool(false),
-  'privacy.maxChars': z.number().int().min(500).max(20000).default(6000),
+  'privacy.maxChars': z.number().int().min(500).max(20000).default(3000),
   'privacy.redactCards': bool(true),
   'privacy.redactIbans': bool(true),
   'privacy.redactPhones': bool(true),

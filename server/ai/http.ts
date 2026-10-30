@@ -1,5 +1,4 @@
 import { safeFetch, safeStream } from '../http/safe-fetch'
-import type { AppFailure } from '../../shared/errors/failure'
 import type { AiHttp } from './types'
 
 /** Default transport: public https hosts only (the user supplies base URLs). */
@@ -37,14 +36,4 @@ export const guardedHttp = (opts: { allowHttp?: boolean } = {}): AiHttp => ({
   },
 })
 
-/** Maps an error status to our failure kinds. Never keeps the provider's message. */
-export function failureForStatus(status: number, retryAfter?: string | null): AppFailure {
-  if (status === 401 || status === 403)
-    return { kind: 'auth', problem: 'invalid_credentials', code: String(status) }
-  if (status === 404) return { kind: 'not_found' }
-  if (status === 429) {
-    const s = Number(retryAfter)
-    return { kind: 'rate_limited', retryAfterSeconds: Number.isFinite(s) && s > 0 ? s : undefined }
-  }
-  return { kind: 'provider', status, code: String(status) }
-}
+export { failureForStatus } from '../../packages/core/src/ai/http'
