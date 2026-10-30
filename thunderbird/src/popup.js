@@ -5,7 +5,12 @@ const say = (t) => ($('out').textContent = t)
 
 async function current() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true })
-  const msg = await browser.messageDisplay.getDisplayedMessage(tab.id)
+  // Thunderbird returns a page of messages (one for a single selection); older builds had a singular form.
+  const md = browser.messageDisplay
+  const shown = md.getDisplayedMessages
+    ? (await md.getDisplayedMessages(tab.id))?.messages
+    : [await md.getDisplayedMessage(tab.id)]
+  const msg = shown?.[0]
   if (!msg) throw new Error('Open a message first.')
   const full = await browser.messages.getFull(msg.id)
   return {
