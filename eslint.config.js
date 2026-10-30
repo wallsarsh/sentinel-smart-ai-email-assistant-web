@@ -21,4 +21,8 @@ export default withNuxt(
       'vue-i18n': { localeDir: './i18n/locales/*.json', messageSyntaxVersion: '^11.0.0' },
     },
   },
+  {
+    files: ['thunderbird/**/*.js'],
+    languageOptions: { globals: { browser: 'readonly', document: 'readonly' } },
+  },
 )
