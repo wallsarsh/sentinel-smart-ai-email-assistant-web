@@ -73,4 +73,23 @@ describe('thunderbird spike core', () => {
     expect(m.permissions).not.toContain('compose.send')
     expect(m.manifest_version).toBe(3)
   })
+
+  it('puts the draft above the quote in plain-text and html replies', () => {
+    expect(
+      withDraft(
+        { isPlainText: true, plainTextBody: '\nOn Fri, X wrote:\n> hi\n-- \nSig' },
+        'Thanks.',
+      ),
+    ).toEqual({ plainTextBody: 'Thanks.\n\nOn Fri, X wrote:\n> hi\n-- \nSig' })
+    const html = withDraft(
+      {
+        isPlainText: false,
+        body: '<html><body class="x"><div class="moz-cite-prefix">wrote</div></body></html>',
+      },
+      'A <b> & B\nline',
+    )
+    expect(html.body).toBe(
+      '<html><body class="x"><div>A &lt;b&gt; &amp; B<br>line</div><br><div class="moz-cite-prefix">wrote</div></body></html>',
+    )
+  })
 })

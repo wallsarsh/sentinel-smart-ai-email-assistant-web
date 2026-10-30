@@ -1,4 +1,4 @@
-import { chat, extractText, replyMessages, summaryMessages } from './core.js'
+import { chat, extractText, replyMessages, summaryMessages, withDraft } from './core.js'
 
 const $ = (id) => document.getElementById(id)
 const say = (t) => ($('out').textContent = t)
@@ -50,6 +50,8 @@ $('reply').onclick = () =>
   run(async () => {
     const m = await current()
     const body = await chat(await settings(), replyMessages(m, { instruction: $('instr').value }))
-    await browser.compose.beginReply(m.id, 'replyToSender', { body, isPlainText: true })
+    const tab = await browser.compose.beginReply(m.id, 'replyToSender')
+    const details = await browser.compose.getComposeDetails(tab.id)
+    await browser.compose.setComposeDetails(tab.id, withDraft(details, body))
     say('Draft opened. Review it and press Send yourself.')
   })
