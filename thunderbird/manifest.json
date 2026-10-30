@@ -4,7 +4,10 @@
   "version": "0.0.1",
   "description": "Summarize the open message and draft a reply with your own AI provider. Never sends mail.",
   "browser_specific_settings": {
-    "gecko": { "id": "sentinel-spike@example.invalid", "strict_min_version": "140.0" }
+    "gecko": {
+      "id": "sentinel-spike@example.invalid",
+      "strict_min_version": "140.0"
+    }
   },
   "permissions": ["messagesRead", "compose", "storage", "accountsRead"],
   "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
@@ -12,5 +15,12 @@
     "default_title": "Sentinel AI",
     "default_popup": "src/popup.html"
   },
-  "options_ui": { "page": "src/options.html", "open_in_tab": true }
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "scripts": ["src/background.js"],
+    "type": "module"
+  }
 }
