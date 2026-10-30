@@ -4,3 +4,4 @@ node_modules
 tasks/INDEX.md
 docs/reference
 server/ai/prompts/texts.generated.ts
+packages/core/src/prompts/texts.generated.ts

@@ -2,7 +2,7 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 import vueI18n from '@intlify/eslint-plugin-vue-i18n'
 
 export default withNuxt(
-  { ignores: ['tools/**', 'coverage/**'] },
+  { ignores: ['thunderbird/dist/**', 'tools/**', 'coverage/**'] },
   ...vueI18n.configs.recommended,
   {
     files: ['app/**/*.vue'],

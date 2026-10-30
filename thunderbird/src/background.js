@@ -1,4 +1,4 @@
-import { withDraft } from './core.js'
+import { withDraft } from './mail.js'
 
 // Opening the reply window closes the toolbar popup and ends its scripts, so the popup hands the draft to this
 // page, which outlives it and finishes filling in the reply.

@@ -44,7 +44,7 @@ function assertStrict(node: unknown, path: string) {
 
 describe('prompt registry', () => {
   it('generated texts match the reviewed document (run `npm run prompts:sync`)', () => {
-    expect(readFileSync('server/ai/prompts/texts.generated.ts', 'utf8')).toBe(render(extract(doc)))
+    expect(readFileSync('packages/core/src/prompts/texts.generated.ts', 'utf8')).toBe(render(extract(doc)))
   })
   it('exposes versions for logging and no prompt text in them', () => {
     expect(PROMPT_VERSIONS).toEqual({

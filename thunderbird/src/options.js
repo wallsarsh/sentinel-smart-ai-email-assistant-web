@@ -1,4 +1,4 @@
-import { chatUrl } from './core.js'
+import { checkBaseUrl } from './mail.js'
 
 const $ = (id) => document.getElementById(id)
 const { settings } = await browser.storage.local.get('settings')
@@ -12,7 +12,8 @@ $('f').addEventListener('submit', async (e) => {
     model: $('model').value.trim(),
   }
   try {
-    const url = new URL(chatUrl(next.baseUrl))
+    next.baseUrl = checkBaseUrl(next.baseUrl)
+    const url = new URL(next.baseUrl)
     // Thunderbird asks the user to allow requests to this one host.
     const ok = await browser.permissions.request({ origins: [`${url.origin}/*`] })
     if (!ok) throw new Error('Permission to contact the provider was not granted.')

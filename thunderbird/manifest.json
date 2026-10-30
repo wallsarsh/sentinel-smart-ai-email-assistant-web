@@ -9,18 +9,29 @@
       "strict_min_version": "140.0"
     }
   },
-  "permissions": ["messagesRead", "compose", "storage", "accountsRead"],
-  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "permissions": [
+    "messagesRead",
+    "compose",
+    "storage",
+    "accountsRead"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
   "message_display_action": {
     "default_title": "Sentinel AI",
-    "default_popup": "src/popup.html"
+    "default_popup": "dist/popup.html"
   },
   "options_ui": {
-    "page": "src/options.html",
+    "page": "dist/options.html",
     "open_in_tab": true
   },
   "background": {
-    "scripts": ["src/background.js"],
+    "scripts": [
+      "dist/background.js"
+    ],
     "type": "module"
   }
 }

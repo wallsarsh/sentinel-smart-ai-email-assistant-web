@@ -1,4 +1,4 @@
-// Regenerates server/ai/prompts/texts.generated.ts from docs/reference/ai-prompts.md.
+// Regenerates packages/core/src/prompts/texts.generated.ts from docs/reference/ai-prompts.md.
 // The document is the reviewed source; a test fails when the two disagree.
 import { readFileSync, writeFileSync } from 'node:fs'
 
@@ -33,6 +33,6 @@ export function render(items) {
 
 if (import.meta.url === `file://${process.argv[1]}`)
   writeFileSync(
-    'server/ai/prompts/texts.generated.ts',
+    'packages/core/src/prompts/texts.generated.ts',
     render(extract(readFileSync('docs/reference/ai-prompts.md', 'utf8'))),
   )

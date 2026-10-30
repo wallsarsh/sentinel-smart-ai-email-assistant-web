@@ -38,6 +38,16 @@ user_context:
   sender_hints: ["newsletter@vendor.example → user marks Low importance"]
 ```
 
+**Compact envelope** (`compact: true`, used by the web app, the desktop app and the Thunderbird extension; the default keeps the full envelope above, which the mobile golden file pins). Same safety rules, fewer tokens:
+
+- one `boundary` on the outer tag instead of one per `<email>`; `<email id="e1">` … `</email>`;
+- `to:` only when the user is not the only recipient (triage sees `me + others` / `others`; drafts see the people), `cc:` only when present;
+- `date: 2026-10-27 08:14 Tue` in the user's zone, no seconds or offset;
+- `attachments: N` as a count; attachment names and contents are never sent;
+- `user_context` lists only fields that have a value; no empty `vip_senders`, `sender_hints`, `style_notes`, `language: auto`;
+- bodies drop long tracking URLs (kept as `https://host/…`), rules of dashes, and legal-disclaimer or unsubscribe footers at the end;
+- default body caps 3,000 (triage) and 8,000 (draft); drafts send only the newest five thread messages, older ones cut to 1,500 characters.
+
 `PromptBuilder` steps, in order:
 
 1. HTML → text; drop tracking pixels and style/script.

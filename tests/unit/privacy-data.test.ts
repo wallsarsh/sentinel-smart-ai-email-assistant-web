@@ -14,7 +14,8 @@ describe('builderOptions', () => {
         .map(([k, v]) => [k, v.parse(undefined)]),
     ) as never
     expect(builderOptions(base)).toEqual({
-      triageBodyCap: 6000,
+      compact: true,
+      triageBodyCap: 3000,
       draftBodyCap: 6000,
       triageSubjectOnly: false,
       redaction: { cards: true, ibans: true, phones: true, otherEmails: true },
