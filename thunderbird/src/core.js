@@ -82,3 +82,22 @@ export async function chat(settings, messages, fetchImpl = fetch) {
   if (typeof text !== 'string' || !text.trim()) throw new Error('The provider returned no text.')
   return text.trim()
 }
+
+const escapeHtml = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/**
+ * Builds the compose update that puts the draft above the quoted original.
+ * Thunderbird builds the quote itself and ignores a body passed to beginReply, so the draft is added afterwards.
+ */
+export function withDraft(details, draft) {
+  if (details.isPlainText) {
+    const quote = (details.plainTextBody || '').replace(/^\n+/, '')
+    return { plainTextBody: `${draft}\n\n${quote}` }
+  }
+  const html = escapeHtml(draft).replace(/\n/g, '<br>')
+  const body = details.body || ''
+  const block = `<div>${html}</div><br>`
+  return {
+    body: /<body[^>]*>/i.test(body) ? body.replace(/(<body[^>]*>)/i, `$1${block}`) : block + body,
+  }
+}
