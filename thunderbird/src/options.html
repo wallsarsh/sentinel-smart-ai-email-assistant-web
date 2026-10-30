@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sentinel AI settings</title>
+    <style>
+      body {
+        font: 14px system-ui;
+        max-width: 32rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      label {
+        display: block;
+        margin-top: 1rem;
+      }
+      input {
+        width: 100%;
+        padding: 0.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sentinel AI settings</h1>
+    <form id="f">
+      <label
+        >API URL<input id="baseUrl" type="url" required placeholder="https://api.openai.com/v1"
+      /></label>
+      <label>API key<input id="apiKey" type="password" autocomplete="off" required /></label>
+      <label>Model<input id="model" required placeholder="gpt-4o-mini" /></label>
+      <p><button type="submit">Save</button> <span id="status" role="status"></span></p>
+    </form>
+    <p>The key is stored in this Thunderbird profile and sent only to the URL above.</p>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

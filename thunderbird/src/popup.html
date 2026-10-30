@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font: 13px system-ui;
+        width: 24rem;
+        padding: 0.75rem;
+      }
+      pre {
+        white-space: pre-wrap;
+        font: inherit;
+      }
+      button {
+        margin-right: 0.4rem;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="subject"></p>
+    <p><button id="sum">Summarize</button><button id="reply">Draft reply</button></p>
+    <label
+      >Reply should…
+      <input id="instr" placeholder="accept, decline, ask for details…" style="width: 100%"
+    /></label>
+    <pre id="out" role="status"></pre>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
