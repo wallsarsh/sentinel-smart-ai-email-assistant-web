@@ -9,6 +9,9 @@ function checkBaseUrl(raw) {
 // thunderbird/src/options.js
 var $ = (id) => document.getElementById(id);
 var { settings } = await browser.storage.local.get("settings");
+var { briefSettings } = await browser.storage.local.get("briefSettings");
+$("briefOn").checked = briefSettings?.enabled ?? true;
+$("briefHour").value = briefSettings?.hour ?? 8;
 for (const k of ["baseUrl", "apiKey", "model"]) $(k).value = settings?.[k] ?? "";
 $("f").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -22,7 +25,13 @@ $("f").addEventListener("submit", async (e) => {
     const url = new URL(next.baseUrl);
     const ok = await browser.permissions.request({ origins: [`${url.origin}/*`] });
     if (!ok) throw new Error("Permission to contact the provider was not granted.");
-    await browser.storage.local.set({ settings: next });
+    await browser.storage.local.set({
+      settings: next,
+      briefSettings: {
+        enabled: $("briefOn").checked,
+        hour: Math.min(23, Math.max(0, Number($("briefHour").value) || 8))
+      }
+    });
     $("status").textContent = "Saved.";
   } catch (err) {
     $("status").textContent = err.message;

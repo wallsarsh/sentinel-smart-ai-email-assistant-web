@@ -3,17 +3,12 @@ import type { Db } from '../db/client'
 import { buildUserContext } from '../ai/user-context'
 import { builderOptions } from '../ai/prompts/from-settings'
 import { PromptBuilder, type BriefEmail } from '../ai/prompts/builder'
-import { briefPrompt } from '../ai/prompts/registry'
-import { structuredCall, type Attempt, type Caller } from '../ai/structured'
+import { runBrief } from '../../packages/core/src/brief'
+import type { Attempt } from '../ai/structured'
 import type { aiRouter } from '../ai/router'
 import { forUser } from '../repos'
 import { ruleMatches } from '../triage/prefilter'
-import {
-  BRIEF_SECTIONS,
-  type BriefSection,
-  type BriefStats,
-  type DailyBrief,
-} from '../../shared/brief'
+import type { BriefSection, BriefStats, DailyBrief } from '../../shared/brief'
 import type { AppFailure } from '../../shared/errors/failure'
 import { err, ok, type Result } from '../../shared/errors/result'
 
@@ -28,11 +23,6 @@ export type BriefDeps = {
   }
   maxEmails?: number
   maxItemsPerSection?: number
-}
-
-const clip = (s: string, max: number) => {
-  const one = s.replace(/\s+/g, ' ').trim()
-  return one.length <= max ? one : `${one.slice(0, max - 1)}…`
 }
 
 const LABEL = { p1_do_now: 'P1', p2_today: 'P2', p3_this_week: 'P3', p4_fyi: 'P4' } as const
@@ -134,65 +124,23 @@ export function briefGenerator(d: BriefDeps) {
 
     ranked.sort((a, b) => a.rank - b.rank || b.at.getTime() - a.at.getTime())
     const chosen = ranked.slice(0, maxEmails).map((r) => emails.get(r.id)!)
-    const prompt = new PromptBuilder(builderOptions(await repos.settings.all())).buildBrief(
-      chosen,
-      ctx,
-      {
-        windowStart: start,
-        windowEnd: end,
-        stats: { ...stats },
-      },
-    )
-
     let provenance: { providerId: string; model: string } | null = null
-    const call: Caller = async (turn) => {
-      const r = await d.router.complete(
-        userId,
-        turn.kind === 'repair' ? 'repair' : 'brief',
-        () => ({
-          system: briefPrompt.system,
-          user:
-            turn.kind === 'repair'
-              ? `${prompt.text}\n\n<previous_output>\n${turn.invalid}\n</previous_output>\n${turn.prompt}`
-              : prompt.text,
-          maxTokens: turn.kind === 'retry_longer' ? 4000 : 2000,
-          schema: briefPrompt.schema,
-        }),
-      )
-      if (!r.ok) return r
-      provenance ??= { providerId: r.value.route.providerId, model: r.value.route.model }
-      return ok<Attempt>({ text: r.value.text, stop: r.value.stop })
-    }
-    const res = await structuredCall(call, briefPrompt.schema!.schema)
+    const res = await runBrief({
+      emails: chosen,
+      ctx,
+      window: { start, end },
+      stats: { ...stats },
+      builder: new PromptBuilder(builderOptions(await repos.settings.all())),
+      maxItems,
+      ask: async (req, kind) => {
+        const r = await d.router.complete(userId, kind, () => req)
+        if (!r.ok) return r
+        provenance ??= { providerId: r.value.route.providerId, model: r.value.route.model }
+        return ok<Attempt>({ text: r.value.text, stop: r.value.stop })
+      },
+    })
     if (!res.ok) return res
-
-    const parsed = res.value as {
-      headline: string
-      sections: { type: string; items: { text: string; emailIds: string[] }[] }[]
-    }
-    const byType = new Map<string, { text: string; messageIds: string[] }[]>()
-    const seen = new Set<string>()
-    for (const sec of parsed.sections) {
-      if (!(BRIEF_SECTIONS as readonly string[]).includes(sec.type)) continue
-      for (const item of sec.items) {
-        const valid: string[] = []
-        for (const id of item.emailIds) {
-          const local = prompt.idMap[id]
-          if (local && !valid.includes(local)) valid.push(local)
-        }
-        const text = clip(item.text, 160)
-        if (!valid.length || !text || seen.has(text)) continue
-        seen.add(text)
-        const list = byType.get(sec.type) ?? []
-        if (list.length < maxItems) list.push({ text, messageIds: valid })
-        byType.set(sec.type, list)
-      }
-    }
-    const sections: BriefSection[] = BRIEF_SECTIONS.filter((t) => byType.get(t)?.length).map(
-      (type) => ({ type, items: byType.get(type)! }),
-    )
-    const headline = clip(parsed.headline, 400)
-    if (!headline && !sections.length) return err({ kind: 'ai_output', problem: 'empty' })
+    const { headline, sections } = res.value
     const p = provenance as { providerId: string; model: string } | null
     return ok(
       await store(

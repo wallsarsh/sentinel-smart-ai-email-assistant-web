@@ -47,7 +47,7 @@ export function toMailMessage(header, full) {
     bodyHtml: text.trim() ? null : html || null,
     attachmentNames,
     references: [],
-    listUnsubscribe: null,
+    listUnsubscribe: full?.headers?.['list-unsubscribe']?.[0] ?? null,
   }
 }
 

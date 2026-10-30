@@ -30,16 +30,15 @@ const provider = (s, fetchImpl) =>
     http: fetchHttp(fetchImpl),
   })
 
-/** One structured call: priority, summary, whether it needs a reply, and action items. */
-export async function analyze(settings, message, ctx, fetchImpl) {
+/** Triage for several messages in one call. Returns a Map of providerMessageId → result. */
+export async function analyzeBatch(settings, messages, ctx, fetchImpl) {
   const prompt = builder().buildTriage(
-    [{ messageId: String(message.providerMessageId), message }],
+    messages.map((m) => ({ messageId: String(m.providerMessageId), message: m })),
     ctx,
   )
   const p = provider(settings, fetchImpl)
-  let calls = 0
+  const base = 300 * messages.length + 900 // generous: thinking models spend part of the budget before answering
   const res = await structuredCall(async (turn) => {
-    calls++
     const r = await p.complete({
       model: settings.model,
       system: triagePrompt.system,
@@ -47,17 +46,35 @@ export async function analyze(settings, message, ctx, fetchImpl) {
         turn.kind === 'repair'
           ? `${prompt.text}\n\n<previous_output>\n${turn.invalid}\n</previous_output>\n${turn.prompt}`
           : prompt.text,
-      // Generous on purpose: models that think before answering spend part of this budget on that, and a
-      // too-small limit shows up as a cut-off (truncated) answer. Only the tokens actually produced are billed.
-      maxTokens: turn.kind === 'retry_longer' ? 4000 : 1200,
+      maxTokens: turn.kind === 'retry_longer' ? base * 3 : base,
       schema: triagePrompt.schema,
     })
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r
   }, triagePrompt.schema.schema)
   if (!res.ok) throw new Error(describe(res.error))
-  const item = res.value.results?.[0]
+  const out = new Map()
+  for (const item of res.value.results ?? []) {
+    const id = prompt.idMap[item.id]
+    if (id && !out.has(id)) out.set(id, item)
+  }
+  return out
+}
+
+/** One message: priority, summary, whether it needs a reply, and action items. */
+export async function analyze(settings, message, ctx, fetchImpl) {
+  const out = await analyzeBatch(settings, [message], ctx, fetchImpl)
+  const item = out.get(String(message.providerMessageId))
   if (!item) throw new Error('The AI returned no result.')
-  return { ...item, calls }
+  return item
+}
+
+/** The model call the shared brief runner uses. */
+export function briefAsk(settings, fetchImpl) {
+  const p = provider(settings, fetchImpl)
+  return async (req) => {
+    const r = await p.complete({ ...req, model: settings.model })
+    return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r
+  }
 }
 
 /** A reply body, as plain text. `thread` is the newest-last list of MailMessage. */

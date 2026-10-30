@@ -983,7 +983,7 @@ function toMailMessage(header, full) {
     bodyHtml: text.trim() ? null : html || null,
     attachmentNames,
     references: [],
-    listUnsubscribe: null
+    listUnsubscribe: full?.headers?.["list-unsubscribe"]?.[0] ?? null
   };
 }
 function selfFrom(accounts) {
@@ -1015,15 +1015,14 @@ var provider = (s, fetchImpl) => openAiProvider({
   options: { tokensParam: "max_tokens" },
   http: fetchHttp(fetchImpl)
 });
-async function analyze(settings2, message, ctx, fetchImpl) {
+async function analyzeBatch(settings2, messages, ctx, fetchImpl) {
   const prompt = builder().buildTriage(
-    [{ messageId: String(message.providerMessageId), message }],
+    messages.map((m) => ({ messageId: String(m.providerMessageId), message: m })),
     ctx
   );
   const p = provider(settings2, fetchImpl);
-  let calls = 0;
+  const base = 300 * messages.length + 900;
   const res = await structuredCall(async (turn) => {
-    calls++;
     const r = await p.complete({
       model: settings2.model,
       system: triagePrompt.system,
@@ -1033,17 +1032,24 @@ async function analyze(settings2, message, ctx, fetchImpl) {
 ${turn.invalid}
 </previous_output>
 ${turn.prompt}` : prompt.text,
-      // Generous on purpose: models that think before answering spend part of this budget on that, and a
-      // too-small limit shows up as a cut-off (truncated) answer. Only the tokens actually produced are billed.
-      maxTokens: turn.kind === "retry_longer" ? 4e3 : 1200,
+      maxTokens: turn.kind === "retry_longer" ? base * 3 : base,
       schema: triagePrompt.schema
     });
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r;
   }, triagePrompt.schema.schema);
   if (!res.ok) throw new Error(describe(res.error));
-  const item = res.value.results?.[0];
+  const out = /* @__PURE__ */ new Map();
+  for (const item of res.value.results ?? []) {
+    const id = prompt.idMap[item.id];
+    if (id && !out.has(id)) out.set(id, item);
+  }
+  return out;
+}
+async function analyze(settings2, message, ctx, fetchImpl) {
+  const out = await analyzeBatch(settings2, [message], ctx, fetchImpl);
+  const item = out.get(String(message.providerMessageId));
   if (!item) throw new Error("The AI returned no result.");
-  return { ...item, calls };
+  return item;
 }
 async function draftReply(settings2, thread, ctx, request, fetchImpl) {
   const prompt = builder().buildDraft(
@@ -1081,6 +1087,51 @@ function describe(f) {
   }
 }
 
+// thunderbird/src/cache.js
+var TRIAGE_PREFIX = "sentinel.triage:";
+var triageKey = (header) => `${TRIAGE_PREFIX}${header.headerMessageId ?? header.id}`;
+var localStore = (area) => ({
+  async get(key) {
+    return (await area.get(key))[key] ?? null;
+  },
+  async set(key, value) {
+    await area.set({ [key]: value });
+  }
+});
+
+// thunderbird/src/summary.js
+async function getOrAnalyze({
+  store,
+  header,
+  settings: settings2,
+  message,
+  ctx,
+  fetchImpl,
+  force = false
+}) {
+  const key = triageKey(header);
+  const hit = force ? null : await store.get(key);
+  if (hit) return { result: hit, cached: true, at: hit.at };
+  const result = await analyze(settings2, message, ctx, fetchImpl);
+  const saved = { ...result, sender: header.author, by: "ai", at: Date.now() };
+  await store.set(key, saved);
+  return { result: saved, cached: false, at: saved.at };
+}
+var PRIORITY = { high: "High importance", medium: "Medium importance", low: "Low importance" };
+function formatSummary(r) {
+  const lines = [
+    `${PRIORITY[r.importance] ?? r.importance}${r.urgency === "urgent" ? " \xB7 urgent" : ""}${r.needsReply ? " \xB7 needs a reply" : ""}`,
+    "",
+    r.summary
+  ];
+  if (r.actionItems?.length) {
+    lines.push("", "Action items:");
+    for (const a of r.actionItems)
+      lines.push(`\u2022 ${a.text}${a.dueText || a.dueDate ? ` (${a.dueText || a.dueDate})` : ""}`);
+  }
+  return lines.join("\n");
+}
+
 // thunderbird/src/popup.js
 var $ = (id) => document.getElementById(id);
 var say = (t) => $("out").textContent = t;
@@ -1092,7 +1143,7 @@ async function current() {
   if (!header) throw new Error("Open a message first.");
   const full = await browser.messages.getFull(header.id);
   const ctx = userContext(await browser.accounts.list());
-  return { id: header.id, message: toMailMessage(header, full), ctx };
+  return { id: header.id, header, message: toMailMessage(header, full), ctx };
 }
 async function settings() {
   const { settings: s } = await browser.storage.local.get("settings");
@@ -1110,22 +1161,24 @@ async function run(fn) {
     say(e.message);
   }
 }
-var PRIORITY = { high: "High importance", medium: "Medium importance", low: "Low importance" };
-$("sum").onclick = () => run(async () => {
+async function summarize(force) {
   const m = await current();
-  const r = await analyze(await settings(), m.message, m.ctx);
-  const lines = [
-    `${PRIORITY[r.importance] ?? r.importance}${r.urgency === "urgent" ? " \xB7 urgent" : ""}${r.needsReply ? " \xB7 needs a reply" : ""}`,
-    "",
-    r.summary
-  ];
-  if (r.actionItems.length) {
-    lines.push("", "Action items:");
-    for (const a of r.actionItems)
-      lines.push(`\u2022 ${a.text}${a.dueText || a.dueDate ? ` (${a.dueText || a.dueDate})` : ""}`);
-  }
-  say(lines.join("\n"));
-});
+  const { result, cached, at } = await getOrAnalyze({
+    store: localStore(browser.storage.local),
+    header: m.header,
+    settings: await settings(),
+    message: m.message,
+    ctx: m.ctx,
+    force
+  });
+  say(formatSummary(result));
+  $("again").hidden = !cached;
+  if (cached)
+    $("note").textContent = `Saved analysis from ${new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}. No AI call was made.`;
+  else $("note").textContent = "";
+}
+$("sum").onclick = () => run(() => summarize(false));
+$("again").onclick = () => run(() => summarize(true));
 $("reply").onclick = () => run(async () => {
   const m = await current();
   const instruction = $("instr").value.trim();

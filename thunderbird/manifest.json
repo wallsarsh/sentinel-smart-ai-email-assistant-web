@@ -10,10 +10,12 @@
     }
   },
   "permissions": [
-    "messagesRead",
+    "accountsRead",
+    "alarms",
     "compose",
-    "storage",
-    "accountsRead"
+    "messagesRead",
+    "notifications",
+    "storage"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -33,5 +35,9 @@
       "dist/background.js"
     ],
     "type": "module"
+  },
+  "action": {
+    "default_title": "Sentinel daily brief",
+    "default_popup": "dist/brief.html"
   }
 }

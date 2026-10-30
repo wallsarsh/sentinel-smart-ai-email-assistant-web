@@ -1,4 +1,6 @@
-import { analyze, draftReply, userContext } from './ai.js'
+import { draftReply, userContext } from './ai.js'
+import { localStore } from './cache.js'
+import { formatSummary, getOrAnalyze } from './summary.js'
 import { toMailMessage } from './mail.js'
 
 const $ = (id) => document.getElementById(id)
@@ -15,7 +17,7 @@ async function current() {
   if (!header) throw new Error('Open a message first.')
   const full = await browser.messages.getFull(header.id)
   const ctx = userContext(await browser.accounts.list())
-  return { id: header.id, message: toMailMessage(header, full), ctx }
+  return { id: header.id, header, message: toMailMessage(header, full), ctx }
 }
 
 async function settings() {
@@ -36,24 +38,26 @@ async function run(fn) {
   }
 }
 
-const PRIORITY = { high: 'High importance', medium: 'Medium importance', low: 'Low importance' }
-
-$('sum').onclick = () =>
-  run(async () => {
-    const m = await current()
-    const r = await analyze(await settings(), m.message, m.ctx)
-    const lines = [
-      `${PRIORITY[r.importance] ?? r.importance}${r.urgency === 'urgent' ? ' · urgent' : ''}${r.needsReply ? ' · needs a reply' : ''}`,
-      '',
-      r.summary,
-    ]
-    if (r.actionItems.length) {
-      lines.push('', 'Action items:')
-      for (const a of r.actionItems)
-        lines.push(`• ${a.text}${a.dueText || a.dueDate ? ` (${a.dueText || a.dueDate})` : ''}`)
-    }
-    say(lines.join('\n'))
+async function summarize(force) {
+  const m = await current()
+  const { result, cached, at } = await getOrAnalyze({
+    store: localStore(browser.storage.local),
+    header: m.header,
+    settings: await settings(),
+    message: m.message,
+    ctx: m.ctx,
+    force,
   })
+  say(formatSummary(result))
+  $('again').hidden = !cached
+  if (cached)
+    $('note').textContent =
+      `Saved analysis from ${new Date(at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}. No AI call was made.`
+  else $('note').textContent = ''
+}
+
+$('sum').onclick = () => run(() => summarize(false))
+$('again').onclick = () => run(() => summarize(true))
 
 // The draft opens in Thunderbird's own reply window. Nothing is sent from here.
 $('reply').onclick = () =>
