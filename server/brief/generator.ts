@@ -8,7 +8,7 @@ import type { Attempt } from '../ai/structured'
 import type { aiRouter } from '../ai/router'
 import { forUser } from '../repos'
 import { ruleMatches } from '../triage/prefilter'
-import { type BriefSection, type BriefStats, type DailyBrief } from '../../shared/brief'
+import type { BriefSection, BriefStats, DailyBrief } from '../../shared/brief'
 import type { AppFailure } from '../../shared/errors/failure'
 import { err, ok, type Result } from '../../shared/errors/result'
 
