@@ -2,11 +2,11 @@ import { PromptBuilder } from '../../packages/core/src/prompts/builder'
 import { briefRank, PRIORITY_LABEL, priorityOf, runBrief } from '../../packages/core/src/brief'
 import { analyzeBatch, briefAsk, describe } from './ai.js'
 import { toMailMessage } from './mail.js'
+import { TRIAGE_PREFIX, triageKey } from './cache.js'
 
 const DAY = 24 * 3600_000
 const KEEP_MS = 14 * DAY
 const BATCH = 8
-const SELF_PREFIX = 'sentinel.triage:'
 
 /** Mail that announces itself as a list (List-Unsubscribe) is filed as a newsletter without asking the AI. */
 const newsletterEntry = (m) => ({
@@ -87,7 +87,7 @@ export async function generateBrief({
   const rows = []
   const todo = []
   for (const h of headers) {
-    const key = `${SELF_PREFIX}${h.headerMessageId ?? h.id}`
+    const key = triageKey(h)
     const hit = await api.cache.get(key)
     if (hit)
       rows.push({ id: h.id, at: new Date(h.date), t: { ...hit, sender: hit.sender || h.author } })
@@ -120,7 +120,7 @@ export async function generateBrief({
       rows.push({ id: c.h.id, at: new Date(c.h.date), t })
     }
   }
-  await api.cache.prune(SELF_PREFIX, Date.now() - KEEP_MS)
+  await api.cache.prune(TRIAGE_PREFIX, Date.now() - KEEP_MS)
 
   const { stats, emails } = selectForBrief(rows)
   const heads = Object.fromEntries(

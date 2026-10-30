@@ -11,6 +11,8 @@ import {
   withDraft,
 } from '../../thunderbird/src/mail.js'
 // @ts-expect-error plain JS modules shipped inside the extension
+import { formatSummary, getOrAnalyze } from '../../thunderbird/src/summary.js'
+// @ts-expect-error plain JS modules shipped inside the extension
 import { generateBrief, nextRun, selectForBrief } from '../../thunderbird/src/brief.js'
 import '../../server/ai/prompts/text' // jsdom stands in for the browser's DOMParser
 
@@ -310,6 +312,24 @@ describe('daily brief in the extension', () => {
     expect(prompts[0]).toContain('id=e1')
   })
 
+  it('uses an analysis that Summarize stored earlier', async () => {
+    const { api, fetchImpl, prompts } = setup()
+    await api.cache.set('sentinel.triage:m1@x', {
+      category: 'workRequest',
+      importance: 'high',
+      urgency: 'urgent',
+      needsReply: true,
+      summary: 'Stored by Summarize.',
+      actionItems: [],
+      sender: 'Alex Chen <alex@acme.example>',
+      by: 'ai',
+      at: Date.now(),
+    })
+    await generateBrief({ api, settings, ctx: userContext(accounts, now), now, fetchImpl })
+    expect(prompts[0]).not.toContain('final Q3 numbers') // message 1 was not sent to the AI again
+    expect(prompts.join()).toContain('Stored by Summarize.')
+  })
+
   it('makes no AI call and says nothing new when only list mail arrived', async () => {
     const { api, fetchImpl, prompts } = setup()
     api.recent = async () => [hdr(2, 'Shop <deals@shop.example>', 'Deals')]
@@ -348,5 +368,86 @@ describe('daily brief in the extension', () => {
   it('schedules the next run today or tomorrow', () => {
     expect(nextRun(new Date(2026, 9, 27, 7, 0), 8)).toEqual(new Date(2026, 9, 27, 8, 0))
     expect(nextRun(new Date(2026, 9, 27, 9, 0), 8)).toEqual(new Date(2026, 9, 28, 8, 0))
+  })
+})
+
+describe('summarize reuses the stored analysis', () => {
+  const triage = {
+    results: [
+      {
+        id: 'e1',
+        category: 'workRequest',
+        importance: 'high',
+        urgency: 'urgent',
+        needsReply: true,
+        summary: 'Alex wants Q3 numbers.',
+        reason: 'r',
+        actionItems: [{ text: 'Send Q3', dueDate: null, dueText: 'Friday' }],
+        confidence: 0.9,
+      },
+    ],
+  }
+  const memory = () => {
+    const m = new Map<string, unknown>()
+    return {
+      m,
+      get: async (k: string) => m.get(k) ?? null,
+      set: async (k: string, v: unknown) => void m.set(k, v),
+    }
+  }
+  const h = { id: 7, headerMessageId: 'm7@x', author: 'Alex <alex@acme.example>' }
+  const run = (store: ReturnType<typeof memory>, f: typeof fetch, force = false) =>
+    getOrAnalyze({
+      store,
+      header: h,
+      settings,
+      message: toMailMessage(header, full),
+      ctx: userContext(accounts),
+      fetchImpl: f,
+      force,
+    })
+
+  it('asks the AI once, then answers from storage with no call', async () => {
+    const store = memory()
+    const { f, calls } = fakeFetch(JSON.stringify(triage))
+    const first = await run(store, f)
+    expect(first.cached).toBe(false)
+    const second = await run(store, f)
+    expect(second).toMatchObject({ cached: true, result: { summary: 'Alex wants Q3 numbers.' } })
+    expect(calls).toHaveLength(1)
+  })
+
+  it('Analyze again forces a new call and replaces the stored result', async () => {
+    const store = memory()
+    const { f, calls } = fakeFetch(JSON.stringify(triage))
+    await run(store, f)
+    const again = await run(store, f, true)
+    expect(again.cached).toBe(false)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('stores in the same place the brief reads, so the brief does not pay for it again', async () => {
+    const store = memory()
+    const { f } = fakeFetch(JSON.stringify(triage))
+    await run(store, f)
+    expect([...store.m.keys()]).toEqual(['sentinel.triage:m7@x'])
+    expect(store.m.get('sentinel.triage:m7@x')).toMatchObject({
+      importance: 'high',
+      sender: 'Alex <alex@acme.example>',
+      by: 'ai',
+    })
+  })
+
+  it('does not store a failed analysis', async () => {
+    const store = memory()
+    const f = (async () => new Response('', { status: 500 })) as typeof fetch
+    await expect(run(store, f)).rejects.toThrow()
+    expect(store.m.size).toBe(0)
+  })
+
+  it('formats the stored result for the popup', () => {
+    expect(formatSummary(triage.results[0])).toBe(
+      'High importance · urgent · needs a reply\n\nAlex wants Q3 numbers.\n\nAction items:\n• Send Q3 (Friday)',
+    )
   })
 })

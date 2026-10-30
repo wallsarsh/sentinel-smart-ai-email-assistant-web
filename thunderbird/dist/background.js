@@ -1162,11 +1162,14 @@ ${turn.prompt}` : prompt.text,
   return ok(out);
 }
 
+// thunderbird/src/cache.js
+var TRIAGE_PREFIX = "sentinel.triage:";
+var triageKey = (header) => `${TRIAGE_PREFIX}${header.headerMessageId ?? header.id}`;
+
 // thunderbird/src/brief.js
 var DAY = 24 * 36e5;
 var KEEP_MS = 14 * DAY;
 var BATCH = 8;
-var SELF_PREFIX = "sentinel.triage:";
 var newsletterEntry = (m) => ({
   category: "newsletterMarketing",
   importance: "low",
@@ -1231,7 +1234,7 @@ async function generateBrief({
   const rows = [];
   const todo = [];
   for (const h of headers) {
-    const key = `${SELF_PREFIX}${h.headerMessageId ?? h.id}`;
+    const key = triageKey(h);
     const hit = await api2.cache.get(key);
     if (hit)
       rows.push({ id: h.id, at: new Date(h.date), t: { ...hit, sender: hit.sender || h.author } });
@@ -1262,7 +1265,7 @@ async function generateBrief({
       rows.push({ id: c.h.id, at: new Date(c.h.date), t });
     }
   }
-  await api2.cache.prune(SELF_PREFIX, Date.now() - KEEP_MS);
+  await api2.cache.prune(TRIAGE_PREFIX, Date.now() - KEEP_MS);
   const { stats, emails } = selectForBrief(rows);
   const heads = Object.fromEntries(
     headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }])
