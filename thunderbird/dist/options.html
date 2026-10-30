@@ -28,6 +28,16 @@
       /></label>
       <label>API key<input id="apiKey" type="password" autocomplete="off" required /></label>
       <label>Model<input id="model" required placeholder="gpt-4o-mini" /></label>
+      <fieldset style="margin-top: 1.5rem">
+        <legend>Daily brief</legend>
+        <label
+          ><input id="briefOn" type="checkbox" style="width: auto" /> Build a brief every day and
+          notify me</label
+        >
+        <label
+          >At (hour of day, 0-23)<input id="briefHour" type="number" min="0" max="23" required
+        /></label>
+      </fieldset>
       <p><button type="submit">Save</button> <span id="status" role="status"></span></p>
     </form>
     <p>The key is stored in this Thunderbird profile and sent only to the URL above.</p>

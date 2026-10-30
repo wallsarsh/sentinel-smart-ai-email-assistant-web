@@ -983,7 +983,7 @@ function toMailMessage(header, full) {
     bodyHtml: text.trim() ? null : html || null,
     attachmentNames,
     references: [],
-    listUnsubscribe: null
+    listUnsubscribe: full?.headers?.["list-unsubscribe"]?.[0] ?? null
   };
 }
 function selfFrom(accounts) {
@@ -1015,15 +1015,14 @@ var provider = (s, fetchImpl) => openAiProvider({
   options: { tokensParam: "max_tokens" },
   http: fetchHttp(fetchImpl)
 });
-async function analyze(settings2, message, ctx, fetchImpl) {
+async function analyzeBatch(settings2, messages, ctx, fetchImpl) {
   const prompt = builder().buildTriage(
-    [{ messageId: String(message.providerMessageId), message }],
+    messages.map((m) => ({ messageId: String(m.providerMessageId), message: m })),
     ctx
   );
   const p = provider(settings2, fetchImpl);
-  let calls = 0;
+  const base = 300 * messages.length + 900;
   const res = await structuredCall(async (turn) => {
-    calls++;
     const r = await p.complete({
       model: settings2.model,
       system: triagePrompt.system,
@@ -1033,17 +1032,24 @@ async function analyze(settings2, message, ctx, fetchImpl) {
 ${turn.invalid}
 </previous_output>
 ${turn.prompt}` : prompt.text,
-      // Generous on purpose: models that think before answering spend part of this budget on that, and a
-      // too-small limit shows up as a cut-off (truncated) answer. Only the tokens actually produced are billed.
-      maxTokens: turn.kind === "retry_longer" ? 4e3 : 1200,
+      maxTokens: turn.kind === "retry_longer" ? base * 3 : base,
       schema: triagePrompt.schema
     });
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r;
   }, triagePrompt.schema.schema);
   if (!res.ok) throw new Error(describe(res.error));
-  const item = res.value.results?.[0];
+  const out = /* @__PURE__ */ new Map();
+  for (const item of res.value.results ?? []) {
+    const id = prompt.idMap[item.id];
+    if (id && !out.has(id)) out.set(id, item);
+  }
+  return out;
+}
+async function analyze(settings2, message, ctx, fetchImpl) {
+  const out = await analyzeBatch(settings2, [message], ctx, fetchImpl);
+  const item = out.get(String(message.providerMessageId));
   if (!item) throw new Error("The AI returned no result.");
-  return { ...item, calls };
+  return item;
 }
 async function draftReply(settings2, thread, ctx, request, fetchImpl) {
   const prompt = builder().buildDraft(
