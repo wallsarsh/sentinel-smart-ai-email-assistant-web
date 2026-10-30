@@ -1033,7 +1033,9 @@ async function analyze(settings2, message, ctx, fetchImpl) {
 ${turn.invalid}
 </previous_output>
 ${turn.prompt}` : prompt.text,
-      maxTokens: turn.kind === "retry_longer" ? 900 : 450,
+      // Generous on purpose: models that think before answering spend part of this budget on that, and a
+      // too-small limit shows up as a cut-off (truncated) answer. Only the tokens actually produced are billed.
+      maxTokens: turn.kind === "retry_longer" ? 4e3 : 1200,
       schema: triagePrompt.schema
     });
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r;
@@ -1053,7 +1055,7 @@ async function draftReply(settings2, thread, ctx, request, fetchImpl) {
     model: settings2.model,
     system: draftPrompt.system,
     user: prompt.text,
-    maxTokens: 800,
+    maxTokens: 1500,
     temperature: 0.4
   });
   if (!r.ok) throw new Error(describe(r.error));
