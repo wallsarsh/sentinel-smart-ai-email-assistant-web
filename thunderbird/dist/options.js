@@ -337,7 +337,7 @@ function status(node, message, kind = "") {
   node.textContent = message ?? "";
   node.hidden = !message;
 }
-var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dashboard.html") }).catch(() => void 0);
+var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 
 // thunderbird/src/options.js
 var $ = (id) => document.getElementById(id);

@@ -668,7 +668,7 @@ function renderDrafts({ drafts }) {
           el("span", { class: "item__title", text: d.subject || "(no subject)" }),
           chip(d.status === "saved" ? "Saved draft" : "Save failed", d.status === "saved" ? "chip--ok" : "chip--warn")
         ),
-        el("div", { class: "item__meta", text: `${d.sender || "Unknown sender"} \xB7 ${formatDateTime(d.at)}` }),
+        el("div", { class: "item__meta", text: `${d.sender || "Unknown sender"} \xB7 ${formatDateTime(d.at)}${d.draftFolder ? ` \xB7 ${d.draftFolder}` : ""}` }),
         el(
           "div",
           { class: "actions" },
