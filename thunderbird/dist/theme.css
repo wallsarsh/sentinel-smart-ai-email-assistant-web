@@ -740,6 +740,13 @@ button.item:hover {
   font-size: 12px;
 }
 
+.fieldset-reset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
 .footer {
   margin-top: var(--space-6);
   color: var(--muted);

@@ -36,6 +36,7 @@ import {
   draftEligibility,
   draftRequest,
   maybeCreateDrafts,
+  pickIdentity,
   referencedMessageIds,
 } from '../../thunderbird/src/drafts.js'
 // @ts-expect-error plain JS modules shipped inside the extension
@@ -51,6 +52,8 @@ import {
 import { briefWindow, refreshBrief, shouldRefreshBrief } from '../../thunderbird/src/brief.js'
 // @ts-expect-error plain JS modules shipped inside the extension
 import { INTENT_LABEL, PRIORITY_LABEL, relativeTime } from '../../thunderbird/src/ui.js'
+// @ts-expect-error plain JS modules shipped inside the extension
+import { TONE_IDS, toneLabel, toneRequest } from '../../thunderbird/src/tones.js'
 
 const sender = (address: string, name = '') => (name ? { address, name } : { address })
 const mail = (over: Record<string, unknown> = {}) => ({
@@ -490,6 +493,19 @@ describe('Thunderbird drafts', () => {
     ...over,
   })
 
+  it('picks the identity that belongs to the message account', () => {
+    const account = {
+      identities: [
+        { id: 'other', email: 'other@elsewhere.test' },
+        { id: 'work', email: 'priya@corp.example' },
+      ],
+    }
+    expect(pickIdentity(account, header(1, { recipients: ['Priya <priya@corp.example>'] }))).toMatchObject({
+      id: 'work',
+    })
+    expect(pickIdentity({ identities: [] }, header(1))).toBeNull()
+  })
+
   it('reads In-Reply-To and References into a reply index', () => {
     const full = {
       headers: {
@@ -816,12 +832,13 @@ describe('Thunderbird surfaces and safety', () => {
   })
 
   it('uses the shared stylesheet on every page and no inline style blocks', () => {
-    for (const page of ['popup.html', 'dashboard.html', 'brief.html', 'options.html']) {
+    for (const page of ['popup.html', 'dashboard.html', 'brief.html', 'options.html', 'compose.html']) {
       const html = read(`thunderbird/src/${page}`)
       expect(html).toContain('href="theme.css"')
       expect(html).not.toContain('<style')
       expect(html).not.toContain('onclick=')
     }
+    expect(read('thunderbird/src/ui.js')).toContain("getURL('dist/dashboard.html')")
     const css = read('thunderbird/src/theme.css')
     expect(css).toContain(':focus-visible')
     expect(css).toContain('prefers-reduced-motion')
@@ -835,6 +852,22 @@ describe('Thunderbird surfaces and safety', () => {
       expect(src, file).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML/)
       expect(src, file).not.toMatch(/new Function\(|\beval\(/)
     }
+  })
+
+  it('offers standard and expressive tones without changing the send path', () => {
+    expect(TONE_IDS).toEqual(
+      expect.arrayContaining(['standard', 'professional', 'creative', 'casual', 'apologetic']),
+    )
+    expect(toneLabel('creative')).toBe('Creative')
+    expect(toneRequest('standard', { intent: 'accept' })).toEqual({
+      tone: 'professional',
+      intent: 'accept',
+    })
+    expect(toneRequest('casual', { intent: 'acknowledge', instruction: 'Mention Friday.' })).toMatchObject({
+      tone: 'friendly',
+      intent: 'acknowledge',
+    })
+    expect(toneRequest('casual').instruction).toMatch(/conversational/i)
   })
 
   it('exposes readable labels and relative times', () => {

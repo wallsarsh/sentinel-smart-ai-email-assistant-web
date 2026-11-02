@@ -1788,7 +1788,7 @@ function status(node, message2, kind = "") {
 function empty(message2, action = null) {
   return el("div", { class: "empty" }, el("p", { class: "muted", text: message2 }), action);
 }
-var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dashboard.html") }).catch(() => void 0);
+var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 var send = (message2) => browser.runtime.sendMessage(message2);
 function actionList(actions = []) {
   if (!actions.length) return el("p", { class: "muted", text: "No action items." });

@@ -40,6 +40,8 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | `thunderbird/src/calendar.js` | Candidate normalisation, ICS serialisation, download adapter. | `thunderbird.calendar` |
 | `thunderbird/src/brief.js` | Daily window, hourly refresh policy, cached analysis reuse, brief assembly. | extends existing brief tests |
 | `thunderbird/src/tags.js` | Best-effort Thunderbird tag mapping. | `thunderbird.tags` |
+| `thunderbird/src/tones.js` | Compose tone presets (Standard…Persuasive) mapped to core tones/instructions. | `thunderbird.ui` |
+| `thunderbird/src/compose.*` | Reply-compose action: tone picker, instruction, generate above the quote. | `thunderbird.ui` + manual |
 | `thunderbird/src/ui.js` | Safe DOM primitives, labels, relative time, chips. | `thunderbird.ui` |
 | `thunderbird/src/theme.css` | Design tokens, layout, cards, chips, tabs, forms, dark mode, reduced motion. | visual/manual |
 | `thunderbird/src/dashboard.*` | Brief/Inbox/Drafts/Senders/Settings views. | `thunderbird.ui` + manual |
@@ -64,6 +66,7 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | T172 | Design-system and accessibility polish | T169–T171 | `thunderbird/src/{theme.css,*.html}` |
 | T173 | Manifest, build, docs and automated smoke | T169–T172 | `manifest.json`, `README.md`, `tools/build-extension.mjs`, tests |
 | T174 | Real-Thunderbird validation matrix | T173 | manual only |
+| T175 | Dashboard URL, IMAP draft identity and compose tones | T173 | `compose.*`, `tones.js`, `drafts.js`, `ui.js`, manifest, build, tests |
 
 Critical path: T162 → T163 → T164 → T165 → T168 → T169 → T172 → T173 → T174.
 
@@ -116,7 +119,7 @@ The existing `tests/unit/thunderbird-spike.test.ts` remains the regression suite
 
 ## 9. Status at handoff (2026-11-02)
 
-T162–T173 are implemented and their acceptance boxes are ticked. The automated evidence is:
+T162–T173 are implemented and their acceptance boxes are ticked. T175 fixes the three issues found in the first real-client test (dashboard path, draft identity/folder, compose tone action). The automated evidence is:
 
 ```sh
 npx vitest run tests/unit/thunderbird-spike.test.ts tests/unit/thunderbird-assistant.test.ts tests/unit/thunderbird-ui.test.ts

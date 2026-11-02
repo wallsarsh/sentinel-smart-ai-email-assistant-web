@@ -66,7 +66,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-DRF-01 | M | A message is draft-eligible only when: needs reply, category is not newsletter/notification/social/security, sender policy allows it, no reply or draft already exists, it is within 14 days, and the priority meets `draftMinPriority`. | Ineligible messages never produce a draft. |
 | TB-DRF-02 | M | "Already replied" means a message in the account's Sent folder has an `In-Reply-To`/`References` header containing the message's Message-ID, or the user already has such a draft in Drafts. | Replying in Thunderbird or another device prevents a second auto-draft. |
 | TB-DRF-03 | M | Auto-drafting is capped per run (`maxDraftsPerRun`, default 3) and can be turned off. | A run creates at most the configured count. |
-| TB-DRF-04 | M | Drafts are generated from the message thread with the user's tone, sign-off and reply intent, then saved as a reply in the account's Drafts folder; the draft appears on IMAP and other devices. | Saved draft is threaded (`Re:`, In-Reply-To) and visible in Thunderbird Drafts. |
+| TB-DRF-04 | M | Drafts are generated from the message thread with the user's tone, sign-off and reply intent, then saved as a reply in the account's Drafts folder using the message account's identity; the draft appears on IMAP and other devices. | Saved draft is threaded (`Re:`, In-Reply-To) and visible in the account's Drafts folder. |
 | TB-DRF-05 | M | The extension never calls send. There is no send permission, no send API import, and no auto-send setting. | Manifest has no `compose.send`/`messages.send`; static test passes. |
 | TB-DRF-06 | M | Every created draft is recorded locally with message, subject, sender, account, draft id, status and time; the dashboard lists them. | Draft log survives restart; failed saves are shown as failed. |
 | TB-DRF-07 | S | The user can create or regenerate a draft for the open message from the popup, with a warning if a reply already exists. | Popup shows "Already replied" and asks before creating another. |
@@ -103,6 +103,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-UI-04 | M | Every status change is announced (`role=status`) and every error is readable without a stack trace. | Error text is plain language. |
 | TB-UI-05 | S | The provider key is never displayed again in full; settings show a masked value and keep the existing key when left blank. | Re-saving without a key does not erase it. |
 | TB-UI-06 | S | `prefers-reduced-motion` removes non-essential animation. | CSS only uses motion behind the media query. |
+| TB-UI-07 | M | A Sentinel action in the reply compose window offers Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic and Persuasive tones and inserts the generated draft above the quote. | The compose action is visible, tone selection changes the output, and nothing is sent. |
 
 ### 4.7 Security and privacy (TB-SEC)
 

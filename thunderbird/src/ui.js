@@ -102,7 +102,7 @@ export const openMessage = (id) =>
     : browser.messageDisplay.open({ messageId: Number(id) }).catch(() => undefined)
 
 export const openDashboard = () =>
-  browser.tabs.create({ url: browser.runtime.getURL('dashboard.html') }).catch(() => undefined)
+  browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 
 export const send = (message) => browser.runtime.sendMessage(message)
 

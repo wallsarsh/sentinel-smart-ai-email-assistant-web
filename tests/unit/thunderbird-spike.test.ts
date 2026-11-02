@@ -183,6 +183,7 @@ describe('extension package', () => {
     for (const path of [
       m.background.scripts[0],
       m.message_display_action.default_popup,
+      m.compose_action.default_popup,
       m.options_ui.page,
       m.action.default_popup,
       'dist/dashboard.html',
@@ -191,7 +192,7 @@ describe('extension package', () => {
       expect(existsSync(`thunderbird/${path}`), path).toBe(true)
   })
   it('the built bundle needs no eval (extension CSP) and no Node modules', () => {
-    for (const f of ['popup', 'options', 'background', 'brief-popup', 'dashboard']) {
+    for (const f of ['popup', 'options', 'background', 'brief-popup', 'dashboard', 'compose']) {
       const js = readFileSync(`thunderbird/dist/${f}.js`, 'utf8')
       expect(js).not.toMatch(/new Function\(|\beval\(|from "node:|require\("node:/)
     }
