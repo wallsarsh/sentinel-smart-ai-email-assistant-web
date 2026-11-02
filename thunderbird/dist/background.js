@@ -2146,19 +2146,16 @@ async function saveDraftWithCompose(header, body, { identityId = null } = {}) {
     "replyToSender",
     identityId ? { identityId } : void 0
   );
-  try {
-    const details = await browser.compose.getComposeDetails(tab.id);
-    await browser.compose.setComposeDetails(tab.id, {
-      ...withDraft(details, body),
-      ...identityId ? { identityId } : {}
-    });
-    const result = await browser.compose.saveMessage(tab.id, { mode: "draft" });
-    const saved = result?.messages?.[0];
-    if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
-    return saved;
-  } finally {
-    await browser.tabs.remove(tab.id).catch(() => void 0);
-  }
+  const details = await browser.compose.getComposeDetails(tab.id);
+  await browser.compose.setComposeDetails(tab.id, {
+    ...withDraft(details, body),
+    ...identityId ? { identityId } : {}
+  });
+  const result = await browser.compose.saveMessage(tab.id, { mode: "draft" });
+  const saved = result?.messages?.[0];
+  if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
+  await browser.tabs.remove(tab.id).catch(() => void 0);
+  return saved;
 }
 
 // thunderbird/src/monitor.js

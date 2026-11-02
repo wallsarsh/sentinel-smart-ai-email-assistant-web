@@ -181,17 +181,15 @@ export async function saveDraftWithCompose(header, body, { identityId = null } =
     'replyToSender',
     identityId ? { identityId } : undefined,
   )
-  try {
-    const details = await browser.compose.getComposeDetails(tab.id)
-    await browser.compose.setComposeDetails(tab.id, {
-      ...withDraft(details, body),
-      ...(identityId ? { identityId } : {}),
-    })
-    const result = await browser.compose.saveMessage(tab.id, { mode: 'draft' })
-    const saved = result?.messages?.[0]
-    if (!saved) throw new Error('Thunderbird did not confirm the saved draft.')
-    return saved
-  } finally {
-    await browser.tabs.remove(tab.id).catch(() => undefined)
-  }
+  const details = await browser.compose.getComposeDetails(tab.id)
+  await browser.compose.setComposeDetails(tab.id, {
+    ...withDraft(details, body),
+    ...(identityId ? { identityId } : {}),
+  })
+  const result = await browser.compose.saveMessage(tab.id, { mode: 'draft' })
+  const saved = result?.messages?.[0]
+  if (!saved) throw new Error('Thunderbird did not confirm the saved draft.')
+  // Keep the compose window open if the save failed so the generated text is not lost.
+  await browser.tabs.remove(tab.id).catch(() => undefined)
+  return saved
 }
