@@ -118,6 +118,7 @@ export async function maybeCreateDrafts({
         accountId: item.header.folder?.accountId ?? null,
         draftId: saved?.id ?? null,
         draftHeaderMessageId: saved?.headerMessageId ?? null,
+        draftFolder: saved?.folder?.name ?? null,
         status: 'saved',
         at: now.getTime(),
       }
@@ -143,21 +144,52 @@ export async function maybeCreateDrafts({
   return { created, failed }
 }
 
+const addressOf = (sender) => {
+  const m = /<([^>\s]+)>$/.exec(String(sender ?? ''))
+  return (m ? m[1] : String(sender ?? '')).trim().toLowerCase()
+}
+
+/** Chooses the identity that belongs to the message's account, preferring one of its recipients. */
+export function pickIdentity(account, header) {
+  const identities = account?.identities ?? []
+  if (!identities.length) return null
+  const people = new Set(
+    [header?.author, ...(header?.recipients ?? []), ...(header?.ccList ?? [])]
+      .map(addressOf)
+      .filter(Boolean),
+  )
+  return identities.find((i) => people.has(String(i.email ?? '').toLowerCase())) ?? identities[0]
+}
+
+/** The account identity for a message, so compose saves into that account's Drafts folder. */
+export async function identityForHeader(header, accounts) {
+  const accountId = header?.folder?.accountId
+  if (!accountId) return null
+  const list = accounts ?? (await browser.accounts.list(true))
+  const account = list.find((a) => String(a.id) === String(accountId))
+  return pickIdentity(account, header)?.id ?? null
+}
+
 /** Saves a reply as a draft through Thunderbird's compose window (TB 102+). Never sends. */
-export async function saveDraftWithCompose(header, body) {
+export async function saveDraftWithCompose(header, body, { identityId = null } = {}) {
   if (typeof browser === 'undefined' || !browser.compose?.beginReply)
     throw new Error('Thunderbird compose is not available.')
   if (!browser.compose.saveMessage)
     throw new Error('This Thunderbird version cannot save drafts from add-ons (102+ required).')
-  const tab = await browser.compose.beginReply(header.id, 'replyToSender')
-  try {
-    const details = await browser.compose.getComposeDetails(tab.id)
-    await browser.compose.setComposeDetails(tab.id, withDraft(details, body))
-    const result = await browser.compose.saveMessage(tab.id, { mode: 'draft' })
-    const saved = result?.messages?.[0]
-    if (!saved) throw new Error('Thunderbird did not confirm the saved draft.')
-    return saved
-  } finally {
-    await browser.tabs.remove(tab.id).catch(() => undefined)
-  }
+  const tab = await browser.compose.beginReply(
+    header.id,
+    'replyToSender',
+    identityId ? { identityId } : undefined,
+  )
+  const details = await browser.compose.getComposeDetails(tab.id)
+  await browser.compose.setComposeDetails(tab.id, {
+    ...withDraft(details, body),
+    ...(identityId ? { identityId } : {}),
+  })
+  const result = await browser.compose.saveMessage(tab.id, { mode: 'draft' })
+  const saved = result?.messages?.[0]
+  if (!saved) throw new Error('Thunderbird did not confirm the saved draft.')
+  // Keep the compose window open if the save failed so the generated text is not lost.
+  await browser.tabs.remove(tab.id).catch(() => undefined)
+  return saved
 }

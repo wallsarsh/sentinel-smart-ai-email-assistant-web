@@ -2092,6 +2092,7 @@ async function maybeCreateDrafts({
         accountId: item2.header.folder?.accountId ?? null,
         draftId: saved?.id ?? null,
         draftHeaderMessageId: saved?.headerMessageId ?? null,
+        draftFolder: saved?.folder?.name ?? null,
         status: "saved",
         at: now.getTime()
       };
@@ -2116,22 +2117,45 @@ async function maybeCreateDrafts({
   }
   return { created, failed };
 }
-async function saveDraftWithCompose(header, body) {
+var addressOf2 = (sender) => {
+  const m = /<([^>\s]+)>$/.exec(String(sender ?? ""));
+  return (m ? m[1] : String(sender ?? "")).trim().toLowerCase();
+};
+function pickIdentity(account, header) {
+  const identities = account?.identities ?? [];
+  if (!identities.length) return null;
+  const people = new Set(
+    [header?.author, ...header?.recipients ?? [], ...header?.ccList ?? []].map(addressOf2).filter(Boolean)
+  );
+  return identities.find((i) => people.has(String(i.email ?? "").toLowerCase())) ?? identities[0];
+}
+async function identityForHeader(header, accounts) {
+  const accountId = header?.folder?.accountId;
+  if (!accountId) return null;
+  const list = accounts ?? await browser.accounts.list(true);
+  const account = list.find((a) => String(a.id) === String(accountId));
+  return pickIdentity(account, header)?.id ?? null;
+}
+async function saveDraftWithCompose(header, body, { identityId = null } = {}) {
   if (typeof browser === "undefined" || !browser.compose?.beginReply)
     throw new Error("Thunderbird compose is not available.");
   if (!browser.compose.saveMessage)
     throw new Error("This Thunderbird version cannot save drafts from add-ons (102+ required).");
-  const tab = await browser.compose.beginReply(header.id, "replyToSender");
-  try {
-    const details = await browser.compose.getComposeDetails(tab.id);
-    await browser.compose.setComposeDetails(tab.id, withDraft(details, body));
-    const result = await browser.compose.saveMessage(tab.id, { mode: "draft" });
-    const saved = result?.messages?.[0];
-    if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
-    return saved;
-  } finally {
-    await browser.tabs.remove(tab.id).catch(() => void 0);
-  }
+  const tab = await browser.compose.beginReply(
+    header.id,
+    "replyToSender",
+    identityId ? { identityId } : void 0
+  );
+  const details = await browser.compose.getComposeDetails(tab.id);
+  await browser.compose.setComposeDetails(tab.id, {
+    ...withDraft(details, body),
+    ...identityId ? { identityId } : {}
+  });
+  const result = await browser.compose.saveMessage(tab.id, { mode: "draft" });
+  const saved = result?.messages?.[0];
+  if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
+  await browser.tabs.remove(tab.id).catch(() => void 0);
+  return saved;
 }
 
 // thunderbird/src/monitor.js
@@ -2651,6 +2675,10 @@ async function load() {
   const [settings, rules] = await Promise.all([store.settings(), store.rules()]);
   return { settings, rules };
 }
+async function saveDraftFor(header, body) {
+  const identityId = await identityForHeader(header);
+  return saveDraftWithCompose(header, body, { identityId });
+}
 async function createDraftsFor(analyses, settings, ctx) {
   if (!settings.monitor.autoDraft || !analyses.length) return { created: [], failed: [] };
   const candidates = [];
@@ -2675,7 +2703,7 @@ async function createDraftsFor(analyses, settings, ctx) {
     store,
     isReplied,
     generate: draftReply,
-    save: saveDraftWithCompose,
+    save: saveDraftFor,
     now: /* @__PURE__ */ new Date()
   });
 }
@@ -2850,7 +2878,7 @@ async function manualDraft(messageId, { force = false } = {}) {
     ctx,
     draftRequest(analysis, settings)
   );
-  const saved = await saveDraftWithCompose(header, body);
+  const saved = await saveDraftFor(header, body);
   const entry = {
     messageId: header.id,
     headerMessageId: header.headerMessageId ?? null,
@@ -2859,6 +2887,7 @@ async function manualDraft(messageId, { force = false } = {}) {
     accountId: accountIdOf(header),
     draftId: saved.id ?? null,
     draftHeaderMessageId: saved.headerMessageId ?? null,
+    draftFolder: saved.folder?.name ?? null,
     status: "saved",
     at: Date.now()
   };
@@ -2906,7 +2935,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
       return { ok: true };
     }
     if (msg.type === "open-dashboard") {
-      await browser.tabs.create({ url: browser.runtime.getURL("dashboard.html") });
+      await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") });
       return { ok: true };
     }
     if (msg.type === "status") return { monitor: await store.monitor(), brief: await store.briefStatus() };
@@ -2916,6 +2945,6 @@ browser.runtime.onMessage.addListener(async (msg) => {
   return void 0;
 });
 browser.notifications.onClicked.addListener(() => {
-  void browser.tabs.create({ url: browser.runtime.getURL("dashboard.html") }).catch(() => void 0);
+  void browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 });
 void schedule();

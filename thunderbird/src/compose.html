@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sentinel — draft reply</title>
+    <link rel="stylesheet" href="theme.css" />
+  </head>
+  <body>
+    <div class="page page--popup">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">S</span>
+          <div>
+            <div class="brand__name">Sentinel</div>
+            <div class="brand__sub">Draft this reply</div>
+          </div>
+        </div>
+      </header>
+      <div class="stack">
+        <div id="context" class="meta">Reading the compose window…</div>
+        <div id="status" class="status" role="status"></div>
+        <fieldset class="stack fieldset-reset">
+          <legend class="meta">Tone</legend>
+          <div id="tones" class="chips" role="group" aria-label="Reply tone"></div>
+        </fieldset>
+        <label class="field">
+          <span>Optional instruction</span>
+          <textarea id="instruction" rows="2" placeholder="e.g. mention I can join after 2pm"></textarea>
+        </label>
+        <div class="actions">
+          <button id="generate" class="btn btn--primary" type="button">Generate draft</button>
+          <button id="regenerate" class="btn" type="button" hidden>Regenerate</button>
+        </div>
+        <p class="footer">
+          The draft is inserted into this compose window. Review it and press Send yourself.
+        </p>
+      </div>
+    </div>
+    <script type="module" src="compose.js"></script>
+  </body>
+</html>

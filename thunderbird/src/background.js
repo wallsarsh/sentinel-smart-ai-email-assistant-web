@@ -9,6 +9,7 @@ import {
   buildReplyIndex,
   draftEligibility,
   draftRequest,
+  identityForHeader,
   maybeCreateDrafts,
   saveDraftWithCompose,
 } from './drafts.js'
@@ -174,6 +175,11 @@ async function load() {
   return { settings, rules }
 }
 
+async function saveDraftFor(header, body) {
+  const identityId = await identityForHeader(header)
+  return saveDraftWithCompose(header, body, { identityId })
+}
+
 async function createDraftsFor(analyses, settings, ctx) {
   if (!settings.monitor.autoDraft || !analyses.length) return { created: [], failed: [] }
   const candidates = []
@@ -198,7 +204,7 @@ async function createDraftsFor(analyses, settings, ctx) {
     store,
     isReplied,
     generate: draftReply,
-    save: saveDraftWithCompose,
+    save: saveDraftFor,
     now: new Date(),
   })
 }
@@ -391,7 +397,7 @@ async function manualDraft(messageId, { force = false } = {}) {
     ctx,
     draftRequest(analysis, settings),
   )
-  const saved = await saveDraftWithCompose(header, body)
+  const saved = await saveDraftFor(header, body)
   const entry = {
     messageId: header.id,
     headerMessageId: header.headerMessageId ?? null,
@@ -400,6 +406,7 @@ async function manualDraft(messageId, { force = false } = {}) {
     accountId: accountIdOf(header),
     draftId: saved.id ?? null,
     draftHeaderMessageId: saved.headerMessageId ?? null,
+    draftFolder: saved.folder?.name ?? null,
     status: 'saved',
     at: Date.now(),
   }
@@ -450,7 +457,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
       return { ok: true }
     }
     if (msg.type === 'open-dashboard') {
-      await browser.tabs.create({ url: browser.runtime.getURL('dashboard.html') })
+      await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') })
       return { ok: true }
     }
     if (msg.type === 'status') return { monitor: await store.monitor(), brief: await store.briefStatus() }
@@ -461,7 +468,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
 })
 
 browser.notifications.onClicked.addListener(() => {
-  void browser.tabs.create({ url: browser.runtime.getURL('dashboard.html') }).catch(() => undefined)
+  void browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 })
 
 void schedule()

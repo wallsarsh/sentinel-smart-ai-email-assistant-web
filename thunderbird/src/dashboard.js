@@ -227,7 +227,7 @@ function renderDrafts({ drafts }) {
           el('span', { class: 'item__title', text: d.subject || '(no subject)' }),
           chip(d.status === 'saved' ? 'Saved draft' : 'Save failed', d.status === 'saved' ? 'chip--ok' : 'chip--warn'),
         ),
-        el('div', { class: 'item__meta', text: `${d.sender || 'Unknown sender'} · ${formatDateTime(d.at)}` }),
+        el('div', { class: 'item__meta', text: `${d.sender || 'Unknown sender'} · ${formatDateTime(d.at)}${d.draftFolder ? ` · ${d.draftFolder}` : ''}` }),
         el('div', { class: 'actions' },
           d.draftId ? el('button', { class: 'btn btn--small', type: 'button', onclick: () => openMessage(d.draftId), text: 'Open draft' }) : null,
           d.messageId ? el('button', { class: 'btn btn--small', type: 'button', onclick: () => openMessage(d.messageId), text: 'Open source' }) : null,

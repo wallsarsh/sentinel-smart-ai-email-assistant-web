@@ -11,6 +11,7 @@ await build({
     background: 'thunderbird/src/background.js',
     'brief-popup': 'thunderbird/src/brief-popup.js',
     dashboard: 'thunderbird/src/dashboard.js',
+    compose: 'thunderbird/src/compose.js',
   },
   outdir: 'thunderbird/dist',
   bundle: true,
@@ -20,7 +21,7 @@ await build({
   minify: false, // reviewers of add-on stores read the code
   logLevel: 'info',
 })
-for (const f of ['popup.html', 'options.html', 'brief.html', 'dashboard.html'])
+for (const f of ['popup.html', 'options.html', 'brief.html', 'dashboard.html', 'compose.html'])
   cpSync(`thunderbird/src/${f}`, `thunderbird/dist/${f}`)
 cpSync('thunderbird/src/theme.css', 'thunderbird/dist/theme.css')
 console.log('extension written to thunderbird/dist (load thunderbird/manifest.json)')
