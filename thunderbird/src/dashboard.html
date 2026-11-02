@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sentinel — AI email assistant</title>
+    <link rel="stylesheet" href="theme.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">S</span>
+          <div>
+            <div class="brand__name">Sentinel</div>
+            <div class="brand__sub">AI email assistant for Thunderbird</div>
+          </div>
+        </div>
+        <div class="topbar__actions">
+          <span id="status" class="pill" role="status">Starting…</span>
+          <button id="refresh" class="btn btn--primary" type="button">Refresh now</button>
+          <button id="provider" class="btn" type="button">Provider settings</button>
+        </div>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="Assistant views">
+        <button class="tab" role="tab" id="tab-brief" data-tab="brief" aria-controls="panel-brief" aria-selected="true">Brief</button>
+        <button class="tab" role="tab" id="tab-inbox" data-tab="inbox" aria-controls="panel-inbox" aria-selected="false" tabindex="-1">Inbox</button>
+        <button class="tab" role="tab" id="tab-drafts" data-tab="drafts" aria-controls="panel-drafts" aria-selected="false" tabindex="-1">Drafts</button>
+        <button class="tab" role="tab" id="tab-senders" data-tab="senders" aria-controls="panel-senders" aria-selected="false" tabindex="-1">Senders</button>
+        <button class="tab" role="tab" id="tab-settings" data-tab="settings" aria-controls="panel-settings" aria-selected="false" tabindex="-1">Settings</button>
+      </nav>
+
+      <main>
+        <section id="panel-brief" class="view" role="tabpanel" aria-labelledby="tab-brief">
+          <div id="brief"></div>
+        </section>
+
+        <section id="panel-inbox" class="view" role="tabpanel" aria-labelledby="tab-inbox" hidden>
+          <div class="section-title">
+            <h2>Inbox</h2>
+            <span id="inbox-meta" class="meta"></span>
+          </div>
+          <div id="inbox-filters" class="chips" role="group" aria-label="Filter analysed mail"></div>
+          <div id="inbox" class="card card--flat"></div>
+        </section>
+
+        <section id="panel-drafts" class="view" role="tabpanel" aria-labelledby="tab-drafts" hidden>
+          <div class="section-title">
+            <h2>Drafts</h2>
+            <span class="meta">Saved to your own Drafts folder. Nothing is sent.</span>
+          </div>
+          <div id="drafts" class="card card--flat"></div>
+        </section>
+
+        <section id="panel-senders" class="view" role="tabpanel" aria-labelledby="tab-senders" hidden>
+          <div class="section-title">
+            <h2>Sender rules</h2>
+            <span class="meta">Rules run before any AI call.</span>
+          </div>
+          <form id="rule-form" class="card stack" autocomplete="off">
+            <div class="inline">
+              <label class="field">
+                <span>Email or domain</span>
+                <input id="rule-pattern" name="pattern" placeholder="alex@acme.example or @shop.example" required />
+              </label>
+              <label class="field">
+                <span>Treatment</span>
+                <select id="rule-kind" name="kind">
+                  <option value="important">Important — analyse first, raise importance</option>
+                  <option value="marketing">Marketing — skip AI by default</option>
+                  <option value="ignore">Ignore — never send to AI</option>
+                  <option value="normal">Normal</option>
+                </select>
+              </label>
+              <button class="btn btn--primary" type="submit">Add rule</button>
+            </div>
+            <p id="rule-status" class="status" role="status"></p>
+            <p class="meta">
+              Exact addresses beat domains. On a tie: Ignore, then Important, then Marketing.
+            </p>
+          </form>
+          <div id="rules" class="card card--flat"></div>
+        </section>
+
+        <section id="panel-settings" class="view" role="tabpanel" aria-labelledby="tab-settings" hidden>
+          <div class="section-title">
+            <h2>Assistant settings</h2>
+            <span class="meta">Provider keys live in Provider settings.</span>
+          </div>
+          <form id="settings-form" class="stack--lg stack">
+            <section class="card stack">
+              <h3 class="section-title"><span>Monitoring</span></h3>
+              <label class="check"><input id="monitor-enabled" type="checkbox" /> Watch inboxes in the background</label>
+              <div class="grid grid--2">
+                <label class="field"><span>Check every</span>
+                  <select id="monitor-interval">
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">Every hour</option>
+                    <option value="120">Every 2 hours</option>
+                    <option value="240">Every 4 hours</option>
+                  </select>
+                </label>
+                <label class="field"><span>Mail to inspect per run</span>
+                  <input id="monitor-max" type="number" min="1" max="500" />
+                </label>
+                <label class="field"><span>AI messages per run</span>
+                  <input id="monitor-ai" type="number" min="0" max="200" />
+                </label>
+                <label class="field"><span>Look back on first run (days)</span>
+                  <input id="monitor-lookback" type="number" min="1" max="30" />
+                </label>
+              </div>
+              <label class="check"><input id="monitor-tagging" type="checkbox" /> Tag importance in Thunderbird</label>
+            </section>
+
+            <section class="card stack">
+              <h3 class="section-title"><span>Draft replies</span></h3>
+              <label class="check"><input id="draft-auto" type="checkbox" /> Create drafts for messages that need a reply</label>
+              <div class="grid grid--2">
+                <label class="field"><span>Drafts per run</span>
+                  <input id="draft-max" type="number" min="0" max="20" />
+                </label>
+                <label class="field"><span>Minimum priority</span>
+                  <select id="draft-priority">
+                    <option value="p1_do_now">P1 only</option>
+                    <option value="p2_today">P1 and P2</option>
+                    <option value="p3_this_week">P1 to P3</option>
+                  </select>
+                </label>
+                <label class="field"><span>Reply tone</span>
+                  <select id="profile-tone">
+                    <option value="professional">Professional</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="concise">Concise</option>
+                    <option value="formal">Formal</option>
+                  </select>
+                </label>
+                <label class="field"><span>Sign-off</span>
+                  <input id="profile-signoff" placeholder="Best regards," />
+                </label>
+              </div>
+              <label class="check"><input id="monitor-marketing" type="checkbox" /> Also send marketing mail to AI (costs tokens)</label>
+            </section>
+
+            <section class="card stack">
+              <h3 class="section-title"><span>Daily brief</span></h3>
+              <label class="check"><input id="brief-enabled" type="checkbox" /> Build a brief for today</label>
+              <div class="grid grid--2">
+                <label class="field"><span>First update at</span>
+                  <select id="brief-hour"></select>
+                </label>
+                <label class="check"><input id="brief-hourly" type="checkbox" /> Refresh after new mail (hourly at most)</label>
+              </div>
+            </section>
+
+            <div class="row">
+              <button class="btn btn--primary" type="submit">Save settings</button>
+              <button id="run-now" class="btn" type="button">Run monitor now</button>
+              <span id="settings-status" class="status" role="status"></span>
+            </div>
+          </form>
+        </section>
+      </main>
+
+      <p class="footer">
+        Sentinel analyses mail locally with your provider. It never sends, deletes or moves messages.
+      </p>
+    </div>
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

@@ -1,56 +1,77 @@
-import { userContext } from './ai.js'
-import { generateBrief, nextRun } from './brief.js'
-import { withDraft } from './mail.js'
+// Background event page: alarms, monitor, drafts, brief, calendar exports and message handlers.
+// Nothing here can send mail; the add-on does not request send permissions.
+import { userContext, analyze, draftReply } from './ai.js'
+import { normalizeAnalysis } from './analysis.js'
+import { monitorBlockedReason } from './config.js'
+import { nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
+import { downloadIcs } from './calendar.js'
+import {
+  buildReplyIndex,
+  draftEligibility,
+  draftRequest,
+  maybeCreateDrafts,
+  saveDraftWithCompose,
+} from './drafts.js'
+import {
+  accountIdOf,
+  draftsFolders,
+  flattenFolders,
+  inboxFolders,
+  safeError,
+  selfFrom,
+  sentFolders,
+  toMailMessage,
+} from './mail.js'
+import { runMonitor } from './monitor.js'
+import { createStore } from './store.js'
+import { applyTags } from './tags.js'
 
-// Opening the reply window closes the toolbar popup and ends its scripts, so the popup hands the draft to this
-// page, which outlives it and finishes filling in the reply.
-async function openReply(msg) {
-  const tab = await browser.compose.beginReply(msg.messageId, 'replyToSender')
-  const details = await browser.compose.getComposeDetails(tab.id)
-  await browser.compose.setComposeDetails(tab.id, withDraft(details, msg.draft))
-  return { ok: true }
+const MONITOR_ALARM = 'sentinel-monitor'
+const BRIEF_ALARM = 'sentinel-brief'
+const WAKE_ALARM = 'sentinel-wake'
+const NEW_MAIL_ALARM = 'sentinel-new-mail'
+
+const store = createStore(browser.storage.local)
+let monitorRunning = null
+let briefRunning = null
+const replyIndexes = new Map()
+const REPLY_TTL = 10 * 60_000
+
+// ---- Thunderbird API seams -------------------------------------------------------------------------------------
+
+async function folderMessages(folderId, since, max) {
+  const out = []
+  let page = await browser.messages.query({
+    folderId,
+    fromDate: since,
+    messagesPerPage: Math.min(100, max),
+  })
+  for (;;) {
+    out.push(...(page.messages ?? []))
+    if (!page.id || out.length >= max) break
+    page = await browser.messages.continueList(page.id)
+  }
+  return out.slice(0, max)
 }
 
-// ---- daily brief ----------------------------------------------------------------------------------------------
-
-const ALARM = 'sentinel-daily-brief'
-const DEFAULTS = { enabled: true, hour: 8 }
-let running = null
-
-const briefSettings = async () => ({
-  ...DEFAULTS,
-  ...((await browser.storage.local.get('briefSettings')).briefSettings ?? {}),
-})
-
-async function inboxFolders() {
-  if (browser.folders?.query) {
+/** Headers from every inbox folder. The monitor de-duplicates, filters and sorts. */
+async function recentHeaders(since, max) {
+  const out = []
+  for (const folder of await inboxFolders()) {
+    if (out.length >= max * 2) break
     try {
-      return await browser.folders.query({ specialUse: ['inbox'] })
+      out.push(...(await folderMessages(folder.id, since, max * 2)))
     } catch {
-      // older builds: fall back to walking the accounts
+      // One broken folder must not stop the others.
     }
   }
-  const walk = (fs) => (fs ?? []).flatMap((f) => [f, ...walk(f.subFolders)])
-  return (await browser.accounts.list(true))
-    .flatMap((a) => walk(a.folders))
-    .filter((f) => f.type === 'inbox' || f.specialUse?.includes('inbox'))
+  return out
 }
 
 const api = {
-  async recent(since, max) {
-    const out = []
-    for (const folder of await inboxFolders()) {
-      let page = await browser.messages.query({ folderId: folder.id, fromDate: since })
-      for (;;) {
-        out.push(...page.messages)
-        if (out.length >= max * 2 || !page.id) break
-        page = await browser.messages.continueList(page.id)
-      }
-    }
-    return out
-  },
+  recent: recentHeaders,
   full: (id) => browser.messages.getFull(id),
-  accounts: () => browser.accounts.list(),
+  accounts: () => browser.accounts.list(true),
   cache: {
     async get(key) {
       return (await browser.storage.local.get(key))[key] ?? null
@@ -68,68 +89,379 @@ const api = {
   },
 }
 
-/** Runs the brief once; concurrent requests share the same run. */
-function runBrief({ notify = false } = {}) {
-  running ??= (async () => {
-    await browser.storage.local.set({ briefStatus: { state: 'running', at: Date.now() } })
-    try {
-      const { settings } = await browser.storage.local.get('settings')
-      if (!settings?.baseUrl || !settings?.apiKey || !settings?.model)
-        throw new Error('Set the API URL, key and model in the add-on settings first.')
-      const brief = await generateBrief({
-        api,
-        settings,
-        ctx: userContext(await api.accounts()),
-      })
-      await browser.storage.local.set({ brief, briefStatus: { state: 'done', at: Date.now() } })
-      // Notifications carry no mail content.
-      if (notify)
-        await browser.notifications
-          .create('sentinel-brief', {
-            type: 'basic',
-            title: 'Sentinel AI',
-            message: 'Your daily brief is ready.',
-          })
-          .catch(() => undefined)
-    } catch (e) {
-      await browser.storage.local.set({
-        briefStatus: { state: 'error', message: e.message, at: Date.now() },
-      })
-    } finally {
-      running = null
-    }
-  })()
-  return running
+async function context(settings, rules = []) {
+  const accounts = await api.accounts()
+  const profile = { ...settings.profile }
+  const self = selfFrom(accounts)
+  profile.name = profile.name || self.name
+  return userContext(accounts, new Date(), profile, rules)
 }
 
-async function schedule() {
-  await browser.alarms.clear(ALARM)
-  const s = await briefSettings()
-  if (!s.enabled) return
-  browser.alarms.create(ALARM, {
-    when: nextRun(new Date(), s.hour).getTime(),
-    periodInMinutes: 24 * 60,
+// ---- reply index (already replied?) ---------------------------------------------------------------------------
+
+async function foldersForAccount(accountId) {
+  if (!accountId) return null
+  const accounts = await api.accounts()
+  const selected = accounts.filter((a) => String(a.id) === String(accountId))
+  return new Set(flattenFolders(selected).map((f) => f.id))
+}
+
+async function scanFolder(folder, since) {
+  const headers = await folderMessages(folder.id, since, 120)
+  const items = []
+  for (const h of headers) {
+    try {
+      items.push({ full: await browser.messages.getFull(h.id) })
+    } catch {
+      // An unreadable sent item must not hide the rest of the index.
+    }
+  }
+  return items
+}
+
+/** Set of Message-IDs that already have a reply or draft, cached per account for 10 minutes. */
+async function replyIndex(accountId, now = new Date()) {
+  const key = accountId ?? 'all'
+  const hit = replyIndexes.get(key)
+  if (hit && now.getTime() - hit.at < REPLY_TTL) return hit.set
+  const since = new Date(now.getTime() - 90 * 24 * 3600_000)
+  const allowed = await foldersForAccount(accountId)
+  const folders = [...(await sentFolders()), ...(await draftsFolders())].filter((f) =>
+    allowed?.size ? allowed.has(f.id) : true,
+  )
+  const items = []
+  for (const folder of folders) {
+    try {
+      items.push(...(await scanFolder(folder, since)))
+    } catch {
+      // Missing special-use folder: the local draft record still prevents duplicates.
+    }
+  }
+  const set = new Set()
+  for (const id of buildReplyIndex(items)) set.add(id)
+  replyIndexes.set(key, { at: now.getTime(), set })
+  return set
+}
+
+async function isReplied(header) {
+  if (!header?.headerMessageId) return false
+  const set = await replyIndex(accountIdOf(header))
+  return set.has(header.headerMessageId)
+}
+
+// ---- tagging ---------------------------------------------------------------------------------------------------
+
+const tagApi = () => {
+  const tags = browser.messages?.tags
+  if (!tags) return null
+  return {
+    list: () => tags.list(),
+    create: (key, tag, color) => tags.create(key, tag, color),
+    update: (id, props) => browser.messages.update(id, props),
+  }
+}
+
+async function tagger({ header, analysis, known }) {
+  const api = tagApi()
+  if (!api) return { known, warning: 'This Thunderbird build does not support message tags.' }
+  return applyTags({ api, header, analysis, known })
+}
+
+// ---- orchestration ---------------------------------------------------------------------------------------------
+
+async function load() {
+  const [settings, rules] = await Promise.all([store.settings(), store.rules()])
+  return { settings, rules }
+}
+
+async function createDraftsFor(analyses, settings, ctx) {
+  if (!settings.monitor.autoDraft || !analyses.length) return { created: [], failed: [] }
+  const candidates = []
+  for (const item of analyses) {
+    if (candidates.length >= (settings.monitor.maxDraftsPerRun ?? 0)) break
+    const record = await store.draftRecord(item.header)
+    const eligible = draftEligibility({
+      analysis: item.analysis,
+      header: item.header,
+      settings,
+      replied: await isReplied(item.header),
+      draftRecord: record,
+      now: new Date(),
+    })
+    if (eligible.ok) candidates.push(item)
+  }
+  if (!candidates.length) return { created: [], failed: [] }
+  return maybeCreateDrafts({
+    analyses: candidates,
+    settings,
+    ctx,
+    store,
+    isReplied,
+    generate: draftReply,
+    save: saveDraftWithCompose,
+    now: new Date(),
   })
 }
 
+async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force }) {
+  const meaningful = analyses.filter((a) => !a.analysis.skipped)
+  if (
+    !shouldRefreshBrief({
+      brief: await store.brief(),
+      analyses: meaningful,
+      now,
+      force,
+      enabled: settings.brief.enabled,
+    })
+  )
+    return { skipped: true }
+  if (briefRunning) return briefRunning
+  briefRunning = refreshBrief({
+    store,
+    api,
+    settings,
+    rules,
+    ctx,
+    now,
+    fetchImpl: undefined,
+  }).finally(() => {
+    briefRunning = null
+  })
+  return briefRunning
+}
+
+/** One monitor → drafts → brief pass. Concurrent requests share the same run. */
+function runAssistant({ reason = 'alarm', force = false, forceBrief = false, notify = false } = {}) {
+  if (monitorRunning) return monitorRunning
+  monitorRunning = (async () => {
+    const now = new Date()
+    const { settings, rules } = await load()
+    if (!settings.monitor.enabled && ['alarm', 'new-mail', 'startup'].includes(reason))
+      return { ok: true, skipped: true }
+    const blocked = monitorBlockedReason(settings)
+    if (blocked) {
+      const status = {
+        state: 'error',
+        at: now.toISOString(),
+        reason,
+        error: blocked,
+        nextRunAt: null,
+      }
+      await store.saveMonitor(status)
+      return { ok: false, error: blocked, status }
+    }
+    const ctx = await context(settings, rules)
+    const monitor = await runMonitor({
+      store,
+      api,
+      settings,
+      rules,
+      ctx,
+      now,
+      force,
+      reason,
+      tag: tagger,
+    })
+    const drafts = await createDraftsFor(monitor.analyses, settings, ctx).catch((e) => {
+      monitor.errors.push(safeError(e))
+      return { created: [], failed: [] }
+    })
+    const brief = await maybeRefreshBrief({
+      settings,
+      rules,
+      ctx,
+      now,
+      analyses: monitor.analyses,
+      force: forceBrief,
+    }).catch((e) => ({ status: { state: 'error', message: safeError(e) } }))
+    const status = {
+      ...monitor.status,
+      draftsCreated: drafts.created.length,
+      draftsFailed: drafts.failed.length,
+      briefState: brief?.status?.state ?? null,
+      briefAt: brief?.status?.at ?? null,
+    }
+    await store.saveMonitor(status)
+    if (notify && brief?.status?.state === 'done')
+      await browser.notifications
+        .create('sentinel-brief', {
+          type: 'basic',
+          title: 'Sentinel AI',
+          message: 'Your brief is up to date.',
+        })
+        .catch(() => undefined)
+    return { ok: true, monitor, drafts, brief, status }
+  })().finally(() => {
+    monitorRunning = null
+  })
+  return monitorRunning
+}
+
+// ---- alarms ----------------------------------------------------------------------------------------------------
+
+async function schedule() {
+  const { settings } = await load()
+  await browser.alarms.clear(MONITOR_ALARM)
+  await browser.alarms.clear(BRIEF_ALARM)
+  if (settings.monitor.enabled && !monitorBlockedReason(settings))
+    browser.alarms.create(MONITOR_ALARM, {
+      periodInMinutes: settings.monitor.intervalMinutes,
+      when: Date.now() + 20_000,
+    })
+  if (settings.brief.enabled && !monitorBlockedReason(settings))
+    browser.alarms.create(BRIEF_ALARM, {
+      when: nextRun(new Date(), settings.brief.hour).getTime(),
+      periodInMinutes: 24 * 60,
+    })
+}
+
 browser.alarms.onAlarm.addListener((a) => {
-  if (a.name === ALARM) void runBrief({ notify: true })
+  if (a.name === MONITOR_ALARM) void runAssistant({ reason: 'alarm' })
+  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief', notify: true })
+  else if (a.name === WAKE_ALARM) {
+    void browser.alarms.clear(WAKE_ALARM)
+    void runAssistant({ reason: 'startup' })
+  } else if (a.name === NEW_MAIL_ALARM) {
+    void browser.alarms.clear(NEW_MAIL_ALARM)
+    void runAssistant({ reason: 'new-mail' })
+  }
 })
-browser.notifications.onClicked.addListener(
-  () => void browser.action.openPopup?.().catch(() => undefined),
-)
+
+browser.runtime.onStartup.addListener(() => {
+  void (async () => {
+    await schedule()
+    const { settings } = await load()
+    if (settings.monitor.enabled && !monitorBlockedReason(settings))
+      browser.alarms.create(WAKE_ALARM, { when: Date.now() + 15_000 })
+  })()
+})
+browser.runtime.onInstalled.addListener(() => {
+  void schedule()
+})
+
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.briefSettings) void schedule()
+  if (area === 'local' && (changes.settings || changes.senderRules)) void schedule()
 })
-browser.runtime.onStartup.addListener(() => void schedule())
-browser.runtime.onInstalled.addListener(() => void schedule())
-void schedule() // event pages can be woken without either event
+
+// Debounced new-mail wake; the monitor de-duplicates and filters.
+browser.messages.onNewMailReceived?.addListener?.((folder) => {
+  if (folder?.type && folder.type !== 'inbox') return
+  void (async () => {
+    const { settings } = await load()
+    if (settings.monitor.enabled && !monitorBlockedReason(settings))
+      browser.alarms.create(NEW_MAIL_ALARM, { when: Date.now() + 30_000 })
+  })()
+})
+
+// ---- message handlers ------------------------------------------------------------------------------------------
+
+async function manualDraft(messageId, { force = false } = {}) {
+  const header = await browser.messages.get(messageId)
+  if (!header) return { ok: false, error: 'Open a message first.' }
+  const { settings } = await load()
+  if (monitorBlockedReason(settings)) return { ok: false, error: monitorBlockedReason(settings) }
+  const ctx = await context(settings, await store.rules())
+  let analysis = await store.analysis(header)
+  if (!analysis) {
+    const full = await browser.messages.getFull(header.id)
+    const message = toMailMessage(header, full)
+    analysis = await analyze(settings, message, ctx)
+    analysis = { ...analysis, sender: header.author, by: 'ai', at: Date.now() }
+    await store.saveAnalysis(header, analysis)
+  } else {
+    analysis = { ...analysis, ...normalizeAnalysis(analysis) }
+  }
+  const replied = await isReplied(header)
+  const record = await store.draftRecord(header)
+  if (!force) {
+    const eligible = draftEligibility({
+      analysis,
+      header,
+      settings,
+      replied,
+      draftRecord: record,
+      now: new Date(),
+      manual: true,
+    })
+    if (!eligible.ok) return { ok: false, error: eligible.reason }
+  }
+  const body = await draftReply(
+    settings,
+    [toMailMessage(header, await browser.messages.getFull(header.id))],
+    ctx,
+    draftRequest(analysis, settings),
+  )
+  const saved = await saveDraftWithCompose(header, body)
+  const entry = {
+    messageId: header.id,
+    headerMessageId: header.headerMessageId ?? null,
+    subject: header.subject ?? '',
+    sender: header.author ?? '',
+    accountId: accountIdOf(header),
+    draftId: saved.id ?? null,
+    draftHeaderMessageId: saved.headerMessageId ?? null,
+    status: 'saved',
+    at: Date.now(),
+  }
+  await store.saveDraftRecord(header, entry)
+  await store.appendDraft(entry)
+  return { ok: true, draft: entry }
+}
+
+async function addRule(pattern, kind) {
+  const { normalizeRule } = await import('./rules.js')
+  const rule = normalizeRule({ pattern, kind })
+  const rules = await store.rules()
+  const next = [...rules.filter((r) => r.pattern !== rule.pattern), rule]
+  await store.saveRules(next)
+  return { ok: true, rule }
+}
+
+async function removeRule(id) {
+  const rules = await store.rules()
+  await store.saveRules(rules.filter((r) => r.id !== id))
+  return { ok: true }
+}
 
 browser.runtime.onMessage.addListener(async (msg) => {
-  if (msg?.type === 'open-reply') return openReply(msg)
-  if (msg?.type === 'brief-run') {
-    void runBrief()
-    return { started: true }
+  if (!msg || typeof msg !== 'object') return undefined
+  try {
+    if (msg.type === 'monitor-run') {
+      void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief), notify: false })
+      return { started: true }
+    }
+    if (msg.type === 'brief-run') {
+      void runAssistant({ reason: 'brief-manual', forceBrief: true, notify: false })
+      return { started: true }
+    }
+    if (msg.type === 'draft-create') return manualDraft(msg.messageId, { force: msg.force })
+    if (msg.type === 'tag-message') {
+      const header = await browser.messages.get(msg.messageId)
+      const analysis = await store.analysis(header)
+      if (!analysis) return { ok: false, error: 'Analyse the message first.' }
+      const r = await tagger({ header, analysis, known: await store.tagKeys() })
+      if (r?.known) await store.saveTagKeys(r.known)
+      return { ok: true, warning: r?.warning ?? null }
+    }
+    if (msg.type === 'rule-set') return addRule(msg.pattern, msg.kind)
+    if (msg.type === 'rule-remove') return removeRule(msg.id)
+    if (msg.type === 'calendar-download') {
+      await downloadIcs(msg.events ?? [], { downloads: browser.downloads })
+      return { ok: true }
+    }
+    if (msg.type === 'open-dashboard') {
+      await browser.tabs.create({ url: browser.runtime.getURL('dashboard.html') })
+      return { ok: true }
+    }
+    if (msg.type === 'status') return { monitor: await store.monitor(), brief: await store.briefStatus() }
+  } catch (e) {
+    return { ok: false, error: safeError(e) }
   }
   return undefined
 })
+
+browser.notifications.onClicked.addListener(() => {
+  void browser.tabs.create({ url: browser.runtime.getURL('dashboard.html') }).catch(() => undefined)
+})
+
+void schedule()

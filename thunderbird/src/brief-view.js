@@ -1,57 +1,66 @@
+import {
+  chip,
+  clear,
+  el,
+  empty,
+  relativeTime,
+} from './ui.js'
+
 const TITLES = {
   topPriorities: 'Top priorities',
   needsReply: 'Needs a reply',
   dueToday: 'Due today',
   fyi: 'Good to know',
 }
-const CHIPS = [
+const STATS = [
   ['total', (n) => `${n} new`],
   ['needsReply', (n) => `${n} need a reply`],
   ['p1', (n) => `${n} urgent`],
   ['newsletters', (n) => `${n} newsletters`],
 ]
 
-const el = (tag, props = {}, ...kids) => {
-  const e = Object.assign(document.createElement(tag), props)
-  e.append(...kids)
-  return e
-}
-
 /** Renders a stored brief. Item text is model output, so it is only ever inserted as text. */
 export function renderBrief(root, brief, open) {
-  root.replaceChildren()
-  if (!brief) {
-    root.append(el('p', { className: 'muted' }, 'No brief yet. Press Refresh brief.'))
+  clear(root)
+  if (!brief?.createdAt) {
+    root.append(empty('No brief yet. Press Refresh brief.'))
     return
   }
-  const when = new Date(brief.createdAt).toLocaleString([], {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  })
-  root.append(el('p', { className: 'muted' }, `Generated ${when}`))
-  root.append(el('p', { className: 'head' }, brief.headline || 'Nothing new to report.'))
-  const chips = el('div', { className: 'chips' })
-  for (const [k, fmt] of CHIPS)
-    if (brief.stats?.[k] > 0) chips.append(el('span', {}, fmt(brief.stats[k])))
-  root.append(chips)
-  for (const s of brief.sections) {
-    root.append(el('h2', {}, TITLES[s.type] ?? s.type))
-    const ul = el('ul')
-    for (const item of s.items) {
-      const first = item.messageIds[0]
-      const label = brief.heads?.[first]?.subject
-      const li = el('li', {}, item.text)
-      if (first)
-        li.append(
-          ' ',
-          el(
-            'button',
-            { className: 'link', title: label ?? '', onclick: () => open(Number(first)) },
-            'Open',
+  const head = el('section', { class: 'card card--accent stack' },
+    el('div', { class: 'row row--between' },
+      el('span', { class: 'chip chip--accent', text: 'Daily brief' }),
+      el('span', { class: 'brief-generated', text: `Updated ${relativeTime(brief.createdAt)}` }),
+    ),
+    el('p', { class: 'brief-headline', text: brief.headline || 'Nothing needs your attention.' }),
+  )
+  const chips = el('div', { class: 'chips' })
+  for (const [key, fmt] of STATS) if (brief.stats?.[key] > 0) chips.append(chip(fmt(brief.stats[key])))
+  if (chips.childElementCount) head.append(chips)
+  root.append(head)
+
+  if (!brief.sections?.length) {
+    root.append(el('p', { class: 'muted', text: 'No items to show.' }))
+    return
+  }
+  for (const section of brief.sections) {
+    const card = el('section', { class: 'card stack' },
+      el('div', { class: 'section-title' }, el('h2', { text: TITLES[section.type] ?? section.type })),
+    )
+    for (const item of section.items ?? []) {
+      const first = item.messageIds?.[0]
+      const subject = brief.heads?.[first]?.subject
+      card.append(
+        el('div', { class: 'item' },
+          el('div', { class: 'item__top' },
+            el('span', { class: 'item__summary', text: item.text }),
+            first
+              ? el('button', { class: 'btn btn--small', type: 'button', onclick: () => open(first), title: subject ?? '', text: 'Open' })
+              : null,
           ),
-        )
-      ul.append(li)
+          subject ? el('div', { class: 'item__meta', text: subject }) : null,
+        ),
+      )
     }
-    root.append(ul)
+    root.append(card)
   }
 }
