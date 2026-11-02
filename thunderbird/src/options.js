@@ -1,34 +1,53 @@
 import { checkBaseUrl } from './mail.js'
+import { createStore } from './store.js'
+import { openDashboard, status } from './ui.js'
 
 const $ = (id) => document.getElementById(id)
-const { settings } = await browser.storage.local.get('settings')
-const { briefSettings } = await browser.storage.local.get('briefSettings')
-$('briefOn').checked = briefSettings?.enabled ?? true
-$('briefHour').value = briefSettings?.hour ?? 8
-for (const k of ['baseUrl', 'apiKey', 'model']) $(k).value = settings?.[k] ?? ''
+const store = createStore(browser.storage.local)
+let settings = null
+
+function say(message, kind = '') {
+  status($('status'), message, kind)
+}
+
+async function init() {
+  settings = await store.settings()
+  $('baseUrl').value = settings.baseUrl ?? ''
+  $('model').value = settings.model ?? ''
+  if (settings.apiKey) {
+    $('apiKey').placeholder = 'Saved key — leave blank to keep it'
+    $('key-note').textContent = `A key is saved (ending ${settings.apiKey.slice(-4)}). Leave the field blank to keep it.`
+  }
+}
+
+$('dashboard').onclick = openDashboard
+$('dashboard2').onclick = openDashboard
 
 $('f').addEventListener('submit', async (e) => {
   e.preventDefault()
-  const next = {
-    baseUrl: $('baseUrl').value.trim(),
-    apiKey: $('apiKey').value,
-    model: $('model').value.trim(),
-  }
   try {
-    next.baseUrl = checkBaseUrl(next.baseUrl)
-    const url = new URL(next.baseUrl)
-    // Thunderbird asks the user to allow requests to this one host.
-    const ok = await browser.permissions.request({ origins: [`${url.origin}/*`] })
-    if (!ok) throw new Error('Permission to contact the provider was not granted.')
-    await browser.storage.local.set({
-      settings: next,
-      briefSettings: {
-        enabled: $('briefOn').checked,
-        hour: Math.min(23, Math.max(0, Number($('briefHour').value) || 8)),
-      },
+    const baseUrl = checkBaseUrl($('baseUrl').value)
+    const model = $('model').value.trim()
+    if (!model) throw new Error('Enter a model.')
+    const key = $('apiKey').value.trim()
+    if (!key && !settings?.apiKey) throw new Error('Paste an API key.')
+    const url = new URL(baseUrl)
+    const allowed = await browser.permissions.request({ origins: [`${url.origin}/*`] })
+    if (!allowed) throw new Error('Permission to contact the provider was not granted.')
+    settings = await store.saveSettings({
+      baseUrl,
+      model,
+      ...(key ? { apiKey: key } : {}),
     })
-    $('status').textContent = 'Saved.'
+    $('apiKey').value = ''
+    $('baseUrl').value = settings.baseUrl
+    $('model').value = settings.model
+    $('apiKey').placeholder = 'Saved key — leave blank to keep it'
+    $('key-note').textContent = `A key is saved (ending ${settings.apiKey.slice(-4)}). Leave the field blank to keep it.`
+    say('Provider saved.', 'status--ok')
   } catch (err) {
-    $('status').textContent = err.message
+    say(err?.message ?? 'Could not save the provider.', 'status--error')
   }
 })
+
+void init()

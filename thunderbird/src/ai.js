@@ -1,22 +1,31 @@
 import { zoneOffset, PromptBuilder } from '../../packages/core/src/prompts/builder'
-import { draftPrompt, triagePrompt } from '../../packages/core/src/prompts/registry'
+import { draftPrompt } from '../../packages/core/src/prompts/registry'
 import { structuredCall } from '../../packages/core/src/ai/structured'
 import { openAiProvider } from '../../packages/core/src/ai/openai'
 import { fetchHttp } from '../../packages/core/src/ai/http'
+import { normalizeAnalysis } from './analysis.js'
+import { assistantPrompt } from './prompts.js'
 import { selfFrom } from './mail.js'
 
 // One builder shape for every call: the compact envelope sends only what the model can use.
 const builder = () => new PromptBuilder({ compact: true })
 
-export function userContext(accounts, now = new Date()) {
+export function userContext(accounts, now = new Date(), profile = {}, rules = []) {
   const self = selfFrom(accounts)
   const timezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
   return {
-    name: self.name,
+    name: profile.name || self.name,
     timezoneName,
     offsetAt: (d) => zoneOffset(timezoneName, d),
     now,
     selfAddresses: self.addresses,
+    signOff: profile.signOff || undefined,
+    styleNotes: profile.styleNotes || undefined,
+    language: profile.language && profile.language !== 'auto' ? profile.language : undefined,
+    vipSenders: rules.filter((r) => r.kind === 'important').map((r) => r.pattern),
+    senderHints: rules
+      .filter((r) => r.kind !== 'normal')
+      .map((r) => `${r.pattern} → ${r.kind}`),
   }
 }
 
@@ -41,21 +50,21 @@ export async function analyzeBatch(settings, messages, ctx, fetchImpl) {
   const res = await structuredCall(async (turn) => {
     const r = await p.complete({
       model: settings.model,
-      system: triagePrompt.system,
+      system: assistantPrompt.system,
       user:
         turn.kind === 'repair'
           ? `${prompt.text}\n\n<previous_output>\n${turn.invalid}\n</previous_output>\n${turn.prompt}`
           : prompt.text,
       maxTokens: turn.kind === 'retry_longer' ? base * 3 : base,
-      schema: triagePrompt.schema,
+      schema: assistantPrompt.schema,
     })
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r
-  }, triagePrompt.schema.schema)
+  }, assistantPrompt.schema.schema)
   if (!res.ok) throw new Error(describe(res.error))
   const out = new Map()
   for (const item of res.value.results ?? []) {
     const id = prompt.idMap[item.id]
-    if (id && !out.has(id)) out.set(id, item)
+    if (id && !out.has(id)) out.set(id, normalizeAnalysis(item))
   }
   return out
 }

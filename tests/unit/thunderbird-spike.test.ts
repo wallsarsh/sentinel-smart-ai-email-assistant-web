@@ -110,6 +110,10 @@ describe('extension AI calls use the shared core', () => {
         reason: 'direct ask',
         actionItems: [{ text: 'Send Q3 numbers', dueDate: null, dueText: 'Friday' }],
         confidence: 0.9,
+        intent: 'request',
+        replyIntent: 'accept',
+        replyInstruction: '',
+        calendarEvents: [],
       },
     ],
   }
@@ -166,7 +170,12 @@ describe('extension package', () => {
       'accountsRead',
       'alarms',
       'compose',
+      'compose.save',
+      'downloads',
       'messagesRead',
+      'messagesTags',
+      'messagesTagsList',
+      'messagesUpdate',
       'notifications',
       'storage',
     ])
@@ -176,11 +185,13 @@ describe('extension package', () => {
       m.message_display_action.default_popup,
       m.options_ui.page,
       m.action.default_popup,
+      'dist/dashboard.html',
+      'dist/theme.css',
     ])
       expect(existsSync(`thunderbird/${path}`), path).toBe(true)
   })
   it('the built bundle needs no eval (extension CSP) and no Node modules', () => {
-    for (const f of ['popup', 'options', 'background', 'brief-popup']) {
+    for (const f of ['popup', 'options', 'background', 'brief-popup', 'dashboard']) {
       const js = readFileSync(`thunderbird/dist/${f}.js`, 'utf8')
       expect(js).not.toMatch(/new Function\(|\beval\(|from "node:|require\("node:/)
     }
@@ -257,6 +268,10 @@ describe('daily brief in the extension', () => {
                 reason: 'r',
                 actionItems: [{ text: 'Send Q3 numbers', dueDate: null, dueText: 'today 3pm' }],
                 confidence: 0.9,
+                intent: 'request',
+                replyIntent: 'accept',
+                replyInstruction: '',
+                calendarEvents: [],
               },
               {
                 id: 'e2',
@@ -268,6 +283,10 @@ describe('daily brief in the extension', () => {
                 reason: 'r',
                 actionItems: [],
                 confidence: 0.8,
+                intent: 'social',
+                replyIntent: 'acknowledge',
+                replyInstruction: '',
+                calendarEvents: [],
               },
             ],
           })
@@ -384,6 +403,10 @@ describe('summarize reuses the stored analysis', () => {
         reason: 'r',
         actionItems: [{ text: 'Send Q3', dueDate: null, dueText: 'Friday' }],
         confidence: 0.9,
+        intent: 'request',
+        replyIntent: 'accept',
+        replyInstruction: '',
+        calendarEvents: [],
       },
     ],
   }

@@ -2,54 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <style>
-      body {
-        font: 13px system-ui;
-        width: 26rem;
-        max-height: 34rem;
-        padding: 0.75rem;
-        overflow: auto;
-      }
-      h2 {
-        font-size: 13px;
-        margin: 0.9rem 0 0.25rem;
-      }
-      ul {
-        margin: 0;
-        padding-left: 1.1rem;
-      }
-      li {
-        margin: 0.3rem 0;
-      }
-      .head {
-        font-size: 14px;
-        margin: 0.5rem 0;
-      }
-      .muted {
-        color: GrayText;
-        font-size: 12px;
-      }
-      .chips span {
-        display: inline-block;
-        border: 1px solid;
-        border-radius: 0.6rem;
-        padding: 0 0.5rem;
-        margin: 0 0.25rem 0.25rem 0;
-        font-size: 12px;
-      }
-      button.link {
-        all: unset;
-        cursor: pointer;
-        text-decoration: underline;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sentinel — daily brief</title>
+    <link rel="stylesheet" href="theme.css" />
   </head>
   <body>
-    <p>
-      <button id="refresh">Refresh brief</button>
-      <span id="status" class="muted" role="status"></span>
-    </p>
-    <div id="brief"></div>
+    <div class="page page--popup">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">S</span>
+          <div>
+            <div class="brand__name">Sentinel</div>
+            <div class="brand__sub">Daily brief</div>
+          </div>
+        </div>
+        <button id="dashboard" class="btn btn--small btn--ghost" type="button">Dashboard</button>
+      </header>
+      <div class="stack">
+        <div class="row row--between">
+          <button id="refresh" class="btn btn--primary" type="button">Refresh brief</button>
+          <span id="status" class="status" role="status"></span>
+        </div>
+        <div id="brief" class="stack"></div>
+      </div>
+      <p class="footer">Updated after new mail, at most hourly. Nothing is sent.</p>
+    </div>
     <script type="module" src="brief-popup.js"></script>
   </body>
 </html>
