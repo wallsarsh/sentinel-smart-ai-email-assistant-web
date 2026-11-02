@@ -103,9 +103,9 @@ function htmlToText(html) {
       node.childNodes.forEach(walk);
       return;
     }
-    const el = node;
-    const tag = el.localName;
-    if (SKIP.has(tag) || hidden(el)) return;
+    const el2 = node;
+    const tag = el2.localName;
+    if (SKIP.has(tag) || hidden(el2)) return;
     if (tag === "br") {
       out += "\n";
       return;
@@ -115,7 +115,7 @@ function htmlToText(html) {
     if (block) out += "\n";
     if (tag === "li") out += "\n- ";
     if (tag === "td" || tag === "th") out += " ";
-    el.childNodes.forEach(walk);
+    el2.childNodes.forEach(walk);
     if (block) out += "\n";
   };
   walk(doc.body ?? doc.documentElement);
@@ -592,53 +592,53 @@ function extractJsonText(text) {
   return null;
 }
 var checker = miniCheck;
-function check(schema, value) {
-  return checker(schema, value);
+function check(schema2, value) {
+  return checker(schema2, value);
 }
 var typeOf = (v) => v === null ? "null" : Array.isArray(v) ? "array" : Number.isInteger(v) ? "integer" : typeof v;
 var isType = (v, t) => t === "number" ? typeof v === "number" && Number.isFinite(v) : typeOf(v) === t;
-function miniCheck(schema, value, at = "$") {
+function miniCheck(schema2, value, at = "$") {
   const out = [];
-  const types = [].concat(schema.type ?? []);
+  const types = [].concat(schema2.type ?? []);
   if (types.length && !types.some((t) => isType(value, t)))
     return [`${at}: must be ${types.join(" or ")}`];
-  if (Array.isArray(schema.enum) && !schema.enum.some((e) => e === value))
+  if (Array.isArray(schema2.enum) && !schema2.enum.some((e) => e === value))
     out.push(`${at}: must be equal to one of the allowed values`);
-  if ("const" in schema && schema.const !== value) out.push(`${at}: must be equal to constant`);
+  if ("const" in schema2 && schema2.const !== value) out.push(`${at}: must be equal to constant`);
   if (typeof value === "string") {
-    if (typeof schema.minLength === "number" && value.length < schema.minLength)
-      out.push(`${at}: must NOT have fewer than ${schema.minLength} characters`);
-    if (typeof schema.maxLength === "number" && value.length > schema.maxLength)
-      out.push(`${at}: must NOT have more than ${schema.maxLength} characters`);
+    if (typeof schema2.minLength === "number" && value.length < schema2.minLength)
+      out.push(`${at}: must NOT have fewer than ${schema2.minLength} characters`);
+    if (typeof schema2.maxLength === "number" && value.length > schema2.maxLength)
+      out.push(`${at}: must NOT have more than ${schema2.maxLength} characters`);
   }
   if (typeof value === "number") {
-    if (typeof schema.minimum === "number" && value < schema.minimum)
-      out.push(`${at}: must be >= ${schema.minimum}`);
-    if (typeof schema.maximum === "number" && value > schema.maximum)
-      out.push(`${at}: must be <= ${schema.maximum}`);
+    if (typeof schema2.minimum === "number" && value < schema2.minimum)
+      out.push(`${at}: must be >= ${schema2.minimum}`);
+    if (typeof schema2.maximum === "number" && value > schema2.maximum)
+      out.push(`${at}: must be <= ${schema2.maximum}`);
   }
   if (Array.isArray(value)) {
-    if (typeof schema.minItems === "number" && value.length < schema.minItems)
-      out.push(`${at}: must NOT have fewer than ${schema.minItems} items`);
-    if (typeof schema.maxItems === "number" && value.length > schema.maxItems)
-      out.push(`${at}: must NOT have more than ${schema.maxItems} items`);
-    if (schema.items && typeof schema.items === "object")
-      value.forEach((v, i) => out.push(...miniCheck(schema.items, v, `${at}[${i}]`)));
+    if (typeof schema2.minItems === "number" && value.length < schema2.minItems)
+      out.push(`${at}: must NOT have fewer than ${schema2.minItems} items`);
+    if (typeof schema2.maxItems === "number" && value.length > schema2.maxItems)
+      out.push(`${at}: must NOT have more than ${schema2.maxItems} items`);
+    if (schema2.items && typeof schema2.items === "object")
+      value.forEach((v, i) => out.push(...miniCheck(schema2.items, v, `${at}[${i}]`)));
   }
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const obj = value;
-    const props = schema.properties ?? {};
-    for (const k of schema.required ?? [])
+    const props = schema2.properties ?? {};
+    for (const k of schema2.required ?? [])
       if (!(k in obj)) out.push(`${at}: must have required property '${k}'`);
     for (const [k, v] of Object.entries(obj)) {
       if (props[k]) out.push(...miniCheck(props[k], v, `${at}.${k}`));
-      else if (schema.additionalProperties === false)
+      else if (schema2.additionalProperties === false)
         out.push(`${at}: must NOT have additional properties`);
     }
   }
   return out.slice(0, 20);
 }
-function problems(text, schema) {
+function problems(text, schema2) {
   const json2 = extractJsonText(text);
   if (json2 === null) return { errors: ["No complete JSON object found in the output."] };
   let value;
@@ -647,11 +647,11 @@ function problems(text, schema) {
   } catch {
     return { errors: ["Output is not valid JSON."] };
   }
-  const errors = check(schema, value);
+  const errors = check(schema2, value);
   return errors.length ? { errors } : { value, errors };
 }
 var repairPrompt = (errors) => repairTemplate2.replace("{{validator_errors}}", errors.join("\n"));
-async function structuredCall(call, schema) {
+async function structuredCall(call, schema2) {
   const first = await call({ kind: "initial" });
   if (!first.ok) return first;
   let cur = first.value;
@@ -664,12 +664,12 @@ async function structuredCall(call, schema) {
     cur = again.value;
   }
   if (!cur.text.trim()) return err({ kind: "ai_output", problem: "empty" });
-  let r = problems(cur.text, schema);
+  let r = problems(cur.text, schema2);
   if (!r.errors.length) return ok(r.value);
   const fixed = await call({ kind: "repair", invalid: cur.text, prompt: repairPrompt(r.errors) });
   if (!fixed.ok) return fixed;
   if (fixed.value.stop === "length") return err({ kind: "ai_output", problem: "truncated" });
-  r = problems(fixed.value.text, schema);
+  r = problems(fixed.value.text, schema2);
   return r.errors.length ? err({ kind: "ai_output", problem: "schema_invalid" }) : ok(r.value);
 }
 
@@ -707,15 +707,15 @@ var fetchHttp = (fetchImpl = (...a) => fetch(...a)) => ({
     };
   }
 });
-function failureForStatus(status, retryAfter) {
-  if (status === 401 || status === 403)
-    return { kind: "auth", problem: "invalid_credentials", code: String(status) };
-  if (status === 404) return { kind: "not_found" };
-  if (status === 429) {
+function failureForStatus(status2, retryAfter) {
+  if (status2 === 401 || status2 === 403)
+    return { kind: "auth", problem: "invalid_credentials", code: String(status2) };
+  if (status2 === 404) return { kind: "not_found" };
+  if (status2 === 429) {
     const s = Number(retryAfter);
     return { kind: "rate_limited", retryAfterSeconds: Number.isFinite(s) && s > 0 ? s : void 0 };
   }
-  return { kind: "provider", status, code: String(status) };
+  return { kind: "provider", status: status2, code: String(status2) };
 }
 
 // packages/core/src/sse-parser.ts
@@ -838,14 +838,14 @@ var openAiHeaders = (key, o) => ({
 });
 function openAiProvider(o) {
   const kind = o.kind ?? "openai";
-  const base = (o.baseUrl ?? OPENAI_BASE).replace(/\/$/, "");
+  const base2 = (o.baseUrl ?? OPENAI_BASE).replace(/\/$/, "");
   const http = o.http ?? fetchHttp();
   const tokensParam = o.options?.tokensParam ?? (kind === "openai" ? "max_completion_tokens" : "max_tokens");
   let mode = o.options?.structured ?? "strict";
   async function post(req, m) {
     let res;
     try {
-      res = await http.request(`${base}/chat/completions`, {
+      res = await http.request(`${base2}/chat/completions`, {
         headers: openAiHeaders(o.apiKey, o.options ?? {}),
         body: JSON.stringify(openAiBody(req, m, tokensParam)),
         signal: req.signal
@@ -876,7 +876,7 @@ function openAiProvider(o) {
     async *stream(req) {
       let res;
       try {
-        res = await http.stream(`${base}/chat/completions`, {
+        res = await http.stream(`${base2}/chat/completions`, {
           headers: openAiHeaders(o.apiKey, o.options ?? {}),
           body: JSON.stringify(openAiBody(req, mode, tokensParam, true)),
           signal: req.signal
@@ -923,7 +923,7 @@ function openAiProvider(o) {
     async listModels() {
       let res;
       try {
-        res = await http.request(`${base}/models`, {
+        res = await http.request(`${base2}/models`, {
           method: "GET",
           headers: openAiHeaders(o.apiKey, o.options ?? {})
         });
@@ -940,6 +940,146 @@ function openAiProvider(o) {
     }
   };
 }
+
+// packages/core/src/brief.ts
+function priorityOf(importance, urgency) {
+  const urgent = urgency === "urgent";
+  if (importance === "high") return urgent ? "p1_do_now" : "p2_today";
+  if (importance === "medium") return urgent ? "p2_today" : "p3_this_week";
+  return urgent ? "p3_this_week" : "p4_fyi";
+}
+
+// thunderbird/src/analysis.js
+var INTENTS = [
+  "request",
+  "question",
+  "meeting",
+  "approval",
+  "payment",
+  "informational",
+  "marketing",
+  "notification",
+  "social",
+  "security",
+  "other"
+];
+var REPLY_INTENTS = ["accept", "decline", "ask_for_info", "acknowledge", "custom"];
+var CATEGORIES = [
+  "directPersonal",
+  "workRequest",
+  "meetingCalendar",
+  "financeBilling",
+  "notificationAutomated",
+  "newsletterMarketing",
+  "social",
+  "securityAccount",
+  "other"
+];
+var clip = (s, n) => {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return t.length <= n ? t : `${t.slice(0, n - 1)}\u2026`;
+};
+var oneOf = (v, list, fallback) => list.includes(v) ? v : fallback;
+function intentFromCategory(category, needsReply, actionItems = []) {
+  if (category === "newsletterMarketing") return "marketing";
+  if (category === "notificationAutomated") return "notification";
+  if (category === "social") return "social";
+  if (category === "securityAccount") return "security";
+  if (category === "meetingCalendar") return "meeting";
+  if (category === "financeBilling") return "payment";
+  if (category === "workRequest" || category === "directPersonal")
+    return needsReply || actionItems.length ? "request" : "informational";
+  return needsReply || actionItems.length ? "request" : "informational";
+}
+function normalizeActionItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 10).map((a) => ({
+    text: clip(a?.text, 160),
+    dueDate: typeof a?.dueDate === "string" && a.dueDate.trim() ? a.dueDate.trim() : null,
+    dueText: typeof a?.dueText === "string" && a.dueText.trim() ? clip(a.dueText, 80) : null
+  })).filter((a) => a.text);
+}
+function normalizeAnalysis(item2 = {}) {
+  const category = oneOf(item2.category, CATEGORIES, "other");
+  const importance = oneOf(item2.importance, ["high", "medium", "low"], "low");
+  const urgency = oneOf(item2.urgency, ["urgent", "notUrgent"], "notUrgent");
+  const actionItems = normalizeActionItems(item2.actionItems);
+  const needsReply = Boolean(item2.needsReply);
+  const intent = oneOf(item2.intent, INTENTS, intentFromCategory(category, needsReply, actionItems));
+  return {
+    category,
+    importance,
+    urgency,
+    priority: priorityOf(importance, urgency),
+    needsReply,
+    summary: clip(item2.summary, 220),
+    reason: clip(item2.reason, 100),
+    actionItems,
+    confidence: Math.min(1, Math.max(0, Number(item2.confidence) || 0)),
+    intent,
+    replyIntent: oneOf(item2.replyIntent, REPLY_INTENTS, "acknowledge"),
+    replyInstruction: clip(item2.replyInstruction, 300),
+    calendarEvents: Array.isArray(item2.calendarEvents) ? item2.calendarEvents.slice(0, 5) : []
+  };
+}
+
+// thunderbird/src/prompts.js
+var clone = (v) => JSON.parse(JSON.stringify(v));
+var baseSchema = () => clone(triagePrompt.schema.schema);
+var schema = baseSchema();
+var item = schema.properties.results.items;
+item.properties.intent = {
+  type: "string",
+  enum: [
+    "request",
+    "question",
+    "meeting",
+    "approval",
+    "payment",
+    "informational",
+    "marketing",
+    "notification",
+    "social",
+    "security",
+    "other"
+  ]
+};
+item.properties.replyIntent = {
+  type: "string",
+  enum: ["accept", "decline", "ask_for_info", "acknowledge", "custom"]
+};
+item.properties.replyInstruction = { type: "string" };
+item.properties.calendarEvents = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    required: ["title", "start", "end", "allDay", "location", "description"],
+    properties: {
+      title: { type: "string" },
+      start: { type: "string" },
+      end: { type: ["string", "null"] },
+      allDay: { type: "boolean" },
+      location: { type: ["string", "null"] },
+      description: { type: ["string", "null"] }
+    }
+  }
+};
+item.required.push("intent", "replyIntent", "replyInstruction", "calendarEvents");
+var EXTRA = `
+
+Additional fields for the Thunderbird assistant:
+- intent: one of request (asks the user to do something), question (asks for information), meeting (schedules or changes a meeting), approval (waits for a yes/no), payment (invoice, receipt, money due), informational (useful update), marketing (bulk promotion), notification (automated system mail), social (social network), security (password/login/security), other.
+- replyIntent: when needsReply is true, the most likely useful reply: accept, decline, ask_for_info, acknowledge, or custom. Use acknowledge when a short confirmation is enough.
+- replyInstruction: a short instruction for the reply writer when replyIntent is custom; otherwise an empty string.
+- calendarEvents: only events the email explicitly asks the user to attend or schedule, with a concrete date or date-time. Do not invent one. start/end are ISO 8601 date-time with offset, or YYYY-MM-DD for an all-day item; end may be null. allDay is true for date-only items. Include location and a one-line description, or null. Empty array if none.
+
+Keep the reply body out of this answer; the reply is drafted separately after the user reviews this analysis.`;
+var assistantPrompt = {
+  version: "assistant.v1",
+  system: `${triagePrompt.system}${EXTRA}`.trim(),
+  schema: { name: "assistant_v1", schema }
+};
 
 // thunderbird/src/mail.js
 function parseAddress(raw) {
@@ -996,15 +1136,20 @@ function selfFrom(accounts) {
 
 // thunderbird/src/ai.js
 var builder = () => new PromptBuilder({ compact: true });
-function userContext(accounts, now = /* @__PURE__ */ new Date()) {
+function userContext(accounts, now = /* @__PURE__ */ new Date(), profile = {}, rules2 = []) {
   const self = selfFrom(accounts);
   const timezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   return {
-    name: self.name,
+    name: profile.name || self.name,
     timezoneName,
     offsetAt: (d) => zoneOffset(timezoneName, d),
     now,
-    selfAddresses: self.addresses
+    selfAddresses: self.addresses,
+    signOff: profile.signOff || void 0,
+    styleNotes: profile.styleNotes || void 0,
+    language: profile.language && profile.language !== "auto" ? profile.language : void 0,
+    vipSenders: rules2.filter((r) => r.kind === "important").map((r) => r.pattern),
+    senderHints: rules2.filter((r) => r.kind !== "normal").map((r) => `${r.pattern} \u2192 ${r.kind}`)
   };
 }
 var provider = (s, fetchImpl) => openAiProvider({
@@ -1021,52 +1166,35 @@ async function analyzeBatch(settings2, messages, ctx, fetchImpl) {
     ctx
   );
   const p = provider(settings2, fetchImpl);
-  const base = 300 * messages.length + 900;
+  const base2 = 300 * messages.length + 900;
   const res = await structuredCall(async (turn) => {
     const r = await p.complete({
       model: settings2.model,
-      system: triagePrompt.system,
+      system: assistantPrompt.system,
       user: turn.kind === "repair" ? `${prompt.text}
 
 <previous_output>
 ${turn.invalid}
 </previous_output>
 ${turn.prompt}` : prompt.text,
-      maxTokens: turn.kind === "retry_longer" ? base * 3 : base,
-      schema: triagePrompt.schema
+      maxTokens: turn.kind === "retry_longer" ? base2 * 3 : base2,
+      schema: assistantPrompt.schema
     });
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r;
-  }, triagePrompt.schema.schema);
+  }, assistantPrompt.schema.schema);
   if (!res.ok) throw new Error(describe(res.error));
   const out = /* @__PURE__ */ new Map();
-  for (const item of res.value.results ?? []) {
-    const id = prompt.idMap[item.id];
-    if (id && !out.has(id)) out.set(id, item);
+  for (const item2 of res.value.results ?? []) {
+    const id = prompt.idMap[item2.id];
+    if (id && !out.has(id)) out.set(id, normalizeAnalysis(item2));
   }
   return out;
 }
-async function analyze(settings2, message, ctx, fetchImpl) {
-  const out = await analyzeBatch(settings2, [message], ctx, fetchImpl);
-  const item = out.get(String(message.providerMessageId));
-  if (!item) throw new Error("The AI returned no result.");
-  return item;
-}
-async function draftReply(settings2, thread, ctx, request, fetchImpl) {
-  const prompt = builder().buildDraft(
-    thread.map((m, i) => ({ messageId: String(m.providerMessageId ?? i), message: m })),
-    ctx,
-    request
-  );
-  const r = await provider(settings2, fetchImpl).complete({
-    model: settings2.model,
-    system: draftPrompt.system,
-    user: prompt.text,
-    maxTokens: 1500,
-    temperature: 0.4
-  });
-  if (!r.ok) throw new Error(describe(r.error));
-  if (!r.value.text.trim()) throw new Error("The AI returned no text.");
-  return r.value.text.trim();
+async function analyze(settings2, message2, ctx, fetchImpl) {
+  const out = await analyzeBatch(settings2, [message2], ctx, fetchImpl);
+  const item2 = out.get(String(message2.providerMessageId));
+  if (!item2) throw new Error("The AI returned no result.");
+  return item2;
 }
 function describe(f) {
   switch (f.kind) {
@@ -1087,106 +1215,789 @@ function describe(f) {
   }
 }
 
-// thunderbird/src/cache.js
-var TRIAGE_PREFIX = "sentinel.triage:";
-var triageKey = (header) => `${TRIAGE_PREFIX}${header.headerMessageId ?? header.id}`;
-var localStore = (area) => ({
-  async get(key) {
-    return (await area.get(key))[key] ?? null;
+// thunderbird/src/config.js
+var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
+var TONES = ["professional", "friendly", "concise", "formal"];
+var DEFAULT_SETTINGS = {
+  baseUrl: "",
+  apiKey: "",
+  model: "",
+  monitor: {
+    enabled: true,
+    intervalMinutes: 60,
+    lookbackDays: 3,
+    maxMessagesPerRun: 80,
+    maxAiMessagesPerRun: 40,
+    autoDraft: true,
+    maxDraftsPerRun: 3,
+    draftMinPriority: "p2_today",
+    analyzeMarketing: false,
+    tagging: true
   },
-  async set(key, value) {
-    await area.set({ [key]: value });
-  }
-});
-
-// thunderbird/src/summary.js
-async function getOrAnalyze({
-  store,
-  header,
-  settings: settings2,
-  message,
-  ctx,
-  fetchImpl,
-  force = false
-}) {
-  const key = triageKey(header);
-  const hit = force ? null : await store.get(key);
-  if (hit) return { result: hit, cached: true, at: hit.at };
-  const result = await analyze(settings2, message, ctx, fetchImpl);
-  const saved = { ...result, sender: header.author, by: "ai", at: Date.now() };
-  await store.set(key, saved);
-  return { result: saved, cached: false, at: saved.at };
+  brief: { enabled: true, hour: 8, updateHourly: true },
+  profile: { tone: "professional", signOff: "", language: "auto" }
+};
+var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
+var int = (v, fallback, min, max) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+};
+var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var oneOf2 = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
+var pick = (v) => v && typeof v === "object" ? v : {};
+function normalizeSettings(raw = {}, legacyBrief = {}) {
+  const saved = pick(raw);
+  const monitor = pick(saved.monitor);
+  const brief = pick(saved.brief);
+  const profile = pick(saved.profile);
+  const oldBrief = pick(legacyBrief);
+  return {
+    baseUrl: str(saved.baseUrl),
+    apiKey: str(saved.apiKey),
+    model: str(saved.model),
+    monitor: {
+      enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
+      intervalMinutes: int(
+        monitor.intervalMinutes,
+        DEFAULT_SETTINGS.monitor.intervalMinutes,
+        15,
+        720
+      ),
+      lookbackDays: int(monitor.lookbackDays, DEFAULT_SETTINGS.monitor.lookbackDays, 1, 30),
+      maxMessagesPerRun: int(
+        monitor.maxMessagesPerRun,
+        DEFAULT_SETTINGS.monitor.maxMessagesPerRun,
+        1,
+        500
+      ),
+      maxAiMessagesPerRun: int(
+        monitor.maxAiMessagesPerRun,
+        DEFAULT_SETTINGS.monitor.maxAiMessagesPerRun,
+        0,
+        200
+      ),
+      autoDraft: bool(monitor.autoDraft, DEFAULT_SETTINGS.monitor.autoDraft),
+      maxDraftsPerRun: int(monitor.maxDraftsPerRun, DEFAULT_SETTINGS.monitor.maxDraftsPerRun, 0, 20),
+      draftMinPriority: oneOf2(
+        monitor.draftMinPriority,
+        DRAFT_PRIORITIES,
+        DEFAULT_SETTINGS.monitor.draftMinPriority
+      ),
+      analyzeMarketing: bool(monitor.analyzeMarketing, DEFAULT_SETTINGS.monitor.analyzeMarketing),
+      tagging: bool(monitor.tagging, DEFAULT_SETTINGS.monitor.tagging)
+    },
+    brief: {
+      enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
+      hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+    },
+    profile: {
+      tone: oneOf2(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
+      signOff: str(profile.signOff),
+      language: str(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
+    }
+  };
 }
-var PRIORITY = { high: "High importance", medium: "Medium importance", low: "Low importance" };
-function formatSummary(r) {
-  const lines = [
-    `${PRIORITY[r.importance] ?? r.importance}${r.urgency === "urgent" ? " \xB7 urgent" : ""}${r.needsReply ? " \xB7 needs a reply" : ""}`,
-    "",
-    r.summary
-  ];
-  if (r.actionItems?.length) {
-    lines.push("", "Action items:");
-    for (const a of r.actionItems)
-      lines.push(`\u2022 ${a.text}${a.dueText || a.dueDate ? ` (${a.dueText || a.dueDate})` : ""}`);
+function mergeSettings(base2, patch = {}) {
+  const p = pick(patch);
+  return {
+    ...base2,
+    ...p,
+    monitor: { ...base2.monitor, ...pick(p.monitor) },
+    brief: { ...base2.brief, ...pick(p.brief) },
+    profile: { ...base2.profile, ...pick(p.profile) }
+  };
+}
+function monitorBlockedReason(settings2) {
+  if (!settings2?.baseUrl || !settings2?.apiKey || !settings2?.model)
+    return "Set the API URL, key and model in Settings first.";
+  if (!/^https:\/\//.test(settings2.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(settings2.baseUrl))
+    return "The API URL must use https (http is allowed only for localhost).";
+  return null;
+}
+
+// thunderbird/src/calendar.js
+var DAY = 24 * 36e5;
+var clip2 = (s, n) => {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return t.length <= n ? t : `${t.slice(0, n - 1)}\u2026`;
+};
+var isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`));
+function normalizeEvent(raw) {
+  if (!raw) return null;
+  const title = clip2(raw.title, 140);
+  const startIn = String(raw.start ?? "").trim();
+  if (!title || !startIn) return null;
+  const allDay = raw.allDay === true || isDate(startIn);
+  const start = allDay ? startIn.slice(0, 10) : new Date(startIn);
+  if (allDay ? !isDate(start) : !Number.isFinite(start.getTime())) return null;
+  let end = null;
+  if (raw.end) {
+    const e = allDay ? String(raw.end).slice(0, 10) : new Date(raw.end);
+    if (allDay ? isDate(e) : Number.isFinite(e.getTime())) end = allDay ? e : e.toISOString();
   }
-  return lines.join("\n");
+  return {
+    title,
+    start: allDay ? start : start.toISOString(),
+    end,
+    allDay,
+    location: raw.location ? clip2(raw.location, 120) : null,
+    description: raw.description ? clip2(raw.description, 500) : null,
+    sourceMessageId: raw.sourceMessageId ?? null
+  };
+}
+function eventsFromAnalysis(analysis2, { header = null } = {}) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add = (e) => {
+    const key = `${e.title.toLowerCase()}|${e.start}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(e);
+  };
+  for (const raw of analysis2?.calendarEvents ?? []) {
+    const e = normalizeEvent({ ...raw, sourceMessageId: header?.headerMessageId ?? null });
+    if (e) add(e);
+  }
+  for (const a of analysis2?.actionItems ?? []) {
+    if (!a?.dueDate || !isDate(a.dueDate)) continue;
+    const e = normalizeEvent({
+      title: a.text,
+      start: a.dueDate,
+      allDay: true,
+      description: analysis2.summary ?? "",
+      location: null,
+      sourceMessageId: header?.headerMessageId ?? null
+    });
+    if (e) add(e);
+  }
+  return out.slice(0, 5);
+}
+
+// thunderbird/src/rules.js
+var RULE_KINDS = ["important", "marketing", "ignore", "normal"];
+var RULE_RANK = { normal: 0, marketing: 1, important: 2, ignore: 3 };
+var idFor = () => globalThis.crypto?.randomUUID?.() ?? `r-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function normalizePattern(raw) {
+  let s = String(raw ?? "").trim().toLowerCase();
+  if (!s) throw new Error("Enter an email address or domain.");
+  const m = /<([^>\s]+)>$/.exec(s);
+  if (m) s = m[1];
+  if (s.startsWith("*@")) s = `@${s.slice(2)}`;
+  if (s.startsWith("@*.")) {
+    const domain = s.slice(3);
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain))
+      throw new Error("Enter a domain such as @*.example.com.");
+    return `@*.${domain}`;
+  }
+  if (s.startsWith("@")) {
+    const domain = s.slice(1);
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain))
+      throw new Error("Enter a domain such as @example.com.");
+    return `@${domain}`;
+  }
+  if (s.startsWith("*.")) s = s.slice(2);
+  if (s.includes("@")) {
+    if (!/^[^@\s]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(s))
+      throw new Error("Enter a valid email address.");
+    return s;
+  }
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(s))
+    throw new Error("Enter an email address or a domain such as example.com.");
+  return `@${s}`;
+}
+function normalizeRule(raw = {}) {
+  const kind = RULE_KINDS.includes(raw.kind) ? raw.kind : "normal";
+  const pattern = normalizePattern(raw.pattern);
+  return {
+    id: typeof raw.id === "string" && raw.id.trim() ? raw.id : idFor(),
+    pattern,
+    kind,
+    label: typeof raw.label === "string" ? raw.label.trim() : ""
+  };
+}
+var addressOf = (sender) => {
+  const s = String(sender ?? "").trim().toLowerCase();
+  const m = /<([^>\s]+)>$/.exec(s);
+  return m ? m[1] : s;
+};
+var domainOf = (address) => address.slice(address.lastIndexOf("@") + 1);
+function specificity(pattern, address) {
+  if (pattern.startsWith("@*.")) {
+    const d = pattern.slice(3);
+    return address.endsWith(`.${d}`) ? 2 : 0;
+  }
+  if (pattern.startsWith("@")) {
+    const d = pattern.slice(1);
+    return domainOf(address) === d ? 1 : 0;
+  }
+  return address === pattern ? 3 : 0;
+}
+function matchRule(sender, rules2 = []) {
+  const address = addressOf(sender);
+  if (!address.includes("@")) return null;
+  let best = null;
+  let bestSpec = 0;
+  let bestRank = -1;
+  for (const rule of rules2) {
+    const spec = specificity(rule.pattern, address);
+    if (!spec) continue;
+    const rank = RULE_RANK[rule.kind] ?? 0;
+    if (spec > bestSpec || spec === bestSpec && rank >= bestRank) {
+      best = rule;
+      bestSpec = spec;
+      bestRank = rank;
+    }
+  }
+  return best;
+}
+var clean2 = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+var clip3 = (s, n) => {
+  const t = clean2(s);
+  return t.length <= n ? t : `${t.slice(0, n - 1)}\u2026`;
+};
+function isBulkMessage(message2) {
+  if (message2?.listUnsubscribe) return true;
+  const precedence = String(message2?.precedence ?? "").toLowerCase();
+  if (["bulk", "list", "junk"].includes(precedence)) return true;
+  const auto = String(message2?.autoSubmitted ?? "").toLowerCase();
+  return Boolean(auto && auto !== "no");
+}
+var NO_REPLY = /^(no-?reply|do-?not-?reply|notifications?|mailer-daemon|postmaster)@/;
+var isNoReplySender = (sender) => NO_REPLY.test(addressOf(sender));
+var SECURITY = /(password reset|reset your password|verify your (account|email|identity)|verification code|one[- ]time (code|password)|otp\b|login (attempt|alert)|security alert|suspicious (sign|login)|two[- ]factor|2fa\b|account (locked|suspended))/i;
+function looksSecurity(message2) {
+  const subject = String(message2?.subject ?? "");
+  const body = String(message2?.bodyText ?? message2?.bodyHtml ?? "").slice(0, 1200);
+  return SECURITY.test(subject) || SECURITY.test(body);
+}
+var base = (message2, now) => ({
+  category: "other",
+  importance: "low",
+  urgency: "notUrgent",
+  needsReply: false,
+  summary: clip3(message2?.subject || "No subject", 160),
+  reason: "",
+  actionItems: [],
+  calendarEvents: [],
+  confidence: 1,
+  intent: "other",
+  replyIntent: "acknowledge",
+  by: "rule",
+  at: now.getTime(),
+  skipped: true
+});
+function localAnalysis(message2, kind, now = /* @__PURE__ */ new Date()) {
+  const a = base(message2, now);
+  if (kind === "ignore") {
+    return {
+      ...a,
+      summary: "Ignored by a sender rule.",
+      reason: "This sender is on your ignore list, so no AI call was made.",
+      intent: "other"
+    };
+  }
+  if (kind === "security") {
+    return {
+      ...a,
+      category: "securityAccount",
+      importance: "high",
+      urgency: "urgent",
+      summary: clip3(message2?.subject || "Security-related message", 160),
+      reason: "Security mail is classified locally; its body is not sent to the AI.",
+      intent: "security"
+    };
+  }
+  if (kind === "notification") {
+    return {
+      ...a,
+      category: "notificationAutomated",
+      summary: clip3(message2?.subject || "Automated notification", 160),
+      reason: "Automated sender; no reply is expected.",
+      intent: "notification"
+    };
+  }
+  return {
+    ...a,
+    category: "newsletterMarketing",
+    summary: clip3(message2?.subject || "Marketing message", 160),
+    reason: "Bulk or list mail was filtered locally to save tokens.",
+    intent: "marketing"
+  };
+}
+function preFilter(message2, rules2 = [], settings2 = {}, now = /* @__PURE__ */ new Date()) {
+  const rule = matchRule(message2?.from?.address ?? message2?.from, rules2);
+  if (rule?.kind === "ignore")
+    return { action: "local", rule, analysis: localAnalysis(message2, "ignore", now) };
+  if (rule?.kind === "important") return { action: "analyze", rule, boostImportance: true };
+  if (rule?.kind === "marketing" && !settings2?.monitor?.analyzeMarketing)
+    return { action: "local", rule, analysis: localAnalysis(message2, "marketing", now) };
+  if (looksSecurity(message2))
+    return { action: "local", rule, analysis: localAnalysis(message2, "security", now) };
+  if (isBulkMessage(message2))
+    return settings2?.monitor?.analyzeMarketing ? { action: "analyze", rule, boostImportance: false } : { action: "local", rule, analysis: localAnalysis(message2, "marketing", now) };
+  if (isNoReplySender(message2?.from?.address ?? message2?.from))
+    return { action: "local", rule, analysis: localAnalysis(message2, "notification", now) };
+  return { action: "analyze", rule, boostImportance: rule?.kind === "important" };
+}
+function applyAnalysisPolicy(analysis2, { rule = null, boostImportance = false } = {}) {
+  const importance = boostImportance ? "high" : analysis2.importance;
+  const urgency = analysis2.urgency === "urgent" ? "urgent" : "notUrgent";
+  return {
+    ...analysis2,
+    importance,
+    urgency,
+    priority: priorityOf(importance, urgency),
+    ruleKind: rule?.kind ?? "normal"
+  };
+}
+function withSender(analysis2, header, now = Date.now()) {
+  return {
+    ...analysis2,
+    sender: header?.author ?? "",
+    subject: header?.subject ?? "",
+    messageId: header?.id ?? null,
+    headerMessageId: header?.headerMessageId ?? null,
+    date: header?.date ?? null,
+    at: now,
+    by: analysis2.by ?? "ai"
+  };
+}
+
+// thunderbird/src/store.js
+var KEYS = {
+  settings: "settings",
+  legacyBrief: "briefSettings",
+  rules: "senderRules",
+  brief: "brief",
+  briefStatus: "briefStatus",
+  monitor: "sentinel.monitor",
+  drafts: "sentinel.drafts",
+  tagKeys: "sentinel.tagKeys",
+  triagePrefix: "sentinel.triage:",
+  draftPrefix: "sentinel.draft:",
+  replyPrefix: "sentinel.replied:"
+};
+var TRIAGE_PREFIX = KEYS.triagePrefix;
+var triageKey = (header) => `${TRIAGE_PREFIX}${header?.headerMessageId ?? header?.id}`;
+var draftKey = (header) => `${KEYS.draftPrefix}${header?.headerMessageId ?? header?.id}`;
+var replyKey = (accountId, header) => `${KEYS.replyPrefix}${accountId ?? "account"}:${header?.headerMessageId ?? header?.id}`;
+var DAY2 = 24 * 36e5;
+function createStore(area) {
+  const get = async (key) => (await area.get(key))[key] ?? null;
+  const set = (key, value) => area.set({ [key]: value });
+  const remove = (key) => area.remove(key);
+  const all = async () => await area.get(null) ?? {};
+  const drafts2 = async () => {
+    const list = await get(KEYS.drafts);
+    return Array.isArray(list) ? list : [];
+  };
+  const prunePrefix = async (prefix, before) => {
+    const data = await all();
+    const stale = Object.keys(data).filter((k) => {
+      if (!k.startsWith(prefix)) return false;
+      const at = typeof data[k]?.at === "number" ? data[k].at : 0;
+      return at < before;
+    });
+    if (stale.length) await remove(stale);
+    return stale;
+  };
+  const pruneAnalyses = (now = Date.now(), days = 14) => prunePrefix(TRIAGE_PREFIX, now - days * DAY2);
+  const readSettings = async () => {
+    const [saved, legacy] = await Promise.all([get(KEYS.settings), get(KEYS.legacyBrief)]);
+    return normalizeSettings(saved ?? {}, legacy ?? {});
+  };
+  return {
+    area,
+    settings: readSettings,
+    async saveSettings(settings2) {
+      const current2 = await readSettings();
+      const next = normalizeSettings(mergeSettings(current2, settings2));
+      await set(KEYS.settings, next);
+      await remove(KEYS.legacyBrief);
+      return next;
+    },
+    async rules() {
+      const saved = await get(KEYS.rules);
+      if (!Array.isArray(saved)) return [];
+      const out = [];
+      for (const r of saved) {
+        try {
+          out.push(normalizeRule({ ...r, id: r.id }));
+        } catch {
+        }
+      }
+      return out;
+    },
+    async saveRules(rules2) {
+      const out = [];
+      for (const r of rules2 ?? []) {
+        try {
+          out.push(normalizeRule(r));
+        } catch {
+        }
+      }
+      await set(KEYS.rules, out);
+      return out;
+    },
+    async analysis(header) {
+      return get(triageKey(header));
+    },
+    async saveAnalysis(header, analysis2) {
+      await set(triageKey(header), analysis2);
+      return analysis2;
+    },
+    async allAnalyses() {
+      const data = await all();
+      return Object.entries(data).filter(([k]) => k.startsWith(TRIAGE_PREFIX)).map(([k, v]) => ({ key: k, id: k.slice(TRIAGE_PREFIX.length), ...v }));
+    },
+    pruneAnalyses,
+    async brief() {
+      return get(KEYS.brief);
+    },
+    async saveBrief(brief) {
+      await set(KEYS.brief, brief);
+      return brief;
+    },
+    async briefStatus() {
+      return get(KEYS.briefStatus);
+    },
+    async saveBriefStatus(status2) {
+      await set(KEYS.briefStatus, status2);
+      return status2;
+    },
+    async monitor() {
+      return get(KEYS.monitor);
+    },
+    async saveMonitor(status2) {
+      await set(KEYS.monitor, status2);
+      return status2;
+    },
+    drafts: drafts2,
+    async appendDraft(entry) {
+      const list = await drafts2();
+      const next = [entry, ...list.filter((d) => d.messageId !== entry.messageId)].slice(0, 200);
+      await set(KEYS.drafts, next);
+      return next;
+    },
+    async draftRecord(header) {
+      return get(draftKey(header));
+    },
+    async saveDraftRecord(header, record) {
+      await set(draftKey(header), record);
+      return record;
+    },
+    async tagKeys() {
+      const saved = await get(KEYS.tagKeys);
+      return saved && typeof saved === "object" ? saved : {};
+    },
+    async saveTagKeys(keys) {
+      await set(KEYS.tagKeys, keys);
+      return keys;
+    },
+    async replied(accountId, header) {
+      return get(replyKey(accountId, header));
+    },
+    async saveReplied(accountId, header, value) {
+      await set(replyKey(accountId, header), value);
+      return value;
+    },
+    async prune(now = Date.now()) {
+      await pruneAnalyses(now, 14);
+      await prunePrefix(KEYS.draftPrefix, now - 90 * DAY2);
+      await prunePrefix(KEYS.replyPrefix, now - 7 * DAY2);
+    }
+  };
+}
+
+// thunderbird/src/ui.js
+var PRIORITY_LABEL = {
+  p1_do_now: "P1 \xB7 Do now",
+  p2_today: "P2 \xB7 Today",
+  p3_this_week: "P3 \xB7 This week",
+  p4_fyi: "P4 \xB7 FYI"
+};
+var PRIORITY_CLASS = {
+  p1_do_now: "p1",
+  p2_today: "p2",
+  p3_this_week: "p3",
+  p4_fyi: "p4"
+};
+var INTENT_LABEL = {
+  request: "Request",
+  question: "Question",
+  meeting: "Meeting",
+  approval: "Approval",
+  payment: "Payment",
+  informational: "Information",
+  marketing: "Marketing",
+  notification: "Notification",
+  social: "Social",
+  security: "Security",
+  other: "Other"
+};
+var CATEGORY_LABEL = {
+  directPersonal: "Personal",
+  workRequest: "Work request",
+  meetingCalendar: "Meeting",
+  financeBilling: "Finance",
+  notificationAutomated: "Notification",
+  newsletterMarketing: "Newsletter",
+  social: "Social",
+  securityAccount: "Security",
+  other: "Other"
+};
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props ?? {})) {
+    if (value === void 0 || value === null) continue;
+    if (key === "class") node.className = value;
+    else if (key === "text") node.textContent = value;
+    else if (key === "dataset") Object.assign(node.dataset, value);
+    else if (key.startsWith("on") && typeof value === "function")
+      node.addEventListener(key.slice(2).toLowerCase(), value);
+    else if (key in node) node[key] = value;
+    else node.setAttribute(key, value);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === void 0 || kid === false) continue;
+    node.append(typeof kid === "string" || typeof kid === "number" ? String(kid) : kid);
+  }
+  return node;
+}
+var clear = (node) => node.replaceChildren();
+function chip(label, kind = "") {
+  return el("span", { class: `chip ${kind}`.trim(), text: label });
+}
+function priorityChip(priority) {
+  return chip(PRIORITY_LABEL[priority] ?? "P4 \xB7 FYI", `chip--${PRIORITY_CLASS[priority] ?? "p4"}`);
+}
+var intentLabel = (intent) => INTENT_LABEL[intent] ?? "Other";
+var categoryLabel = (category) => CATEGORY_LABEL[category] ?? "Other";
+function formatDateTime(value) {
+  const d = value instanceof Date ? value : new Date(value ?? 0);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+function status(node, message2, kind = "") {
+  node.className = `status ${kind}`.trim();
+  node.textContent = message2 ?? "";
+  node.hidden = !message2;
+}
+function empty(message2, action = null) {
+  return el("div", { class: "empty" }, el("p", { class: "muted", text: message2 }), action);
+}
+var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dashboard.html") }).catch(() => void 0);
+var send = (message2) => browser.runtime.sendMessage(message2);
+function actionList(actions = []) {
+  if (!actions.length) return el("p", { class: "muted", text: "No action items." });
+  return el(
+    "ul",
+    { class: "actions" },
+    ...actions.map(
+      (a) => el(
+        "li",
+        {},
+        el("span", { text: a.text }),
+        a.dueText || a.dueDate ? el("span", { class: "meta", text: ` \xB7 ${a.dueText || a.dueDate}` }) : null
+      )
+    )
+  );
 }
 
 // thunderbird/src/popup.js
 var $ = (id) => document.getElementById(id);
-var say = (t) => $("out").textContent = t;
-async function current() {
+var store = createStore(browser.storage.local);
+var current = null;
+var settings = null;
+var rules = [];
+var analysis = null;
+var drafts = [];
+var say = (message2, kind = "") => status($("status"), message2, kind);
+var senderAddress = (author) => {
+  const m = /<([^>\s]+)>$/.exec(String(author ?? ""));
+  return (m ? m[1] : String(author ?? "")).toLowerCase();
+};
+async function activeMessage() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   const md = browser.messageDisplay;
   const shown = md.getDisplayedMessages ? await md.getDisplayedMessages(tab.id).then((r) => Array.isArray(r) ? r : r?.messages) : [await md.getDisplayedMessage(tab.id)];
-  const header = shown?.[0];
-  if (!header) throw new Error("Open a message first.");
-  const full = await browser.messages.getFull(header.id);
-  const ctx = userContext(await browser.accounts.list());
-  return { id: header.id, header, message: toMailMessage(header, full), ctx };
+  return shown?.[0] ?? null;
 }
-async function settings() {
-  const { settings: s } = await browser.storage.local.get("settings");
-  if (!s?.baseUrl || !s?.apiKey || !s?.model) {
-    await browser.runtime.openOptionsPage();
-    throw new Error("Set the API URL, key and model first.");
+async function init() {
+  settings = await store.settings();
+  rules = await store.rules();
+  drafts = await store.drafts();
+  const header = await activeMessage();
+  if (!header) {
+    $("subject").textContent = "Open a message first.";
+    say("Select a message in Thunderbird, then open Sentinel again.");
+    return;
   }
-  return s;
+  current = { header, message: null };
+  $("subject").textContent = header.subject || "(no subject)";
+  $("meta").textContent = `${header.author || "Unknown sender"} \xB7 ${formatDateTime(header.date)}`;
+  $("senders").hidden = false;
+  renderSenderRule();
+  analysis = await store.analysis(header);
+  if (analysis) analysis = { ...analysis, ...normalizeAnalysis(analysis) };
+  if (analysis) render2();
+  else {
+    $("view").replaceChildren(
+      empty(
+        "This message has not been analysed yet.",
+        el("button", { class: "btn btn--primary", type: "button", onclick: () => runAnalyze(false), text: "Analyze now" })
+      )
+    );
+    $("actions").replaceChildren();
+  }
 }
-async function run(fn) {
+async function message() {
+  if (current?.message) return current.message;
+  const full = await browser.messages.getFull(current.header.id);
+  current.message = toMailMessage(current.header, full);
+  return current.message;
+}
+async function context() {
+  const accounts = await browser.accounts.list();
+  return userContext(accounts, /* @__PURE__ */ new Date(), settings.profile, rules);
+}
+async function runAnalyze(force) {
+  if (!settings || monitorBlockedReason(settings)) {
+    say(monitorBlockedReason(settings ?? {}), "status--error");
+    return;
+  }
   try {
-    say("Working\u2026");
-    await fn();
+    say("Analysing\u2026");
+    const m = await message();
+    const plan = preFilter(m, rules, settings, /* @__PURE__ */ new Date());
+    const result = plan.action === "local" ? plan.analysis : await analyze(settings, m, await context());
+    const stored = withSender(
+      applyAnalysisPolicy(result, plan),
+      current.header,
+      Date.now()
+    );
+    stored.by = plan.action === "local" ? "rule" : "ai";
+    stored.promptVersion = plan.action === "local" ? null : "assistant.v1";
+    await store.saveAnalysis(current.header, stored);
+    analysis = stored;
+    render2();
+    void send({ type: "tag-message", messageId: current.header.id }).catch(() => void 0);
+    say(
+      plan.action === "local" ? "Classified locally \u2014 no AI call was made." : force ? "Analysed again." : "Analysis saved.",
+      "status--ok"
+    );
   } catch (e) {
-    say(e.message);
+    say(e.message ?? "The analysis failed.", "status--error");
   }
 }
-async function summarize(force) {
-  const m = await current();
-  const { result, cached, at } = await getOrAnalyze({
-    store: localStore(browser.storage.local),
-    header: m.header,
-    settings: await settings(),
-    message: m.message,
-    ctx: m.ctx,
-    force
-  });
-  say(formatSummary(result));
-  $("again").hidden = !cached;
-  if (cached)
-    $("note").textContent = `Saved analysis from ${new Date(at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}. No AI call was made.`;
-  else $("note").textContent = "";
+function renderCalendar(events) {
+  if (!events.length) return null;
+  const card = el(
+    "section",
+    { class: "card card--flat stack" },
+    el("div", { class: "section-title" }, el("h3", { text: "Calendar" }), el("span", { class: "meta", text: "Export first, then open or import." }))
+  );
+  for (const event of events) {
+    card.append(
+      el(
+        "div",
+        { class: "row row--between" },
+        el(
+          "div",
+          {},
+          el("div", { text: event.title }),
+          el("div", { class: "meta", text: `${event.allDay ? "All day" : formatDateTime(event.start)}${event.location ? ` \xB7 ${event.location}` : ""}` })
+        ),
+        el("button", {
+          class: "btn btn--small",
+          type: "button",
+          onclick: () => addCalendar([event]),
+          text: "Add"
+        })
+      )
+    );
+  }
+  if (events.length > 1)
+    card.append(el("button", { class: "btn btn--small", type: "button", onclick: () => addCalendar(events), text: "Add all" }));
+  return card;
 }
-$("sum").onclick = () => run(() => summarize(false));
-$("again").onclick = () => run(() => summarize(true));
-$("reply").onclick = () => run(async () => {
-  const m = await current();
-  const instruction = $("instr").value.trim();
-  const draft = await draftReply(await settings(), [m.message], m.ctx, {
-    tone: "professional",
-    intent: instruction ? "custom" : "acknowledge",
-    instruction
-  });
-  await browser.runtime.sendMessage({ type: "open-reply", messageId: m.id, draft });
-  say("Draft opened. Review it and press Send yourself.");
+async function addCalendar(events) {
+  const res = await send({ type: "calendar-download", events }).catch((e) => ({ ok: false, error: e.message }));
+  if (res?.ok === false) say(res.error ?? "Could not save the calendar file.", "status--error");
+  else say("Calendar file downloaded.", "status--ok");
+}
+function renderSenderRule() {
+  const rule = matchRule(senderAddress(current?.header?.author), rules);
+  $("sender-rule").textContent = rule ? `${rule.kind} rule` : "No rule yet";
+}
+async function setRule(kind) {
+  const address = senderAddress(current?.header?.author);
+  if (!address) return;
+  const res = await send({ type: "rule-set", pattern: address, kind }).catch((e) => ({ ok: false, error: e.message }));
+  if (res?.ok === false) return say(res.error ?? "Could not save the rule.", "status--error");
+  rules = await store.rules();
+  renderSenderRule();
+  say(`Sender marked ${kind}.`, "status--ok");
+}
+function render2() {
+  const root = $("view");
+  clear(root);
+  const a = analysis;
+  const chips = el(
+    "div",
+    { class: "chips" },
+    priorityChip(a.priority),
+    chip(intentLabel(a.intent), "chip--accent"),
+    chip(categoryLabel(a.category)),
+    a.needsReply ? chip("Needs reply", "chip--ok") : null,
+    a.skipped ? chip("Local rule", "chip--warn") : null,
+    drafts.some((d) => d.messageId === current.header.id && d.status === "saved") ? chip("Draft saved", "chip--ok") : null
+  );
+  const card = el(
+    "section",
+    { class: "card stack" },
+    chips,
+    el("p", { class: "brief-headline", text: a.summary || "No summary." }),
+    a.reason ? el("p", { class: "meta", text: a.reason }) : null,
+    el("div", { class: "section-title" }, el("h3", { text: "Action items" })),
+    actionList(a.actionItems)
+  );
+  root.append(card);
+  const events = eventsFromAnalysis(a, { header: current.header });
+  const calendar = renderCalendar(events);
+  if (calendar) root.append(calendar);
+  const actions = $("actions");
+  clear(actions);
+  actions.append(
+    a.needsReply && !a.skipped ? el("button", { class: "btn btn--primary", type: "button", onclick: () => saveDraft(false), text: "Save AI draft" }) : null,
+    el("button", { class: "btn", type: "button", onclick: () => runAnalyze(true), text: "Analyze again" }),
+    el("button", { class: "btn", type: "button", onclick: openDashboard, text: "Open dashboard" })
+  );
+}
+async function saveDraft(force) {
+  say("Drafting\u2026");
+  const res = await send({ type: "draft-create", messageId: current.header.id, force }).catch((e) => ({
+    ok: false,
+    error: e.message
+  }));
+  if (res?.ok === false) {
+    say(res.error ?? "The draft could not be saved.", "status--error");
+    if (/already|exists|draft/i.test(res.error ?? "")) {
+      $("actions").append(
+        el("button", { class: "btn btn--small btn--danger", type: "button", onclick: () => saveDraft(true), text: "Create another anyway" })
+      );
+    }
+    return;
+  }
+  say("Draft saved to your Drafts folder. Nothing was sent.", "status--ok");
+  if (res.draft) drafts = [res.draft, ...drafts];
+  render2();
+}
+$("dashboard").onclick = openDashboard;
+$("senders").addEventListener("click", (e) => {
+  const kind = e.target?.dataset?.kind;
+  if (kind) void setRule(kind);
 });
+void init().catch((e) => say(e?.message ?? "Could not read this message.", "status--error"));

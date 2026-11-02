@@ -2,31 +2,44 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <style>
-      body {
-        font: 13px system-ui;
-        width: 24rem;
-        padding: 0.75rem;
-      }
-      pre {
-        white-space: pre-wrap;
-        font: inherit;
-      }
-      button {
-        margin-right: 0.4rem;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sentinel — message</title>
+    <link rel="stylesheet" href="theme.css" />
   </head>
   <body>
-    <p id="subject"></p>
-    <p><button id="sum">Summarize</button><button id="reply">Draft reply</button></p>
-    <label
-      >Reply should…
-      <input id="instr" placeholder="accept, decline, ask for details…" style="width: 100%"
-    /></label>
-    <p id="note" class="muted" style="color: GrayText; font-size: 12px"></p>
-    <p><button id="again" hidden>Analyze again</button></p>
-    <pre id="out" role="status"></pre>
+    <div class="page page--popup">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">S</span>
+          <div>
+            <div class="brand__name">Sentinel</div>
+            <div class="brand__sub">Message analysis</div>
+          </div>
+        </div>
+        <button id="dashboard" class="btn btn--small btn--ghost" type="button">Dashboard</button>
+      </header>
+
+      <div class="stack">
+        <div>
+          <div id="subject" class="item__title">Open a message</div>
+          <div id="meta" class="meta"></div>
+        </div>
+        <div id="status" class="status" role="status"></div>
+        <div id="view" class="stack"></div>
+        <div id="actions" class="actions"></div>
+        <div id="senders" class="card card--flat stack" hidden>
+          <div class="section-title"><h3>Sender</h3><span id="sender-rule" class="meta"></span></div>
+          <div class="row" role="group" aria-label="Sender treatment">
+            <button class="btn btn--small" type="button" data-kind="important">Important</button>
+            <button class="btn btn--small" type="button" data-kind="marketing">Marketing</button>
+            <button class="btn btn--small" type="button" data-kind="ignore">Ignore</button>
+            <button class="btn btn--small" type="button" data-kind="normal">Normal</button>
+          </div>
+          <p class="meta">Rules apply to the next check. Ignored mail never reaches the AI.</p>
+        </div>
+        <p class="footer">AI drafts are saved, never sent. Review and send from any device.</p>
+      </div>
+    </div>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

@@ -2,45 +2,76 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Sentinel AI settings</title>
-    <style>
-      body {
-        font: 14px system-ui;
-        max-width: 32rem;
-        margin: 2rem auto;
-        padding: 0 1rem;
-      }
-      label {
-        display: block;
-        margin-top: 1rem;
-      }
-      input {
-        width: 100%;
-        padding: 0.4rem;
-      }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sentinel — provider settings</title>
+    <link rel="stylesheet" href="theme.css" />
   </head>
   <body>
-    <h1>Sentinel AI settings</h1>
-    <form id="f">
-      <label
-        >API URL<input id="baseUrl" type="url" required placeholder="https://api.openai.com/v1"
-      /></label>
-      <label>API key<input id="apiKey" type="password" autocomplete="off" required /></label>
-      <label>Model<input id="model" required placeholder="gpt-4o-mini" /></label>
-      <fieldset style="margin-top: 1.5rem">
-        <legend>Daily brief</legend>
-        <label
-          ><input id="briefOn" type="checkbox" style="width: auto" /> Build a brief every day and
-          notify me</label
-        >
-        <label
-          >At (hour of day, 0-23)<input id="briefHour" type="number" min="0" max="23" required
-        /></label>
-      </fieldset>
-      <p><button type="submit">Save</button> <span id="status" role="status"></span></p>
-    </form>
-    <p>The key is stored in this Thunderbird profile and sent only to the URL above.</p>
+    <div class="page page--narrow">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">S</span>
+          <div>
+            <div class="brand__name">Sentinel</div>
+            <div class="brand__sub">Provider settings</div>
+          </div>
+        </div>
+        <button id="dashboard" class="btn btn--small" type="button">Open dashboard</button>
+      </header>
+
+      <main class="stack--lg stack">
+        <section class="card stack">
+          <div class="section-title">
+            <h2>AI provider</h2>
+            <span class="meta">OpenAI-compatible</span>
+          </div>
+          <form id="f" class="stack" autocomplete="off">
+            <label class="field">
+              <span>API URL</span>
+              <input id="baseUrl" type="url" required placeholder="https://api.openai.com/v1" />
+            </label>
+            <label class="field">
+              <span>API key</span>
+              <input id="apiKey" type="password" autocomplete="off" placeholder="Paste a key" />
+            </label>
+            <p id="key-note" class="meta">The key is stored in this Thunderbird profile and sent only to the URL above.</p>
+            <label class="field">
+              <span>Model</span>
+              <input id="model" required placeholder="gpt-4o-mini" />
+            </label>
+            <div class="actions">
+              <button class="btn btn--primary" type="submit">Save provider</button>
+              <span id="status" class="status" role="status"></span>
+            </div>
+          </form>
+        </section>
+
+        <section class="card stack">
+          <h2>What leaves Thunderbird</h2>
+          <p class="muted">
+            Only the sender, subject, compact message text, and what you have configured leave this profile — and only
+            to the provider above. Attachments are never read. Security mail is classified locally. Marketing and
+            ignored senders never reach the AI by default.
+          </p>
+          <p class="muted">
+            Sentinel cannot send mail. It only saves drafts to your own Drafts folder, where you can review and send
+            them from any device.
+          </p>
+        </section>
+
+        <section class="card stack">
+          <h2>Cost controls</h2>
+          <p class="muted">
+            Monitoring, sender rules, draft limits and brief settings live in the dashboard. Sender rules and the
+            analysis cache are the main ways to keep token use low.
+          </p>
+          <div class="actions">
+            <button id="dashboard2" class="btn" type="button">Open dashboard</button>
+          </div>
+        </section>
+      </main>
+      <p class="footer">Sentinel AI for Thunderbird · local profile only</p>
+    </div>
     <script type="module" src="options.js"></script>
   </body>
 </html>

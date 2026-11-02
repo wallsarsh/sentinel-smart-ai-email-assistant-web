@@ -2,22 +2,19 @@ import { PromptBuilder } from '../../packages/core/src/prompts/builder'
 import { briefRank, PRIORITY_LABEL, priorityOf, runBrief } from '../../packages/core/src/brief'
 import { analyzeBatch, briefAsk, describe } from './ai.js'
 import { toMailMessage } from './mail.js'
+import { applyAnalysisPolicy, preFilter, withSender } from './rules.js'
 import { TRIAGE_PREFIX, triageKey } from './cache.js'
 
 const DAY = 24 * 3600_000
 const KEEP_MS = 14 * DAY
 const BATCH = 8
 
-/** Mail that announces itself as a list (List-Unsubscribe) is filed as a newsletter without asking the AI. */
-const newsletterEntry = (m) => ({
-  category: 'newsletterMarketing',
-  importance: 'low',
-  urgency: 'notUrgent',
-  needsReply: false,
-  summary: m.subject,
-  actionItems: [],
-  by: 'rule',
-})
+/** Start of the current local day, used as the daily brief window. */
+export function briefWindow(now = new Date()) {
+  const d = new Date(now)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
 
 /** What goes into the brief: counted from stored results, ranked, capped. Pure, so it can be tested. */
 export function selectForBrief(rows, { max = 60 } = {}) {
@@ -64,23 +61,18 @@ export function selectForBrief(rows, { max = 60 } = {}) {
 export async function generateBrief({
   api,
   settings,
+  rules = [],
   ctx,
   now = new Date(),
   hours = 24,
+  windowStart = null,
   maxMessages = 60,
   fetchImpl,
 }) {
-  const since = new Date(now.getTime() - hours * 3600_000)
+  const since = windowStart ? new Date(windowStart) : new Date(now.getTime() - hours * 3600_000)
   const self = ctx.selfAddresses
   const headers = (await api.recent(since, maxMessages))
-    .filter(
-      (h) =>
-        !self.has(
-          String(h.author)
-            .replace(/^.*<|>$/g, '')
-            .toLowerCase(),
-        ),
-    )
+    .filter((h) => !self.has(String(h.author).replace(/^.*<|>$/g, '').toLowerCase()))
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, maxMessages)
 
@@ -98,8 +90,9 @@ export async function generateBrief({
   const pending = []
   for (const { h, key } of todo) {
     const m = toMailMessage(h, await api.full(h.id))
-    if (m.listUnsubscribe) {
-      const t = { ...newsletterEntry(m), sender: h.author, at: Date.now() }
+    const plan = preFilter(m, rules, settings, now)
+    if (plan.action === 'local') {
+      const t = withSender(applyAnalysisPolicy(plan.analysis, plan), h, now.getTime())
       await api.cache.set(key, t)
       rows.push({ id: h.id, at: new Date(h.date), t })
     } else pending.push({ h, key, m })
@@ -115,7 +108,7 @@ export async function generateBrief({
     for (const c of chunk) {
       const r = out.get(String(c.m.providerMessageId))
       if (!r) continue // the next run tries again
-      const t = { ...r, sender: c.h.author, by: 'ai', at: Date.now() }
+      const t = withSender(applyAnalysisPolicy(r, { rule: null }), c.h, now.getTime())
       await api.cache.set(c.key, t)
       rows.push({ id: c.h.id, at: new Date(c.h.date), t })
     }
@@ -158,4 +151,62 @@ export function nextRun(now, hour) {
   d.setHours(hour, 0, 0, 0)
   if (d <= now) d.setDate(d.getDate() + 1)
   return d
+}
+
+/** True when the stored brief belongs to the current local day. */
+export const briefIsCurrent = (brief, now = new Date()) =>
+  Boolean(brief?.windowStart) && new Date(brief.windowStart).toDateString() === now.toDateString()
+
+/** Refresh policy: explicit request, new analyses, a new day, or no brief yet. */
+export function shouldRefreshBrief({ brief, analyses = [], now = new Date(), force = false, enabled = true }) {
+  if (!enabled && !force) return false
+  if (force) return true
+  if (analyses.length) return true
+  return !briefIsCurrent(brief, now)
+}
+
+/**
+ * Rebuilds the daily brief and records its status. The caller decides when a refresh is warranted;
+ * this function always runs when called (manual refresh uses force=true).
+ */
+export async function refreshBrief({
+  store,
+  api,
+  settings,
+  rules = [],
+  ctx,
+  now = new Date(),
+  fetchImpl,
+}) {
+  const started = now.toISOString()
+  await store.saveBriefStatus({ state: 'running', at: started })
+  try {
+    const brief = await generateBrief({
+      api,
+      settings,
+      rules,
+      ctx,
+      now,
+      windowStart: briefWindow(now),
+      maxMessages: Math.max(60, settings.monitor.maxMessagesPerRun),
+      fetchImpl,
+    })
+    await store.saveBrief(brief)
+    const status = {
+      state: 'done',
+      at: now.toISOString(),
+      windowStart: brief.windowStart,
+      model: brief.model,
+    }
+    await store.saveBriefStatus(status)
+    return { brief, status }
+  } catch (e) {
+    const status = {
+      state: 'error',
+      at: now.toISOString(),
+      message: String(e?.message ?? e).slice(0, 180),
+    }
+    await store.saveBriefStatus(status)
+    return { brief: await store.brief(), status }
+  }
 }

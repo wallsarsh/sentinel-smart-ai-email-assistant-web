@@ -85,3 +85,46 @@ export function checkBaseUrl(raw) {
     throw new Error('The API URL must use https (http is allowed only for localhost).')
   return `${u.origin}${u.pathname.replace(/\/+$/, '').replace(/\/chat\/completions$/, '')}`
 }
+
+/** All folders below the accounts, flattened. */
+export function flattenFolders(accounts) {
+  const walk = (folders) => (folders ?? []).flatMap((f) => [f, ...walk(f.subFolders)])
+  return (accounts ?? []).flatMap((a) => walk(a.folders))
+}
+
+/** Folders with a special use (inbox, sent, drafts, ...), with an account-walk fallback for older builds. */
+export async function foldersBySpecialUse(use) {
+  if (browser.folders?.query) {
+    try {
+      const found = await browser.folders.query({ specialUse: [use] })
+      if (found?.length) return found
+    } catch {
+      // older builds: fall back to the account tree
+    }
+  }
+  const accounts = await browser.accounts.list(true)
+  return flattenFolders(accounts).filter(
+    (f) => f.type === use || f.specialUse?.includes(use),
+  )
+}
+
+export const inboxFolders = () => foldersBySpecialUse('inbox')
+export const sentFolders = () => foldersBySpecialUse('sent')
+export const draftsFolders = () => foldersBySpecialUse('drafts')
+
+/** The account a message belongs to, when Thunderbird included folder metadata. */
+export const accountIdOf = (header) => header?.folder?.accountId ?? null
+
+/** True when [author] is one of the user's identities. */
+export function isOwnAddress(author, selfAddresses) {
+  const m = /<([^>\s]+)>$/.exec(String(author ?? ''))
+  const address = (m ? m[1] : String(author ?? '')).trim().toLowerCase()
+  return selfAddresses?.has?.(address) ?? false
+}
+
+/** A content-free one-line error for status storage. */
+export const safeError = (e) =>
+  String(e?.message ?? e ?? 'Unknown error')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 180)

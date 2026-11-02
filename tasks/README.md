@@ -1,6 +1,6 @@
 # Sentinel Web Implementation Tracker
 
-Sentinel Web's implementation is split into **111 small, atomic tasks** in 10 phases. Each task is one file in `tasks/items/`, with its dependencies, the exact doc sections to read, the paths it touches, and checkable acceptance criteria. Agents can work on a task with very little context: **read one task file plus its `refs`, not the whole doc set.**
+Sentinel Web's implementation is split into **small, atomic tasks** in 11 phases. Each task is one file in `tasks/items/`, with its dependencies, the exact doc sections to read, the paths it touches, and checkable acceptance criteria. Agents can work on a task with very little context: **read one task file plus its `refs`, not the whole doc set.**
 
 - **Live view:** [`INDEX.md`](INDEX.md) (generated: progress, dependency graph, per-phase tables)
 - **CLI:** `python3 tasks/tools/taskctl.py <command>` (Python 3.9+, stdlib only)
@@ -19,6 +19,7 @@ Sentinel Web's implementation is split into **111 small, atomic tasks** in 10 ph
 | P7 | Background worker, web push, daily brief | M2 |
 | P8 | Onboarding, settings, PWA | M2 |
 | P9 | Hardening, deployment, release | M3 |
+| P10 | Thunderbird assistant: monitoring, hourly brief, auto-drafts, sender rules, calendar | TB1 |
 
 Phases group related work; **dependencies, not phases, decide what can start.**
 

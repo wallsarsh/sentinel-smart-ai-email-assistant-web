@@ -13,7 +13,12 @@
     "accountsRead",
     "alarms",
     "compose",
+    "compose.save",
+    "downloads",
     "messagesRead",
+    "messagesTags",
+    "messagesTagsList",
+    "messagesUpdate",
     "notifications",
     "storage"
   ],

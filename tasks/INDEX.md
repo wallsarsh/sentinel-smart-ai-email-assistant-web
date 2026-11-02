@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 105/111 done · ready now: T009, T010, T011, T159, T160
+**Progress:** 117/124 done · ready now: T009, T010, T011, T159, T160, T174
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -45,6 +45,21 @@ flowchart LR
     T032["T032"]:::done
     T033["T033"]:::done
     T034["T034"]:::done
+  end
+  subgraph P10
+    T162["T162"]:::done
+    T163["T163"]:::done
+    T164["T164"]:::done
+    T165["T165"]:::done
+    T166["T166"]:::done
+    T167["T167"]:::done
+    T168["T168"]:::done
+    T169["T169"]:::done
+    T170["T170"]:::done
+    T171["T171"]:::done
+    T172["T172"]:::done
+    T173["T173"]:::done
+    T174["T174"]:::todo
   end
   subgraph P2
     T040["T040"]:::done
@@ -361,6 +376,27 @@ flowchart LR
   T159 --> T161
   T160 --> T161
   T144 --> T161
+  T162 --> T163
+  T163 --> T164
+  T164 --> T165
+  T164 --> T166
+  T164 --> T167
+  T165 --> T168
+  T165 --> T169
+  T166 --> T169
+  T167 --> T169
+  T168 --> T169
+  T166 --> T170
+  T167 --> T170
+  T163 --> T171
+  T169 --> T172
+  T170 --> T172
+  T171 --> T172
+  T169 --> T173
+  T170 --> T173
+  T171 --> T173
+  T172 --> T173
+  T173 --> T174
 ```
 
 ## P0
@@ -399,6 +435,24 @@ flowchart LR
 | ✅ | [T032](items/T032-data-export-and-account-deletion.md) | Data export and account deletion | M | code | T021, T022, T026 | claude-sonnet-5-5 |
 | ✅ | [T033](items/T033-job-queue-and-worker-process.md) | Job queue and worker process | L | code | T020, T004 | claude-sonnet-5-5 |
 | ✅ | [T034](items/T034-server-sent-events-channel.md) | Server-sent events channel | S | code | T023 | claude-sonnet-5-5 |
+
+## P10
+
+| | ID | Task | Size | Type | Depends on | Owner |
+|---|---|---|---|---|---|---|
+| ✅ | [T162](items/T162-thunderbird-assistant-requirements-and-ux.md) | Thunderbird assistant requirements and UX specification | M | docs | — | opencode-deepseek-v4.1-flash |
+| ✅ | [T163](items/T163-thunderbird-reusable-assistant-modules.md) | Thunderbird reusable assistant domain modules | M | code | T162 | opencode-deepseek-v4.1-flash |
+| ✅ | [T164](items/T164-thunderbird-extended-message-analysis.md) | Thunderbird extended message analysis | M | code | T163 | opencode-deepseek-v4.1-flash |
+| ✅ | [T165](items/T165-thunderbird-background-inbox-monitor.md) | Thunderbird background inbox monitor | L | code | T164 | opencode-deepseek-v4.1-flash |
+| ✅ | [T166](items/T166-thunderbird-reply-detection-and-auto-drafts.md) | Thunderbird reply detection and reviewable auto-drafts | L | code | T164 | opencode-deepseek-v4.1-flash |
+| ✅ | [T167](items/T167-thunderbird-calendar-and-ics.md) | Thunderbird calendar candidates and ICS export | M | code | T164 | opencode-deepseek-v4.1-flash |
+| ✅ | [T168](items/T168-thunderbird-hourly-brief-refresh.md) | Thunderbird hourly daily-brief refresh | M | code | T165 | opencode-deepseek-v4.1-flash |
+| ✅ | [T169](items/T169-thunderbird-dashboard.md) | Thunderbird dashboard shell and five views | L | code | T165, T166, T167, T168 | opencode-deepseek-v4.1-flash |
+| ✅ | [T170](items/T170-thunderbird-message-popup.md) | Thunderbird message popup redesign and sender shortcuts | M | code | T166, T167 | opencode-deepseek-v4.1-flash |
+| ✅ | [T171](items/T171-thunderbird-options-page.md) | Thunderbird options page and provider flow | S | code | T163 | opencode-deepseek-v4.1-flash |
+| ✅ | [T172](items/T172-thunderbird-design-system-and-a11y.md) | Thunderbird design-system and accessibility polish | M | code | T169, T170, T171 | opencode-deepseek-v4.1-flash |
+| ✅ | [T173](items/T173-thunderbird-build-and-docs.md) | Thunderbird manifest, build, docs and automated smoke | M | code | T169, T170, T171, T172 | opencode-deepseek-v4.1-flash |
+| ⬜ | [T174](items/T174-thunderbird-real-client-validation.md) | Thunderbird real-client validation matrix | M | manual | T173 |  |
 
 ## P2
 

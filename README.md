@@ -4,6 +4,7 @@ Browser version of the Sentinel AI email assistant (Nuxt 3 / Vue 3, Node, Postgr
 
 - Design: [`docs/web-design.md`](docs/web-design.md)
 - **Windows / macOS / Linux desktop client (Tauri 2):** [`desktop/README.md`](desktop/README.md)
+- **Thunderbird add-on:** [`thunderbird/README.md`](thunderbird/README.md) · requirements [`thunderbird/docs/requirements.md`](thunderbird/docs/requirements.md)
 - Work plan: [`tasks/README.md`](tasks/README.md) and the live [`tasks/INDEX.md`](tasks/INDEX.md)
 - Mobile reference docs: [`docs/reference/`](docs/reference/)
 
