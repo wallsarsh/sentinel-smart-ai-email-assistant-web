@@ -3223,6 +3223,7 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
         nextRunAt: null
       };
       await store.saveMonitor(status2);
+      await store.saveBriefStatus({ state: "error", at: now.toISOString(), message: blocked });
       return { ok: false, error: blocked, status: status2 };
     }
     const ctx = await context(settings, rules);
@@ -3271,6 +3272,9 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
       nextRunAt: null
     };
     await store.saveMonitor(status).catch(() => void 0);
+    await store.saveBriefStatus({ state: "error", at: status.at, message: status.error }).catch(
+      () => void 0
+    );
     return { ok: false, error: status.error, status };
   }).finally(() => {
     monitorRunning = null;

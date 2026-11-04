@@ -362,6 +362,7 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
         nextRunAt: null,
       }
       await store.saveMonitor(status)
+      await store.saveBriefStatus({ state: 'error', at: now.toISOString(), message: blocked })
       return { ok: false, error: blocked, status }
     }
     const ctx = await context(settings, rules)
@@ -411,6 +412,9 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
         nextRunAt: null,
       }
       await store.saveMonitor(status).catch(() => undefined)
+      await store.saveBriefStatus({ state: 'error', at: status.at, message: status.error }).catch(
+        () => undefined,
+      )
       return { ok: false, error: status.error, status }
     })
     .finally(() => {
