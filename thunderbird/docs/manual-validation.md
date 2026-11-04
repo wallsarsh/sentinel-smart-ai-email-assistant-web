@@ -73,6 +73,12 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 2. Temporarily disable/rename the experiment and confirm Add falls back to a downloaded `.ics`.
 3. Confirm a failed write after the first event is not retried as an ICS duplicate.
 
+## 5b. Windows Scoop profile
+
+1. Start Thunderbird with the Scoop profile, then close it completely (check Task Manager for `thunderbird.exe`).
+2. Run `npm run demo:mail -- --days 5 --apply --profile "C:\\Programs\\Scoop\\Apps\\persist\\thunderbird\\profile"`.
+3. If it reports a lock, remove stale `parent.lock`/`lock` from the profile root and retry; the mailbox appears under Local Folders.
+
 ## 6. Resilience and accessibility
 
 | # | Test | Expected |

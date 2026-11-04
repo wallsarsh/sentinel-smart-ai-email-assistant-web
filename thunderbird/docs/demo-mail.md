@@ -51,6 +51,6 @@ The script finds the Thunderbird profile from `THUNDERBIRD_PROFILE`, `--profile`
 
 and removes `Sentinel Demo.msf` so Thunderbird rebuilds the index. Start Thunderbird and open **Local Folders → Sentinel Demo**.
 
-If auto-detection fails, pass the profile explicitly. If the profile is locked, the script stops and asks you to close Thunderbird; never edit a profile while Thunderbird is running.
+If auto-detection fails, pass the profile explicitly. If the profile is locked, the script stops, prints the exact lock file and asks you to close Thunderbird. On Windows, a crash can leave a stale `parent.lock`; close all Thunderbird processes, delete `parent.lock` (and `lock` if present) in the profile root, then retry. Never edit a profile while Thunderbird is running.
 
 The generated `.eml` files can also be imported with Thunderbird’s import tools or any mbox-aware mail client.

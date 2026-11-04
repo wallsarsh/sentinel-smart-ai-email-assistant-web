@@ -430,14 +430,24 @@ export function sanitizeFolder(name = 'Sentinel Demo') {
   return clean
 }
 
+export function lockFiles(profileDir) {
+  return ['parent.lock', 'lock']
+    .map((name) => join(profileDir, name))
+    .filter((path) => existsSync(path))
+}
+
 function thunderbirdRunning(profileDir) {
-  return ['parent.lock', 'lock'].some((name) => existsSync(join(profileDir, name)))
+  return lockFiles(profileDir).length > 0
 }
 
 /** Append the generated mbox to a Local Folders mailbox. Thunderbird must be closed. */
 export function installToThunderbird(profileDir, mboxText, { folder = 'Sentinel Demo', replace = false } = {}) {
-  if (thunderbirdRunning(profileDir))
-    throw new Error('Close Thunderbird before --apply; a profile lock is present.')
+  if (thunderbirdRunning(profileDir)) {
+    const locks = lockFiles(profileDir).join(', ')
+    throw new Error(
+      `Close Thunderbird before --apply; profile lock present: ${locks}. If Thunderbird is already closed, the lock is stale: delete that file and retry.`,
+    )
+  }
   const safe = sanitizeFolder(folder)
   const local = join(profileDir, 'Mail', 'Local Folders')
   mkdirSync(local, { recursive: true })
