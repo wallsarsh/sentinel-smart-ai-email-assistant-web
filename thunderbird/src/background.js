@@ -23,6 +23,7 @@ import {
   sentFolders,
   toMailMessage,
 } from './mail.js'
+import { clearBriefBadge, notifyBriefUpdated, updateBriefBadge } from './notify.js'
 import { runMonitor } from './monitor.js'
 import { createStore } from './store.js'
 import { applyTags } from './tags.js'
@@ -230,14 +231,16 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     ctx,
     now,
     fetchImpl: undefined,
-  }).finally(() => {
-    briefRunning = null
   })
+    .then((result) => ({ ...result, updated: true }))
+    .finally(() => {
+      briefRunning = null
+    })
   return briefRunning
 }
 
 /** One monitor → drafts → brief pass. Concurrent requests share the same run. */
-function runAssistant({ reason = 'alarm', force = false, forceBrief = false, notify = false } = {}) {
+function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = {}) {
   if (monitorRunning) return monitorRunning
   monitorRunning = (async () => {
     const now = new Date()
@@ -288,14 +291,10 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false, not
       briefAt: brief?.status?.at ?? null,
     }
     await store.saveMonitor(status)
-    if (notify && brief?.status?.state === 'done')
-      await browser.notifications
-        .create('sentinel-brief', {
-          type: 'basic',
-          title: 'Sentinel AI',
-          message: 'Your brief is up to date.',
-        })
-        .catch(() => undefined)
+    if (brief?.updated) {
+      await updateBriefBadge(brief.brief)
+      if (settings.brief.notify) await notifyBriefUpdated(brief.brief)
+    }
     return { ok: true, monitor, drafts, brief, status }
   })().finally(() => {
     monitorRunning = null
@@ -323,7 +322,7 @@ async function schedule() {
 
 browser.alarms.onAlarm.addListener((a) => {
   if (a.name === MONITOR_ALARM) void runAssistant({ reason: 'alarm' })
-  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief', notify: true })
+  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief' })
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM)
     void runAssistant({ reason: 'startup' })
@@ -434,12 +433,16 @@ browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== 'object') return undefined
   try {
     if (msg.type === 'monitor-run') {
-      void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief), notify: false })
+      void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief) })
       return { started: true }
     }
     if (msg.type === 'brief-run') {
-      void runAssistant({ reason: 'brief-manual', forceBrief: true, notify: false })
+      void runAssistant({ reason: 'brief-manual', forceBrief: true })
       return { started: true }
+    }
+    if (msg.type === 'brief-seen') {
+      await clearBriefBadge()
+      return { ok: true }
     }
     if (msg.type === 'draft-create') return manualDraft(msg.messageId, { force: msg.force })
     if (msg.type === 'tag-message') {
@@ -457,6 +460,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
       return { ok: true }
     }
     if (msg.type === 'open-dashboard') {
+      await clearBriefBadge()
       await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') })
       return { ok: true }
     }
@@ -468,6 +472,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
 })
 
 browser.notifications.onClicked.addListener(() => {
+  void clearBriefBadge()
   void browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 })
 

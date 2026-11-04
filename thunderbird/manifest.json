@@ -12,6 +12,7 @@
   "permissions": [
     "accountsRead",
     "alarms",
+    "clipboardWrite",
     "compose",
     "compose.save",
     "downloads",

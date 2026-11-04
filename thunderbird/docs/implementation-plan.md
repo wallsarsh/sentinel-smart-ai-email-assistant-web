@@ -40,8 +40,9 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | `thunderbird/src/calendar.js` | Candidate normalisation, ICS serialisation, download adapter. | `thunderbird.calendar` |
 | `thunderbird/src/brief.js` | Daily window, hourly refresh policy, cached analysis reuse, brief assembly. | extends existing brief tests |
 | `thunderbird/src/tags.js` | Best-effort Thunderbird tag mapping. | `thunderbird.tags` |
-| `thunderbird/src/tones.js` | Compose tone presets (Standard…Persuasive) mapped to core tones/instructions. | `thunderbird.ui` |
-| `thunderbird/src/compose.*` | Reply-compose action: tone picker, instruction, generate above the quote. | `thunderbird.ui` + manual |
+| `thunderbird/src/tones.js` | Compose tone, intent and length presets mapped to core tones/instructions. | `thunderbird.ui` |
+| `thunderbird/src/notify.js` | Brief toolbar badge, title and content-free native notifications. | `thunderbird.notify` |
+| `thunderbird/src/compose.*` | Reply-compose action: analysis, tone/intent/length, editable preview, insert/copy. | `thunderbird.ui` + manual |
 | `thunderbird/src/ui.js` | Safe DOM primitives, labels, relative time, chips. | `thunderbird.ui` |
 | `thunderbird/src/theme.css` | Design tokens, layout, cards, chips, tabs, forms, dark mode, reduced motion. | visual/manual |
 | `thunderbird/src/dashboard.*` | Brief/Inbox/Drafts/Senders/Settings views. | `thunderbird.ui` + manual |
@@ -67,6 +68,9 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | T173 | Manifest, build, docs and automated smoke | T169–T172 | `manifest.json`, `README.md`, `tools/build-extension.mjs`, tests |
 | T174 | Real-Thunderbird validation matrix | T173 | manual only |
 | T175 | Dashboard URL, IMAP draft identity and compose tones | T173 | `compose.*`, `tones.js`, `drafts.js`, `ui.js`, manifest, build, tests |
+| T176 | Brief update badge and native notification | T173 | `notify.js`, `background.js`, `config.js`, dashboard, brief popup, tests |
+| T177 | Reply-view assistant with intent, length and preview | T175 | `compose.*`, `tones.js`, `theme.css`, tests |
+| T178 | Add-on review and feature adoption notes | T176, T177 | `thunderbird/docs/addon-review.md`, requirements, plan, README |
 
 Critical path: T162 → T163 → T164 → T165 → T168 → T169 → T172 → T173 → T174.
 
@@ -119,7 +123,7 @@ The existing `tests/unit/thunderbird-spike.test.ts` remains the regression suite
 
 ## 9. Status at handoff (2026-11-02)
 
-T162–T173 are implemented and their acceptance boxes are ticked. T175 fixes the three issues found in the first real-client test (dashboard path, draft identity/folder, compose tone action). The automated evidence is:
+T162–T178 are implemented and their acceptance boxes are ticked. T175 fixed the first real-client issues (dashboard path, draft identity/folder, compose tones); T176–T178 add the brief badge/notification, the richer reply-view assistant and the add-on review. The automated evidence is:
 
 ```sh
 npx vitest run tests/unit/thunderbird-spike.test.ts tests/unit/thunderbird-assistant.test.ts tests/unit/thunderbird-ui.test.ts

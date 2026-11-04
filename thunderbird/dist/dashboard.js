@@ -17,7 +17,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -73,7 +73,8 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
@@ -733,6 +734,7 @@ function renderSettings({ settings }) {
   $("monitor-marketing").checked = settings.monitor.analyzeMarketing;
   $("brief-enabled").checked = settings.brief.enabled;
   $("brief-hourly").checked = settings.brief.updateHourly;
+  $("brief-notify").checked = settings.brief.notify;
   const hour = $("brief-hour");
   if (!hour.options.length) {
     for (let h = 0; h < 24; h++)
@@ -785,7 +787,8 @@ function saveSettings(event) {
     brief: {
       enabled: $("brief-enabled").checked,
       hour: Number($("brief-hour").value),
-      updateHourly: $("brief-hourly").checked
+      updateHourly: $("brief-hourly").checked,
+      notify: $("brief-notify").checked
     },
     profile: {
       tone: $("profile-tone").value,

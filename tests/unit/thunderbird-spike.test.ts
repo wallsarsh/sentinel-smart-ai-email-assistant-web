@@ -169,6 +169,7 @@ describe('extension package', () => {
     expect([...m.permissions].sort()).toEqual([
       'accountsRead',
       'alarms',
+      'clipboardWrite',
       'compose',
       'compose.save',
       'downloads',

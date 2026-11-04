@@ -25,7 +25,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -81,7 +81,8 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
@@ -337,7 +338,10 @@ function status(node, message, kind = "") {
   node.textContent = message ?? "";
   node.hidden = !message;
 }
-var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
+var openDashboard = () => {
+  void browser.runtime.sendMessage({ type: "brief-seen" }).catch(() => void 0);
+  return browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
+};
 
 // thunderbird/src/options.js
 var $ = (id) => document.getElementById(id);

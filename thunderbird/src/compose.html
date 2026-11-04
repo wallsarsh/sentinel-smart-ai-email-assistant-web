@@ -13,27 +13,64 @@
           <span class="brand__mark" aria-hidden="true">S</span>
           <div>
             <div class="brand__name">Sentinel</div>
-            <div class="brand__sub">Draft this reply</div>
+            <div class="brand__sub">Reply assistant</div>
           </div>
         </div>
       </header>
+
       <div class="stack">
         <div id="context" class="meta">Reading the compose window…</div>
         <div id="status" class="status" role="status"></div>
+
+        <section id="analysis" class="card card--flat stack" hidden></section>
+
         <fieldset class="stack fieldset-reset">
           <legend class="meta">Tone</legend>
           <div id="tones" class="chips" role="group" aria-label="Reply tone"></div>
         </fieldset>
+
+        <div class="grid grid--2">
+          <label class="field">
+            <span>Reply intent</span>
+            <select id="intent">
+              <option value="acknowledge">Acknowledge</option>
+              <option value="accept">Accept</option>
+              <option value="decline">Decline</option>
+              <option value="ask_for_info">Ask for details</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Length</span>
+            <select id="length">
+              <option value="short">Short</option>
+              <option value="standard">Standard</option>
+              <option value="detailed">Detailed</option>
+            </select>
+          </label>
+        </div>
+
         <label class="field">
           <span>Optional instruction</span>
           <textarea id="instruction" rows="2" placeholder="e.g. mention I can join after 2pm"></textarea>
         </label>
+
         <div class="actions">
-          <button id="generate" class="btn btn--primary" type="button">Generate draft</button>
+          <button id="generate" class="btn btn--primary" type="button">Generate preview</button>
           <button id="regenerate" class="btn" type="button" hidden>Regenerate</button>
         </div>
+
+        <label id="preview-field" class="field" hidden>
+          <span>Preview — edit before inserting</span>
+          <textarea id="preview" rows="9"></textarea>
+        </label>
+        <div id="insert-actions" class="actions" hidden>
+          <button id="insert" class="btn btn--primary" type="button">Insert into reply</button>
+          <button id="copy" class="btn" type="button">Copy</button>
+        </div>
+
         <p class="footer">
-          The draft is inserted into this compose window. Review it and press Send yourself.
+          Sentinel only writes into this compose window. Review it and press Send yourself.
         </p>
       </div>
     </div>

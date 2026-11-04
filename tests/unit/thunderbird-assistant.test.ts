@@ -53,7 +53,9 @@ import { briefWindow, refreshBrief, shouldRefreshBrief } from '../../thunderbird
 // @ts-expect-error plain JS modules shipped inside the extension
 import { INTENT_LABEL, PRIORITY_LABEL, relativeTime } from '../../thunderbird/src/ui.js'
 // @ts-expect-error plain JS modules shipped inside the extension
-import { TONE_IDS, toneLabel, toneRequest } from '../../thunderbird/src/tones.js'
+import { LENGTHS, TONE_IDS, composeRequest, toneLabel, toneRequest } from '../../thunderbird/src/tones.js'
+// @ts-expect-error plain JS modules shipped inside the extension
+import { briefBadgeCount, clearBriefBadge, notifyBriefUpdated, updateBriefBadge } from '../../thunderbird/src/notify.js'
 
 const sender = (address: string, name = '') => (name ? { address, name } : { address })
 const mail = (over: Record<string, unknown> = {}) => ({
@@ -868,6 +870,39 @@ describe('Thunderbird surfaces and safety', () => {
       intent: 'acknowledge',
     })
     expect(toneRequest('casual').instruction).toMatch(/conversational/i)
+    expect(LENGTHS.map((l: { id: string }) => l.id)).toEqual(['short', 'standard', 'detailed'])
+    expect(
+      composeRequest({ tone: 'casual', intent: 'accept', length: 'short', instruction: 'Mention Friday.' }),
+    ).toMatchObject({ tone: 'friendly', intent: 'accept' })
+    expect(
+      composeRequest({ tone: 'casual', length: 'short', instruction: 'Mention Friday.' }).instruction,
+    ).toMatch(/conversational/i)
+  })
+
+  it('badges the brief icon and sends a count-only notification', async () => {
+    const calls: string[] = []
+    const action = {
+      setBadgeText: async ({ text }: { text: string }) => calls.push(`text:${text}`),
+      setBadgeBackgroundColor: async () => calls.push('color'),
+      setTitle: async ({ title }: { title: string }) => calls.push(`title:${title}`),
+    }
+    expect(briefBadgeCount({ stats: { total: 150 } })).toBe(99)
+    expect(briefBadgeCount({ stats: { total: 0 } })).toBe(0)
+    await updateBriefBadge(
+      { stats: { total: 3 }, createdAt: new Date('2026-11-04T09:00:00Z').toISOString() },
+      action as never,
+    )
+    expect(calls).toContain('text:3')
+    expect(calls).toContain('color')
+    const notes: { message?: string }[] = []
+    const notifications = {
+      create: async (_id: string, options: { message?: string }) => notes.push(options),
+    }
+    expect(await notifyBriefUpdated({ stats: { total: 2 } }, { notifications })).toBe(true)
+    expect(notes[0]?.message).toBe('Brief updated · 2 new messages.')
+    expect(JSON.stringify(notes)).not.toMatch(/subject|sender|body/)
+    await clearBriefBadge(action as never)
+    expect(calls).toContain('text:')
   })
 
   it('exposes readable labels and relative times', () => {

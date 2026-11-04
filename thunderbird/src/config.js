@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true,
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: 'professional', signOff: '', language: 'auto' },
 }
 
@@ -83,6 +83,7 @@ export function normalizeSettings(raw = {}, legacyBrief = {}) {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
       updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify),
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),

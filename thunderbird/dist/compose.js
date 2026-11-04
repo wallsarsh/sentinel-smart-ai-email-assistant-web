@@ -1121,7 +1121,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -1177,7 +1177,8 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf2(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
@@ -1425,6 +1426,15 @@ var TONES2 = [
   }
 ];
 var TONE_IDS = TONES2.map((t) => t.id);
+var LENGTHS = [
+  { id: "short", label: "Short", instruction: "Keep it to two or three sentences." },
+  { id: "standard", label: "Standard", instruction: "" },
+  {
+    id: "detailed",
+    label: "Detailed",
+    instruction: "Use two or three short paragraphs with a clear next step."
+  }
+];
 function toneRequest(id, { intent = "acknowledge", instruction = "" } = {}) {
   const preset = TONES2.find((t) => t.id === id) ?? TONES2[0];
   const extra = [preset.instruction, instruction.trim()].filter(Boolean).join(" ");
@@ -1434,8 +1444,51 @@ function toneRequest(id, { intent = "acknowledge", instruction = "" } = {}) {
     ...extra ? { instruction: extra } : {}
   };
 }
+function composeRequest({ tone = "standard", intent = "acknowledge", length = "standard", instruction = "" } = {}) {
+  const lengthInstruction = LENGTHS.find((l) => l.id === length)?.instruction ?? "";
+  return toneRequest(tone, {
+    intent,
+    instruction: [lengthInstruction, instruction.trim()].filter(Boolean).join(" ")
+  });
+}
 
 // thunderbird/src/ui.js
+var PRIORITY_LABEL = {
+  p1_do_now: "P1 \xB7 Do now",
+  p2_today: "P2 \xB7 Today",
+  p3_this_week: "P3 \xB7 This week",
+  p4_fyi: "P4 \xB7 FYI"
+};
+var PRIORITY_CLASS = {
+  p1_do_now: "p1",
+  p2_today: "p2",
+  p3_this_week: "p3",
+  p4_fyi: "p4"
+};
+var INTENT_LABEL = {
+  request: "Request",
+  question: "Question",
+  meeting: "Meeting",
+  approval: "Approval",
+  payment: "Payment",
+  informational: "Information",
+  marketing: "Marketing",
+  notification: "Notification",
+  social: "Social",
+  security: "Security",
+  other: "Other"
+};
+var CATEGORY_LABEL = {
+  directPersonal: "Personal",
+  workRequest: "Work request",
+  meetingCalendar: "Meeting",
+  financeBilling: "Finance",
+  notificationAutomated: "Notification",
+  newsletterMarketing: "Newsletter",
+  social: "Social",
+  securityAccount: "Security",
+  other: "Other"
+};
 function el(tag, props = {}, ...kids) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(props ?? {})) {
@@ -1455,10 +1508,33 @@ function el(tag, props = {}, ...kids) {
   return node;
 }
 var clear = (node) => node.replaceChildren();
+function chip(label, kind = "") {
+  return el("span", { class: `chip ${kind}`.trim(), text: label });
+}
+function priorityChip(priority) {
+  return chip(PRIORITY_LABEL[priority] ?? "P4 \xB7 FYI", `chip--${PRIORITY_CLASS[priority] ?? "p4"}`);
+}
+var intentLabel = (intent) => INTENT_LABEL[intent] ?? "Other";
+var categoryLabel = (category) => CATEGORY_LABEL[category] ?? "Other";
 function status(node, message, kind = "") {
   node.className = `status ${kind}`.trim();
   node.textContent = message ?? "";
   node.hidden = !message;
+}
+function actionList(actions = []) {
+  if (!actions.length) return el("p", { class: "muted", text: "No action items." });
+  return el(
+    "ul",
+    { class: "actions" },
+    ...actions.map(
+      (a) => el(
+        "li",
+        {},
+        el("span", { text: a.text }),
+        a.dueText || a.dueDate ? el("span", { class: "meta", text: ` \xB7 ${a.dueText || a.dueDate}` }) : null
+      )
+    )
+  );
 }
 
 // thunderbird/src/compose.js
@@ -1472,7 +1548,9 @@ var state = {
   analysis: null,
   settings: null,
   rules: [],
-  tone: "standard"
+  tone: "standard",
+  length: "standard",
+  preview: ""
 };
 var say = (message, kind = "") => status($("status"), message, kind);
 function renderTones() {
@@ -1492,6 +1570,40 @@ function renderTones() {
       })
     );
   }
+}
+function renderAnalysis() {
+  const root = $("analysis");
+  clear(root);
+  if (!state.analysis) {
+    root.hidden = true;
+    return;
+  }
+  const a = state.analysis;
+  root.hidden = false;
+  root.append(
+    el(
+      "div",
+      { class: "row row--between" },
+      el("span", { class: "meta", text: "Original message" }),
+      el(
+        "span",
+        { class: "chips" },
+        priorityChip(a.priority),
+        chip(intentLabel(a.intent), "chip--accent"),
+        chip(categoryLabel(a.category))
+      )
+    ),
+    el("p", { class: "item__summary", text: a.summary || "No summary yet." }),
+    a.reason ? el("p", { class: "meta", text: a.reason }) : null,
+    a.actionItems?.length ? el("div", {}, el("div", { class: "meta", text: "Action items" }), actionList(a.actionItems)) : null
+  );
+}
+function showPreview(body) {
+  state.preview = body;
+  $("preview").value = body;
+  $("preview-field").hidden = false;
+  $("insert-actions").hidden = false;
+  $("regenerate").hidden = false;
 }
 async function findComposeTab() {
   const current = await browser.tabs.query({ active: true, currentWindow: true });
@@ -1529,12 +1641,21 @@ async function init() {
   state.tone = ["standard", "professional", "friendly", "concise", "formal"].includes(
     state.settings.profile.tone
   ) ? state.settings.profile.tone : "standard";
+  const intents = ["acknowledge", "accept", "decline", "ask_for_info", "custom"];
+  if (intents.includes(state.analysis?.replyIntent)) $("intent").value = state.analysis.replyIntent;
+  $("length").value = state.length;
+  const lengths = new Set(LENGTHS.map((l) => l.id));
+  if (!lengths.has(state.length)) state.length = "standard";
   $("context").textContent = `Replying to ${state.header.author ?? "the sender"} \xB7 ${state.header.subject ?? "(no subject)"}`;
   renderTones();
+  renderAnalysis();
 }
 async function generate() {
   try {
     if (monitorBlockedReason(state.settings)) throw new Error(monitorBlockedReason(state.settings));
+    const intent = $("intent").value;
+    if (intent === "custom" && !$("instruction").value.trim())
+      throw new Error("Add an instruction for the custom reply.");
     say("Drafting\u2026");
     const accounts = await browser.accounts.list();
     const ctx = userContext(accounts, /* @__PURE__ */ new Date(), state.settings.profile, state.rules);
@@ -1542,19 +1663,43 @@ async function generate() {
       state.settings,
       [state.message],
       ctx,
-      toneRequest(state.tone, {
-        intent: state.analysis?.replyIntent ?? "acknowledge",
+      composeRequest({
+        tone: state.tone,
+        intent,
+        length: $("length").value,
         instruction: $("instruction").value
       })
     );
-    const details = await browser.compose.getComposeDetails(state.tab.id);
-    await browser.compose.setComposeDetails(state.tab.id, withDraft(details, body));
-    say("Draft inserted. Review it and press Send yourself.", "status--ok");
-    $("regenerate").hidden = false;
+    showPreview(body);
+    say("Preview ready. Edit it if needed, then insert it.", "status--ok");
   } catch (e) {
     say(e?.message ?? "The draft could not be generated.", "status--error");
   }
 }
+async function insert() {
+  try {
+    const body = $("preview").value.trim();
+    if (!body) throw new Error("The preview is empty.");
+    const details = await browser.compose.getComposeDetails(state.tab.id);
+    await browser.compose.setComposeDetails(state.tab.id, withDraft(details, body));
+    say("Draft inserted above the quote. Review it and press Send yourself.", "status--ok");
+  } catch (e) {
+    say(e?.message ?? "The draft could not be inserted.", "status--error");
+  }
+}
+async function copy() {
+  try {
+    await navigator.clipboard.writeText($("preview").value);
+    say("Preview copied.", "status--ok");
+  } catch {
+    say("Could not copy the preview.", "status--error");
+  }
+}
 $("generate").onclick = generate;
 $("regenerate").onclick = generate;
+$("insert").onclick = insert;
+$("copy").onclick = copy;
+$("length").onchange = () => {
+  state.length = $("length").value;
+};
 void init().catch((e) => say(e?.message ?? "Could not read the compose window.", "status--error"));

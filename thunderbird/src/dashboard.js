@@ -286,6 +286,7 @@ function renderSettings({ settings }) {
   $('monitor-marketing').checked = settings.monitor.analyzeMarketing
   $('brief-enabled').checked = settings.brief.enabled
   $('brief-hourly').checked = settings.brief.updateHourly
+  $('brief-notify').checked = settings.brief.notify
   const hour = $('brief-hour')
   if (!hour.options.length) {
     for (let h = 0; h < 24; h++)
@@ -344,6 +345,7 @@ function saveSettings(event) {
       enabled: $('brief-enabled').checked,
       hour: Number($('brief-hour').value),
       updateHourly: $('brief-hourly').checked,
+      notify: $('brief-notify').checked,
     },
     profile: {
       tone: $('profile-tone').value,

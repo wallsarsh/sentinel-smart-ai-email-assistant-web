@@ -39,7 +39,10 @@ function status(node, message, kind = "") {
 function empty(message, action = null) {
   return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
 }
-var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
+var openDashboard = () => {
+  void browser.runtime.sendMessage({ type: "brief-seen" }).catch(() => void 0);
+  return browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
+};
 var send = (message) => browser.runtime.sendMessage(message);
 
 // thunderbird/src/brief-view.js
@@ -126,7 +129,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -182,7 +185,8 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
@@ -437,6 +441,7 @@ var $ = (id) => document.getElementById(id);
 var store = createStore(browser.storage.local);
 var open = (id) => browser.messageDisplay.open({ messageId: Number(id) }).catch(() => void 0);
 async function show() {
+  void send({ type: "brief-seen" }).catch(() => void 0);
   const [brief, briefStatus, settings] = await Promise.all([
     store.brief(),
     store.briefStatus(),

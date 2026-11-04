@@ -57,7 +57,8 @@ Priority: **M** must, **S** should, **C** could.
 | TB-BRF-03 | M | The user can refresh the brief at will from the popup and dashboard. | Button starts a refresh and shows progress then the new time. |
 | TB-BRF-04 | M | Sections are top priorities, needs reply, due today and FYI; every item links to a real message; unknown ids are dropped. | No item links to a missing message. |
 | TB-BRF-05 | M | Counts are computed from stored analyses, not from the model. | Stats match the analysed rows. |
-| TB-BRF-06 | S | A native notification says only "Your brief is ready", never mail text. | Notification body contains no subject/sender. |
+| TB-BRF-06 | S | A native notification says only how many new messages are in the brief, never mail text. | Notification body contains no subject/sender. |
+| TB-BRF-07 | M | A brief update sets a count badge on the brief toolbar action; opening the brief or dashboard clears it. | Badge appears after an update and clears on view. |
 
 ### 4.3 Draft replies (TB-DRF)
 
@@ -104,6 +105,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-UI-05 | S | The provider key is never displayed again in full; settings show a masked value and keep the existing key when left blank. | Re-saving without a key does not erase it. |
 | TB-UI-06 | S | `prefers-reduced-motion` removes non-essential animation. | CSS only uses motion behind the media query. |
 | TB-UI-07 | M | A Sentinel action in the reply compose window offers Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic and Persuasive tones and inserts the generated draft above the quote. | The compose action is visible, tone selection changes the output, and nothing is sent. |
+| TB-UI-08 | M | The reply assistant shows the original message's priority, intent, summary, reason and actions; supports intent and length selection; and produces an editable preview before insertion. | The preview can be edited, inserted or copied; no send occurs. |
 
 ### 4.7 Security and privacy (TB-SEC)
 
@@ -114,6 +116,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-SEC-03 | M | Provider base URL must be HTTPS except localhost; the user grants the origin permission before saving. | Existing `checkBaseUrl` tests plus options flow. |
 | TB-SEC-04 | M | AI is opt-in: no call until a base URL, key and model are configured and the provider origin is allowed. | Monitor reports "not configured", makes no call. |
 | TB-SEC-05 | M | Analysis and draft data are local; deleting the extension data removes them. | Documented in README; no remote Sentinel service. |
+| TB-SEC-06 | M | Email content passes through the shared redactor before any provider call. | Prompt tests confirm sensitive patterns are redacted. |
 
 ### 4.8 Non-functional (TB-NFR)
 

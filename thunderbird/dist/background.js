@@ -1645,7 +1645,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -1701,7 +1701,8 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf2(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
@@ -2156,6 +2157,47 @@ async function saveDraftWithCompose(header, body, { identityId = null } = {}) {
   if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
   await browser.tabs.remove(tab.id).catch(() => void 0);
   return saved;
+}
+
+// thunderbird/src/notify.js
+var BADGE_COLOR = "#3F51B5";
+var DEFAULT_TITLE = "Sentinel daily brief";
+function briefBadgeCount(brief) {
+  const n = Number(brief?.stats?.total ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(99, Math.round(n));
+}
+async function safely(fn) {
+  try {
+    await fn();
+  } catch {
+  }
+}
+async function updateBriefBadge(brief, action = globalThis.browser?.action) {
+  if (!action?.setBadgeText) return;
+  const count = briefBadgeCount(brief);
+  await safely(() => action.setBadgeText({ text: count ? String(count) : "" }));
+  if (count) await safely(() => action.setBadgeBackgroundColor({ color: BADGE_COLOR }));
+  const when = brief?.createdAt ? new Date(brief.createdAt) : null;
+  const title = when && Number.isFinite(when.getTime()) ? `Sentinel brief \u2014 updated ${when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : DEFAULT_TITLE;
+  if (action.setTitle) await safely(() => action.setTitle({ title }));
+}
+async function clearBriefBadge(action = globalThis.browser?.action) {
+  if (!action?.setBadgeText) return;
+  await safely(() => action.setBadgeText({ text: "" }));
+  if (action.setTitle) await safely(() => action.setTitle({ title: DEFAULT_TITLE }));
+}
+async function notifyBriefUpdated(brief, { notifications = globalThis.browser?.notifications } = {}) {
+  const count = briefBadgeCount(brief);
+  if (!count || !notifications?.create) return false;
+  await safely(
+    () => notifications.create("sentinel-brief", {
+      type: "basic",
+      title: "Sentinel AI",
+      message: `Brief updated \xB7 ${count} new message${count === 1 ? "" : "s"}.`
+    })
+  );
+  return true;
 }
 
 // thunderbird/src/monitor.js
@@ -2726,12 +2768,12 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     ctx,
     now,
     fetchImpl: void 0
-  }).finally(() => {
+  }).then((result) => ({ ...result, updated: true })).finally(() => {
     briefRunning = null;
   });
   return briefRunning;
 }
-function runAssistant({ reason = "alarm", force = false, forceBrief = false, notify = false } = {}) {
+function runAssistant({ reason = "alarm", force = false, forceBrief = false } = {}) {
   if (monitorRunning) return monitorRunning;
   monitorRunning = (async () => {
     const now = /* @__PURE__ */ new Date();
@@ -2782,12 +2824,10 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false, not
       briefAt: brief?.status?.at ?? null
     };
     await store.saveMonitor(status);
-    if (notify && brief?.status?.state === "done")
-      await browser.notifications.create("sentinel-brief", {
-        type: "basic",
-        title: "Sentinel AI",
-        message: "Your brief is up to date."
-      }).catch(() => void 0);
+    if (brief?.updated) {
+      await updateBriefBadge(brief.brief);
+      if (settings.brief.notify) await notifyBriefUpdated(brief.brief);
+    }
     return { ok: true, monitor, drafts, brief, status };
   })().finally(() => {
     monitorRunning = null;
@@ -2811,7 +2851,7 @@ async function schedule() {
 }
 browser.alarms.onAlarm.addListener((a) => {
   if (a.name === MONITOR_ALARM) void runAssistant({ reason: "alarm" });
-  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: "daily-brief", notify: true });
+  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: "daily-brief" });
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM);
     void runAssistant({ reason: "startup" });
@@ -2912,12 +2952,16 @@ browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== "object") return void 0;
   try {
     if (msg.type === "monitor-run") {
-      void runAssistant({ reason: "manual", forceBrief: Boolean(msg.brief), notify: false });
+      void runAssistant({ reason: "manual", forceBrief: Boolean(msg.brief) });
       return { started: true };
     }
     if (msg.type === "brief-run") {
-      void runAssistant({ reason: "brief-manual", forceBrief: true, notify: false });
+      void runAssistant({ reason: "brief-manual", forceBrief: true });
       return { started: true };
+    }
+    if (msg.type === "brief-seen") {
+      await clearBriefBadge();
+      return { ok: true };
     }
     if (msg.type === "draft-create") return manualDraft(msg.messageId, { force: msg.force });
     if (msg.type === "tag-message") {
@@ -2935,6 +2979,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
       return { ok: true };
     }
     if (msg.type === "open-dashboard") {
+      await clearBriefBadge();
       await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") });
       return { ok: true };
     }
@@ -2945,6 +2990,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
   return void 0;
 });
 browser.notifications.onClicked.addListener(() => {
+  void clearBriefBadge();
   void browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 });
 void schedule();

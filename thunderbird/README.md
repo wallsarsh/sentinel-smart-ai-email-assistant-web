@@ -11,9 +11,9 @@ A quiet AI assistant inside Thunderbird. It watches your inboxes, explains what 
 | Monitoring | Checks every inbox on a schedule (default hourly) and shortly after new mail arrives. Only new mail is analysed; results are cached for 14 days. |
 | Analysis | Category, **intent**, importance, urgency, P1–P4 priority, needs-reply, summary, reason, action items and calendar candidates. Priority is computed in code. |
 | Tags | Best-effort Thunderbird tags: `Sentinel P1…P4`, `Sentinel Reply`, `Sentinel Ignored`. If the tag API is unavailable, analysis still works. |
-| Daily brief | One brief for the current local day, refreshed when the monitor finds new mail (hourly at most). You can refresh it at any time. |
+| Daily brief | One brief for the current local day, refreshed when the monitor finds new mail (hourly at most). A count badge appears on the brief toolbar icon and a content-free native notification announces the update when enabled. You can refresh it at any time. |
 | Drafts | For messages that need a reply, at most a few reviewable drafts per run are saved in the account's own Drafts folder, threaded as a reply. Already-replied threads and existing drafts are skipped. |
-| Compose assistant | In any reply compose window, the **Sentinel** toolbar button opens a tone picker: Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic or Persuasive. It generates a draft straight into the compose window; you review and send. |
+| Compose assistant | In any reply compose window, the **Sentinel** toolbar button shows the original analysis, a tone picker (Standard…Persuasive), reply intent, length and an optional instruction. It generates an editable preview, then inserts it above the quote; you review and send. |
 | Sender rules | Mark a sender/domain **Important**, **Marketing** or **Ignore**. Ignore never reaches the AI; Marketing is classified locally unless you opt in; Important is analysed first and raised to high importance. |
 | Calendar | Meeting/dated-action candidates can be added as a standards-compliant `.ics` file. Nothing is written to a calendar without your click. |
 | Dashboard | Brief, Inbox, Drafts, Senders and Settings in one calm page, with a message popup for the open email. |
@@ -53,6 +53,10 @@ inbox folders ── headers ── sender rules + bulk/security pre-filter
 - The brief uses stored summaries, never full bodies.
 - Auto-drafts are capped at 3 per run and only for P1/P2 (configurable) messages with no existing reply or draft.
 
+## Add-on review
+
+We reviewed [ThunderAI](https://github.com/micz/ThunderAI) and [AI Mail Support](https://github.com/YellowSakura/aimailsupport) for product direction. The adopted and deferred capabilities are documented in [`docs/addon-review.md`](docs/addon-review.md).
+
 ## Sender rules
 
 Add rules in **Dashboard → Senders**, or use the one-click buttons in the message popup.
@@ -66,12 +70,12 @@ Exact addresses beat domains. On equal specificity: Ignore > Important > Marketi
 ## Draft replies and the compose assistant
 
 - Auto-drafts are saved through the account identity that received the message, so Thunderbird should place them in that account's configured **Drafts** folder (for IMAP, the server Drafts folder). The dashboard shows the folder name next to each saved draft. If your account's Drafts folder is set to Local Folders in Thunderbird Account Settings, change it to the IMAP Drafts folder there.
-- In a reply compose window, click **Sentinel** in the main compose toolbar, choose a tone, optionally add an instruction, and press **Generate draft**. The text is inserted above the quoted original; nothing is sent.
+- In a reply compose window, click **Sentinel** in the main compose toolbar. Review the original message card, choose a tone, intent and length, optionally add an instruction, then **Generate preview**. Edit the preview and press **Insert into reply**; nothing is sent.
 - The compose tone presets are Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic and Persuasive.
 
 ## Daily brief and manual refresh
 
-The brief covers from local midnight to now. A monitor run refreshes it only when new mail was analysed (or at the start of a new day); pressing **Refresh brief** regenerates it on demand. Notifications say only that the brief is ready — never mail text.
+The brief covers from local midnight to now. A monitor run refreshes it only when new mail was analysed (or at the start of a new day); pressing **Refresh brief** regenerates it on demand. Notifications say only how many new messages are in the brief — never mail text. Thunderbird does not expose a separate system-tray icon API, so Sentinel uses the count badge on its brief toolbar icon plus a native OS notification, and clears the badge when you open the brief or dashboard.
 
 ## Calendar export
 

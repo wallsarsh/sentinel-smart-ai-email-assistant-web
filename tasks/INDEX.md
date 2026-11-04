@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 118/125 done · ready now: T009, T010, T011, T159, T160, T174
+**Progress:** 121/128 done · ready now: T009, T010, T011, T159, T160, T174
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -61,6 +61,9 @@ flowchart LR
     T173["T173"]:::done
     T174["T174"]:::todo
     T175["T175"]:::done
+    T176["T176"]:::done
+    T177["T177"]:::done
+    T178["T178"]:::done
   end
   subgraph P2
     T040["T040"]:::done
@@ -399,6 +402,10 @@ flowchart LR
   T172 --> T173
   T173 --> T174
   T173 --> T175
+  T173 --> T176
+  T175 --> T177
+  T176 --> T178
+  T177 --> T178
 ```
 
 ## P0
@@ -456,6 +463,9 @@ flowchart LR
 | ✅ | [T173](items/T173-thunderbird-build-and-docs.md) | Thunderbird manifest, build, docs and automated smoke | M | code | T169, T170, T171, T172 | opencode-deepseek-v4.1-flash |
 | ⬜ | [T174](items/T174-thunderbird-real-client-validation.md) | Thunderbird real-client validation matrix | M | manual | T173 |  |
 | ✅ | [T175](items/T175-thunderbird-dashboard-draft-folder-and-compose-tones.md) | Thunderbird dashboard URL, IMAP draft identity and compose tone action | M | code | T173 | opencode-deepseek-v4.1-flash |
+| ✅ | [T176](items/T176-thunderbird-brief-badge-and-notification.md) | Thunderbird brief update badge and native notification | S | code | T173 | opencode-deepseek-v4.1-flash |
+| ✅ | [T177](items/T177-thunderbird-reply-view-assistant.md) | Thunderbird reply-view assistant with intent, length and preview | M | code | T175 | opencode-deepseek-v4.1-flash |
+| ✅ | [T178](items/T178-thunderbird-addon-review.md) | Thunderbird add-on review and feature adoption notes | S | docs | T176, T177 | opencode-deepseek-v4.1-flash |
 
 ## P2
 
