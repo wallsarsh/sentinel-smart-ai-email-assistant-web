@@ -70,6 +70,7 @@ Exact addresses beat domains. On equal specificity: Ignore > Important > Marketi
 
 ## Draft replies and the compose assistant
 
+- The monitor scans account Inboxes and, by default, Local Folders (excluding Drafts/Sent/Trash/Junk/Outbox). You can switch this off in Dashboard → Settings.
 - Auto-drafts are saved through the account identity that received the message, so Thunderbird should place them in that account's configured **Drafts** folder (for IMAP, the server Drafts folder). The dashboard shows the folder name next to each saved draft. If your account's Drafts folder is set to Local Folders in Thunderbird Account Settings, change it to the IMAP Drafts folder there.
 - In a reply compose window, click **Sentinel** in the main compose toolbar. Review the original message card, choose a tone, intent and length, optionally add an instruction, then **Generate preview**. Edit the preview and press **Insert into reply**; nothing is sent.
 - The compose tone presets are Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic and Persuasive.
