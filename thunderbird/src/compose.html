@@ -69,6 +69,23 @@
           <button id="copy" class="btn" type="button">Copy</button>
         </div>
 
+        <hr class="divider" />
+        <div class="section-title">
+          <h3>Selected text</h3>
+          <span class="meta">Select text in the reply first.</span>
+        </div>
+        <div class="actions">
+          <button id="proofread" class="btn" type="button">Proofread selection</button>
+          <button id="rewrite" class="btn" type="button">Rewrite selection</button>
+        </div>
+        <section id="diff" class="card card--flat stack" hidden>
+          <div id="diff-list" class="stack"></div>
+          <div class="actions">
+            <button id="apply-diff" class="btn btn--primary" type="button">Apply accepted changes</button>
+            <button id="discard-diff" class="btn" type="button">Discard</button>
+          </div>
+        </section>
+
         <p class="footer">
           Sentinel only writes into this compose window. Review it and press Send yourself.
         </p>

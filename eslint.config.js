@@ -23,6 +23,8 @@ export default withNuxt(
   },
   {
     files: ['thunderbird/**/*.js'],
-    languageOptions: { globals: { browser: 'readonly', document: 'readonly' } },
+    languageOptions: {
+      globals: { browser: 'readonly', document: 'readonly', window: 'readonly', navigator: 'readonly', URL: 'readonly', Blob: 'readonly' },
+    },
   },
 )

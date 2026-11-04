@@ -34,19 +34,19 @@ Reviewed on 2026-11-04 for product direction, not for code reuse. Both projects 
 | Summarize | Context action + auto summary cache | Context action | **Already present** as triage summaries and daily brief |
 | Tone presets | Custom prompts | 9 reply/rephrase tones | **Adopted** as Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic, Persuasive |
 | Editable output before insertion | Chat/prompt UI | Shadow-DOM output panel with insert/copy | **Adopted** as preview + insert/copy in T177 |
-| Streaming response | Chat window | Streaming output panel | **Deferred**: current draft call is non-streaming; add after the compose flow stabilises |
-| Proofread / rewrite selection | Diff picker | Rephrase selection | **Deferred**: needs compose/display content scripts and a diff UI |
+| Streaming response | Chat window | Streaming output panel | **Adopted** in T180: draft tokens stream into the editable compose preview |
+| Proofread / rewrite selection | Diff picker | Rephrase selection | **Adopted** in T179: compose content script reads the selection and a word-level accept/reject diff applies it |
 | Translate | Context action + auto translate | Context action | **Deferred**; not central to Sentinel's triage/draft thesis |
 | Custom prompts / placeholders | Full manager | Custom prompt field | **Partially adopted** as the optional instruction field; full manager deferred |
-| Per-feature provider/model | Yes | Yes | **Deferred**: Sentinel currently has one provider; core supports Anthropic/OpenAI adapters |
+| Per-feature provider/model | Yes | Yes | **Adopted** in T182: multiple providers, native OpenAI/Anthropic adapters and triage/brief/draft/proofread/rewrite routes |
 | Auto-tagging | Yes | No | **Already present** via best-effort Sentinel tags |
 | Spam filter | Yes | No | **Out of scope** for this phase; Sentinel is not a spam classifier |
 | Chat window | Yes | No | **Deferred**; the dashboard/brief is the product surface |
-| Batch processing | Yes | No | **Deferred**; monitor batches are cost-limited and automatic |
-| Calendar event / task | Yes (with Sparks) | No | **Partially present** via calendar candidates and `.ics`; direct calendar API remains experimental |
+| Batch processing | Yes | No | **Adopted** in T181: select inbox rows and run bounded Analyze or Create drafts batches |
+| Calendar event / task | Yes (with Sparks) | No | **Adopted** in T183: direct writes through a bundled experimental calendar API, with `.ics` fallback |
 | PII masking | Prompt review | js-pii-mask | **Already present** through the shared redactor in `PromptBuilder` |
-| Provider breadth | Many native providers | Many native providers | **Partial**: OpenAI-compatible endpoint plus core Anthropic/OpenAI adapters; native provider presets deferred |
-| Context menus / selection actions | Yes | Yes | **Deferred**; compose action and message popup cover the first release |
+| Provider breadth | Many native providers | Many native providers | **Adopted** as presets for OpenAI, Anthropic, OpenAI-compatible, Ollama, LM Studio, Groq, Mistral, OpenRouter and Gemini-compatible |
+| Context menus / selection actions | Yes | Yes | **Adopted** in T184: message-list/message-display Sentinel submenu; selection tools live in the compose assistant |
 | Enterprise managed config | Yes | No | **Deferred**; not needed for the current Add-ons path |
 | Localization | Many languages | English/Italian | **Deferred**; extension copy is English for now |
 | Brief update visibility | No tray/badge pattern found | No tray/badge pattern found | **Added by Sentinel** in T176: brief toolbar badge + native count-only notification |
@@ -55,13 +55,12 @@ Reviewed on 2026-11-04 for product direction, not for code reuse. Both projects 
 
 - Sentinel keeps its hard rule: no send permission, no send code path, no auto-reply. Every reply is inserted into a compose window or saved as a draft and reviewed by a human.
 - No third-party chat web UI is embedded; the extension calls the configured OpenAI-compatible endpoint.
-- No spam classification, message mutation, translation or selection rewriting in this phase.
-- Calendar writes remain explicit `.ics` exports until Thunderbird's calendar WebExtension API stabilises.
+- No spam classification, message mutation, translation or chat window in this phase.
+- Direct calendar writes use an experimental API and always fall back to an explicit `.ics` export.
 
 ## Follow-ups if product direction needs them
 
-1. Streaming draft output in the compose preview (parity with AI Mail Support).
-2. Selection-based rewrite/proofread with an accept/reject diff (ThunderAI-style).
-3. A compact context menu for the message list and compose window.
-4. Custom prompt library with placeholders and per-prompt provider routing.
-5. Native provider adapters/presets if the single OpenAI-compatible route is not enough.
+1. Custom prompt library with placeholders and per-prompt provider routing.
+2. Translate and explain actions in the context menus.
+3. Streamed proofread/rewrite output and a side-by-side diff editor.
+4. Real Thunderbird validation of the experimental calendar API and compose scripts (T174).

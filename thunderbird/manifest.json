@@ -14,14 +14,17 @@
     "alarms",
     "clipboardWrite",
     "compose",
+    "composeScripts",
     "compose.save",
     "downloads",
+    "menus",
     "messagesRead",
     "messagesTags",
     "messagesTagsList",
     "messagesUpdate",
     "notifications",
-    "storage"
+    "storage",
+    "tabs"
   ],
   "optional_host_permissions": [
     "https://*/*",
@@ -41,6 +44,16 @@
   "options_ui": {
     "page": "dist/options.html",
     "open_in_tab": true
+  },
+  "experiment_apis": {
+    "sentinelCalendar": {
+      "schema": "experiments/sentinel-calendar/schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "script": "experiments/sentinel-calendar/implementation.js",
+        "paths": [["sentinelCalendar"]]
+      }
+    }
   },
   "background": {
     "scripts": [

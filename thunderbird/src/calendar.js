@@ -159,3 +159,23 @@ export async function downloadIcs(events, { downloads, now = new Date(), filenam
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }
 }
+
+/**
+ * Writes events directly when the bundled calendar experiment is available; otherwise downloads
+ * the same events as an ICS. The caller always gets an explicit mode back.
+ */
+export async function writeCalendarEvents(events, { api, downloads, now = new Date(), filename } = {}) {
+  if (!events?.length) throw new Error('There is no calendar item to add.')
+  if (api?.createEvent) {
+    const created = []
+    try {
+      for (const event of events) created.push(await api.createEvent(event))
+      return { mode: 'direct', count: created.length, created }
+    } catch (e) {
+      // Do not silently duplicate events that were already written; fall back only before any write.
+      if (created.length) throw e
+    }
+  }
+  await downloadIcs(events, { downloads, now, filename })
+  return { mode: 'ics', count: events.length }
+}

@@ -110,6 +110,44 @@ function renderBrief(root, brief, open2) {
   }
 }
 
+// thunderbird/src/providers.js
+var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
+var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
+var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+function normalizeProvider(raw = {}) {
+  const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
+  return {
+    id: str(raw.id) || newId(),
+    name: str(raw.name) || "AI provider",
+    kind,
+    baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
+    apiKey: str(raw.apiKey),
+    model: str(raw.model),
+    ...raw.presetId ? { presetId: raw.presetId } : {}
+  };
+}
+function defaultRoutes(providers = []) {
+  const provider = providers[0];
+  const out = {};
+  for (const task of TASKS)
+    out[task] = { providerId: provider?.id ?? "", model: provider?.model ?? "" };
+  return out;
+}
+function normalizeRoutes(saved = {}, providers = []) {
+  const first = providers[0];
+  const out = {};
+  for (const task of TASKS) {
+    const r = saved && typeof saved[task] === "object" ? saved[task] : {};
+    const provider = providers.find((p) => p.id === r.providerId) ?? providers.find((p) => p.id === saved?.providerId) ?? first;
+    out[task] = {
+      providerId: provider?.id ?? "",
+      model: str(r.model) || provider?.model || ""
+    };
+  }
+  return out;
+}
+
 // thunderbird/src/config.js
 var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
 var TONES = ["professional", "friendly", "concise", "formal"];
@@ -117,6 +155,9 @@ var DEFAULT_SETTINGS = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  providers: [],
+  defaultProviderId: "",
+  routes: defaultRoutes([]),
   monitor: {
     enabled: true,
     intervalMinutes: 60,
@@ -138,19 +179,40 @@ var int = (v, fallback, min, max) => {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
-var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var str2 = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
 var oneOf = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
 var pick = (v) => v && typeof v === "object" ? v : {};
+function normalizeProviders(saved) {
+  if (Array.isArray(saved.providers)) return saved.providers.map(normalizeProvider);
+  if (saved.baseUrl || saved.apiKey || saved.model)
+    return [
+      normalizeProvider({
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: saved.baseUrl,
+        apiKey: saved.apiKey,
+        model: saved.model
+      })
+    ];
+  return [];
+}
 function normalizeSettings(raw = {}, legacyBrief = {}) {
   const saved = pick(raw);
   const monitor = pick(saved.monitor);
   const brief = pick(saved.brief);
   const profile = pick(saved.profile);
   const oldBrief = pick(legacyBrief);
+  const providers = normalizeProviders(saved);
+  const defaultProviderId = providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
+  const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0];
   return {
-    baseUrl: str(saved.baseUrl),
-    apiKey: str(saved.apiKey),
-    model: str(saved.model),
+    baseUrl: primary?.baseUrl ?? "",
+    apiKey: primary?.apiKey ?? "",
+    model: primary?.model ?? "",
+    providers,
+    defaultProviderId,
+    routes: normalizeRoutes(pick(saved.routes), providers),
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -190,16 +252,21 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
-      signOff: str(profile.signOff),
-      language: str(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
+      signOff: str2(profile.signOff),
+      language: str2(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
     }
   };
 }
 function mergeSettings(base, patch = {}) {
   const p = pick(patch);
+  const routes = { ...base.routes };
+  for (const task of TASKS)
+    routes[task] = { ...base.routes?.[task], ...pick(p.routes?.[task]) };
   return {
     ...base,
     ...p,
+    routes,
+    providers: Array.isArray(p.providers) ? p.providers : base.providers,
     monitor: { ...base.monitor, ...pick(p.monitor) },
     brief: { ...base.brief, ...pick(p.brief) },
     profile: { ...base.profile, ...pick(p.profile) }

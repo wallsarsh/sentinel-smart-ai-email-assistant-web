@@ -2,6 +2,7 @@ import { zoneOffset, PromptBuilder } from '../../packages/core/src/prompts/build
 import { draftPrompt } from '../../packages/core/src/prompts/registry'
 import { structuredCall } from '../../packages/core/src/ai/structured'
 import { openAiProvider } from '../../packages/core/src/ai/openai'
+import { anthropicProvider } from '../../packages/core/src/ai/anthropic'
 import { fetchHttp } from '../../packages/core/src/ai/http'
 import { normalizeAnalysis } from './analysis.js'
 import { assistantPrompt } from './prompts.js'
@@ -29,15 +30,64 @@ export function userContext(accounts, now = new Date(), profile = {}, rules = []
   }
 }
 
-const provider = (s, fetchImpl) =>
-  openAiProvider({
+/** Legacy single-provider settings are still accepted, so upgrades never lose a working setup. */
+function providersOf(settings) {
+  if (settings?.providers?.length) return settings.providers
+  if (settings?.baseUrl || settings?.apiKey || settings?.model)
+    return [
+      {
+        id: 'legacy',
+        name: 'Default provider',
+        kind: 'openai_compatible',
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        model: settings.model,
+      },
+    ]
+  return []
+}
+
+/** Resolve the provider and model configured for a task. */
+export function resolveRoute(settings, task = 'triage') {
+  const providers = providersOf(settings)
+  if (!providers.length) throw new Error('Add an AI provider in Provider settings first.')
+  const route = settings?.routes?.[task] ?? {}
+  const provider =
+    providers.find((p) => p.id === route.providerId) ??
+    providers.find((p) => p.id === settings?.defaultProviderId) ??
+    providers[0]
+  const model = route.model || provider.model
+  if (!provider.baseUrl) throw new Error('Set the provider URL in Provider settings.')
+  if (!model) throw new Error('Choose a model for this task in Provider settings.')
+  if (!provider.apiKey && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(provider.baseUrl))
+    throw new Error('Set the provider API key in Provider settings.')
+  return { provider, model }
+}
+
+export function providerFor(provider, fetchImpl) {
+  const http = fetchHttp(fetchImpl)
+  if (provider.kind === 'anthropic')
+    return anthropicProvider({
+      apiKey: provider.apiKey,
+      baseUrl: (provider.baseUrl || 'https://api.anthropic.com').replace(/\/v1\/?$/, ''),
+      http,
+    })
+  if (provider.kind === 'openai')
+    return openAiProvider({
+      kind: 'openai',
+      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl.replace(/\/+$/, ''),
+      http,
+    })
+  return openAiProvider({
     kind: 'openai_compatible',
-    apiKey: s.apiKey,
-    baseUrl: s.baseUrl.replace(/\/+$/, ''),
+    apiKey: provider.apiKey,
+    baseUrl: provider.baseUrl.replace(/\/+$/, ''),
     // Local servers (Ollama, LM Studio) only know max_tokens; OpenAI proper accepts both.
     options: { tokensParam: 'max_tokens' },
-    http: fetchHttp(fetchImpl),
+    http,
   })
+}
 
 /** Triage for several messages in one call. Returns a Map of providerMessageId → result. */
 export async function analyzeBatch(settings, messages, ctx, fetchImpl) {
@@ -45,11 +95,12 @@ export async function analyzeBatch(settings, messages, ctx, fetchImpl) {
     messages.map((m) => ({ messageId: String(m.providerMessageId), message: m })),
     ctx,
   )
-  const p = provider(settings, fetchImpl)
+  const { provider, model } = resolveRoute(settings, 'triage')
+  const p = providerFor(provider, fetchImpl)
   const base = 300 * messages.length + 900 // generous: thinking models spend part of the budget before answering
   const res = await structuredCall(async (turn) => {
     const r = await p.complete({
-      model: settings.model,
+      model,
       system: assistantPrompt.system,
       user:
         turn.kind === 'repair'
@@ -79,26 +130,95 @@ export async function analyze(settings, message, ctx, fetchImpl) {
 
 /** The model call the shared brief runner uses. */
 export function briefAsk(settings, fetchImpl) {
-  const p = provider(settings, fetchImpl)
+  const { provider, model } = resolveRoute(settings, 'brief')
+  const p = providerFor(provider, fetchImpl)
   return async (req) => {
-    const r = await p.complete({ ...req, model: settings.model })
+    const r = await p.complete({ ...req, model })
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r
   }
 }
 
-/** A reply body, as plain text. `thread` is the newest-last list of MailMessage. */
-export async function draftReply(settings, thread, ctx, request, fetchImpl) {
-  const prompt = builder().buildDraft(
+function draftPromptFor(thread, ctx, request) {
+  return builder().buildDraft(
     thread.map((m, i) => ({ messageId: String(m.providerMessageId ?? i), message: m })),
     ctx,
     request,
   )
-  const r = await provider(settings, fetchImpl).complete({
-    model: settings.model,
+}
+
+/** A completed reply body, as plain text. `thread` is the newest-last list of MailMessage. */
+export async function draftReply(settings, thread, ctx, request, fetchImpl) {
+  const prompt = draftPromptFor(thread, ctx, request)
+  const { provider, model } = resolveRoute(settings, 'draft')
+  const r = await providerFor(provider, fetchImpl).complete({
+    model,
     system: draftPrompt.system,
     user: prompt.text,
     maxTokens: 1500,
     temperature: 0.4,
+  })
+  if (!r.ok) throw new Error(describe(r.error))
+  if (!r.value.text.trim()) throw new Error('The AI returned no text.')
+  return r.value.text.trim()
+}
+
+/**
+ * Streamed reply body. `onDelta(delta, full)` is called as text arrives; returns the full text.
+ * Falls back to one completion if the provider adapter has no streaming support.
+ */
+export async function draftReplyStream(
+  settings,
+  thread,
+  ctx,
+  request,
+  onDelta,
+  fetchImpl,
+) {
+  const { provider, model } = resolveRoute(settings, 'draft')
+  const p = providerFor(provider, fetchImpl)
+  if (!p.stream) {
+    const text = await draftReply(settings, thread, ctx, request, fetchImpl)
+    onDelta?.(text, text)
+    return text
+  }
+  const prompt = draftPromptFor(thread, ctx, request)
+  let full = ''
+  try {
+    for await (const event of p.stream({
+      model,
+      system: draftPrompt.system,
+      user: prompt.text,
+      maxTokens: 1500,
+      temperature: 0.4,
+    })) {
+      if (event.type === 'delta') {
+        full += event.text
+        onDelta?.(event.text, full)
+      }
+    }
+  } catch (e) {
+    if (e?.failure) throw new Error(describe(e.failure), { cause: e })
+    throw e
+  }
+  if (!full.trim()) throw new Error('The AI returned no text.')
+  return full.trim()
+}
+
+/** A short text transformation (proofread/rewrite) using its own task route. */
+export async function runTextTask(
+  settings,
+  task,
+  system,
+  user,
+  { maxTokens = 1500, temperature = 0.2, fetchImpl } = {},
+) {
+  const { provider, model } = resolveRoute(settings, task)
+  const r = await providerFor(provider, fetchImpl).complete({
+    model,
+    system,
+    user,
+    maxTokens,
+    temperature,
   })
   if (!r.ok) throw new Error(describe(r.error))
   if (!r.value.text.trim()) throw new Error('The AI returned no text.')

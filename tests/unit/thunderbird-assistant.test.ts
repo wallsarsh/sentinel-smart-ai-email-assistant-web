@@ -25,7 +25,7 @@ import { normalizeAnalysis } from '../../thunderbird/src/analysis.js'
 // @ts-expect-error plain JS modules shipped inside the extension
 import { assistantPrompt } from '../../thunderbird/src/prompts.js'
 // @ts-expect-error plain JS modules shipped inside the extension
-import { analyzeBatch, userContext } from '../../thunderbird/src/ai.js'
+import { analyzeBatch, resolveRoute, userContext } from '../../thunderbird/src/ai.js'
 // @ts-expect-error plain JS modules shipped inside the extension
 import { runMonitor } from '../../thunderbird/src/monitor.js'
 // @ts-expect-error plain JS modules shipped inside the extension
@@ -47,6 +47,7 @@ import {
   normalizeEvent,
   toIcs,
   uidFor,
+  writeCalendarEvents,
 } from '../../thunderbird/src/calendar.js'
 // @ts-expect-error plain JS modules shipped inside the extension
 import { briefWindow, refreshBrief, shouldRefreshBrief } from '../../thunderbird/src/brief.js'
@@ -56,6 +57,10 @@ import { INTENT_LABEL, PRIORITY_LABEL, relativeTime } from '../../thunderbird/sr
 import { LENGTHS, TONE_IDS, composeRequest, toneLabel, toneRequest } from '../../thunderbird/src/tones.js'
 // @ts-expect-error plain JS modules shipped inside the extension
 import { briefBadgeCount, clearBriefBadge, notifyBriefUpdated, updateBriefBadge } from '../../thunderbird/src/notify.js'
+// @ts-expect-error plain JS modules shipped inside the extension
+import { defaultRoutes, normalizeProvider, normalizeRoutes, providerFromPreset } from '../../thunderbird/src/providers.js'
+// @ts-expect-error plain JS modules shipped inside the extension
+import { diffWords, renderDecisions } from '../../thunderbird/src/diff.js'
 
 const sender = (address: string, name = '') => (name ? { address, name } : { address })
 const mail = (over: Record<string, unknown> = {}) => ({
@@ -92,7 +97,7 @@ describe('Thunderbird settings', () => {
 
   it('explains what blocks a monitor run', () => {
     expect(providerConfigured(normalizeSettings({}))).toBe(false)
-    expect(monitorBlockedReason(normalizeSettings({}))).toMatch(/API URL/)
+    expect(monitorBlockedReason(normalizeSettings({}))).toMatch(/provider/i)
     expect(
       monitorBlockedReason(
         normalizeSettings({ baseUrl: 'http://example.com', apiKey: 'k', model: 'm' }),
@@ -744,6 +749,25 @@ describe('Thunderbird calendar', () => {
     expect(ics.split('\r\n').every((l) => l.length <= 75)).toBe(true)
   })
 
+  it('writes directly through an available calendar API and falls back only before writing', async () => {
+    const written: string[] = []
+    const api = {
+      createEvent: async (event: { title: string }) => {
+        written.push(event.title)
+        return { id: `id-${written.length}` }
+      },
+    }
+    const events = [
+      { title: 'Board call', start: '2026-11-03T10:00:00Z', end: null, allDay: false },
+      { title: 'Send numbers', start: '2026-11-06', end: null, allDay: true },
+    ]
+    await expect(writeCalendarEvents(events, { api })).resolves.toMatchObject({
+      mode: 'direct',
+      count: 2,
+    })
+    expect(written).toEqual(['Board call', 'Send numbers'])
+  })
+
   it('names the file and refuses an empty download', async () => {
     expect(icsFilename(now)).toBe('sentinel-2026-11-02.ics')
     await expect(downloadIcs([], { now })).rejects.toThrow(/no calendar/i)
@@ -815,6 +839,72 @@ describe('Thunderbird brief refresh', () => {
     const r = await refreshBrief({ store, api, settings, ctx, now })
     expect(r.status).toMatchObject({ state: 'error', message: 'No inbox folders found.' })
     expect(r.brief).toEqual({ headline: 'old' })
+  })
+})
+
+describe('Thunderbird providers and routing', () => {
+  it('migrates the old single provider and gives every task a route', () => {
+    const s = normalizeSettings({ baseUrl: 'https://api.x/v1', apiKey: 'k', model: 'm' })
+    expect(s.providers).toHaveLength(1)
+    expect(s.providers[0]).toMatchObject({ kind: 'openai_compatible', model: 'm' })
+    expect(s.routes.triage).toEqual({ providerId: s.providers[0].id, model: 'm' })
+    expect(s.routes.rewrite).toEqual({ providerId: s.providers[0].id, model: 'm' })
+  })
+
+  it('keeps multiple providers and resolves the route per task', () => {
+    const a = normalizeProvider({ id: 'a', name: 'A', kind: 'openai', baseUrl: 'https://a', apiKey: 'k', model: 'a1' })
+    const b = normalizeProvider({ id: 'b', name: 'B', kind: 'anthropic', baseUrl: 'https://b', apiKey: 'k', model: 'b1' })
+    const routes = defaultRoutes([a, b])
+    routes.triage = { providerId: 'a', model: 'a-triage' }
+    routes.draft = { providerId: 'b', model: 'b-draft' }
+    const s = normalizeSettings({ providers: [a, b], defaultProviderId: 'a', routes })
+    expect(resolveRoute(s, 'triage')).toMatchObject({ provider: { id: 'a' }, model: 'a-triage' })
+    expect(resolveRoute(s, 'draft')).toMatchObject({ provider: { id: 'b' }, model: 'b-draft' })
+    expect(resolveRoute({ baseUrl: 'https://legacy', apiKey: 'k', model: 'm' }, 'brief')).toMatchObject({
+      provider: { id: 'legacy' },
+      model: 'm',
+    })
+  })
+
+  it('offers native and compatible presets', () => {
+    expect(providerFromPreset('anthropic')).toMatchObject({
+      kind: 'anthropic',
+      baseUrl: 'https://api.anthropic.com',
+    })
+    expect(providerFromPreset('ollama')).toMatchObject({
+      kind: 'openai_compatible',
+      baseUrl: 'http://localhost:11434/v1',
+    })
+    expect(providerFromPreset('gemini').baseUrl).toContain('generativelanguage')
+    expect(normalizeRoutes({}, [])).toMatchObject({ triage: { providerId: '', model: '' } })
+  })
+
+  it('allows a keyless localhost provider', () => {
+    const s = normalizeSettings({
+      providers: [{ id: 'local', name: 'Local', kind: 'openai_compatible', baseUrl: 'http://localhost:11434/v1', apiKey: '', model: 'llama' }],
+      defaultProviderId: 'local',
+      routes: defaultRoutes([{ id: 'local', model: 'llama' }]),
+    })
+    expect(monitorBlockedReason(s)).toBeNull()
+  })
+})
+
+describe('Thunderbird word diff', () => {
+  it('replaces a changed run and honours accept/reject decisions', () => {
+    const { ops, hunks } = diffWords('The quick brown fox', 'The slow brown fox')
+    expect(hunks).toHaveLength(1)
+    expect(hunks[0]).toMatchObject({ before: 'quick', after: 'slow' })
+    const accepted = new Set([0])
+    expect(renderDecisions(ops, accepted)).toBe('The slow brown fox')
+    expect(renderDecisions(ops, new Set())).toBe('The quick brown fox')
+  })
+
+  it('handles insertions and identical text', () => {
+    const add = diffWords('Hello', 'Hello world')
+    expect(add.hunks).toHaveLength(1)
+    expect(renderDecisions(add.ops, new Set([0]))).toBe('Hello world')
+    expect(renderDecisions(add.ops, new Set())).toBe('Hello')
+    expect(diffWords('same', 'same').hunks).toEqual([])
   })
 })
 
@@ -903,6 +993,20 @@ describe('Thunderbird surfaces and safety', () => {
     expect(JSON.stringify(notes)).not.toMatch(/subject|sender|body/)
     await clearBriefBadge(action as never)
     expect(calls).toContain('text:')
+  })
+
+  it('wires batch selection, context menus and selection tools', () => {
+    const dash = read('thunderbird/src/dashboard.html')
+    expect(dash).toContain('id="batch-analyze"')
+    expect(dash).toContain('id="batch-draft"')
+    expect(read('thunderbird/src/dashboard.js')).toContain("type: 'batch-run'")
+    expect(read('thunderbird/src/background.js')).toContain('browser.menus')
+    const manifest = JSON.parse(read('thunderbird/manifest.json'))
+    expect(manifest.permissions).toContain('menus')
+    expect(manifest.experiment_apis.sentinelCalendar.schema).toContain('sentinel-calendar')
+    expect(read('thunderbird/src/compose-script.js')).toContain('sentinel-selection-replace')
+    expect(read('thunderbird/src/compose.js')).toContain('diffWords')
+    expect(read('thunderbird/src/ai.js')).toContain('draftReplyStream')
   })
 
   it('exposes readable labels and relative times', () => {

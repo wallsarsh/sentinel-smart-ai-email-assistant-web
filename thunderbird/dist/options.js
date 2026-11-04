@@ -6,6 +6,127 @@ function checkBaseUrl(raw) {
   return `${u.origin}${u.pathname.replace(/\/+$/, "").replace(/\/chat\/completions$/, "")}`;
 }
 
+// thunderbird/src/providers.js
+var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
+var TASK_LABELS = {
+  triage: "Inbox analysis",
+  brief: "Daily brief",
+  draft: "Reply drafts",
+  proofread: "Proofreading",
+  rewrite: "Selection rewrite"
+};
+var PROVIDER_PRESETS = [
+  {
+    id: "openai",
+    name: "OpenAI",
+    kind: "openai",
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-4o-mini",
+    keyRequired: true
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic Claude",
+    kind: "anthropic",
+    baseUrl: "https://api.anthropic.com",
+    model: "claude-sonnet-4-5",
+    keyRequired: true
+  },
+  {
+    id: "openai-compatible",
+    name: "OpenAI-compatible",
+    kind: "openai_compatible",
+    baseUrl: "",
+    model: "",
+    keyRequired: false
+  },
+  {
+    id: "ollama",
+    name: "Ollama (local)",
+    kind: "openai_compatible",
+    baseUrl: "http://localhost:11434/v1",
+    model: "llama3.2",
+    keyRequired: false
+  },
+  {
+    id: "lmstudio",
+    name: "LM Studio (local)",
+    kind: "openai_compatible",
+    baseUrl: "http://localhost:1234/v1",
+    model: "local-model",
+    keyRequired: false
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    kind: "openai_compatible",
+    baseUrl: "https://api.groq.com/openai/v1",
+    model: "llama-3.3-70b-versatile",
+    keyRequired: true
+  },
+  {
+    id: "mistral",
+    name: "Mistral",
+    kind: "openai_compatible",
+    baseUrl: "https://api.mistral.ai/v1",
+    model: "mistral-large-latest",
+    keyRequired: true
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    kind: "openai_compatible",
+    baseUrl: "https://openrouter.ai/api/v1",
+    model: "openai/gpt-4o-mini",
+    keyRequired: true
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini (OpenAI-compatible)",
+    kind: "openai_compatible",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    model: "gemini-2.5-flash",
+    keyRequired: true
+  }
+];
+var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
+var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var isLocal = (baseUrl) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
+function normalizeProvider(raw = {}) {
+  const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
+  return {
+    id: str(raw.id) || newId(),
+    name: str(raw.name) || "AI provider",
+    kind,
+    baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
+    apiKey: str(raw.apiKey),
+    model: str(raw.model),
+    ...raw.presetId ? { presetId: raw.presetId } : {}
+  };
+}
+var providerUsable = (p) => Boolean(p?.baseUrl && p?.model && (p.apiKey || isLocal(p.baseUrl)));
+function defaultRoutes(providers = []) {
+  const provider = providers[0];
+  const out = {};
+  for (const task of TASKS)
+    out[task] = { providerId: provider?.id ?? "", model: provider?.model ?? "" };
+  return out;
+}
+function normalizeRoutes(saved = {}, providers = []) {
+  const first = providers[0];
+  const out = {};
+  for (const task of TASKS) {
+    const r = saved && typeof saved[task] === "object" ? saved[task] : {};
+    const provider = providers.find((p) => p.id === r.providerId) ?? providers.find((p) => p.id === saved?.providerId) ?? first;
+    out[task] = {
+      providerId: provider?.id ?? "",
+      model: str(r.model) || provider?.model || ""
+    };
+  }
+  return out;
+}
+
 // thunderbird/src/config.js
 var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
 var TONES = ["professional", "friendly", "concise", "formal"];
@@ -13,6 +134,9 @@ var DEFAULT_SETTINGS = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  providers: [],
+  defaultProviderId: "",
+  routes: defaultRoutes([]),
   monitor: {
     enabled: true,
     intervalMinutes: 60,
@@ -34,19 +158,40 @@ var int = (v, fallback, min, max) => {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
-var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var str2 = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
 var oneOf = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
 var pick = (v) => v && typeof v === "object" ? v : {};
+function normalizeProviders(saved) {
+  if (Array.isArray(saved.providers)) return saved.providers.map(normalizeProvider);
+  if (saved.baseUrl || saved.apiKey || saved.model)
+    return [
+      normalizeProvider({
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: saved.baseUrl,
+        apiKey: saved.apiKey,
+        model: saved.model
+      })
+    ];
+  return [];
+}
 function normalizeSettings(raw = {}, legacyBrief = {}) {
   const saved = pick(raw);
   const monitor = pick(saved.monitor);
   const brief = pick(saved.brief);
   const profile = pick(saved.profile);
   const oldBrief = pick(legacyBrief);
+  const providers = normalizeProviders(saved);
+  const defaultProviderId = providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
+  const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0];
   return {
-    baseUrl: str(saved.baseUrl),
-    apiKey: str(saved.apiKey),
-    model: str(saved.model),
+    baseUrl: primary?.baseUrl ?? "",
+    apiKey: primary?.apiKey ?? "",
+    model: primary?.model ?? "",
+    providers,
+    defaultProviderId,
+    routes: normalizeRoutes(pick(saved.routes), providers),
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -86,16 +231,21 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
-      signOff: str(profile.signOff),
-      language: str(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
+      signOff: str2(profile.signOff),
+      language: str2(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
     }
   };
 }
 function mergeSettings(base, patch = {}) {
   const p = pick(patch);
+  const routes = { ...base.routes };
+  for (const task of TASKS)
+    routes[task] = { ...base.routes?.[task], ...pick(p.routes?.[task]) };
   return {
     ...base,
     ...p,
+    routes,
+    providers: Array.isArray(p.providers) ? p.providers : base.providers,
     monitor: { ...base.monitor, ...pick(p.monitor) },
     brief: { ...base.brief, ...pick(p.brief) },
     profile: { ...base.profile, ...pick(p.profile) }
@@ -333,6 +483,25 @@ function createStore(area) {
 }
 
 // thunderbird/src/ui.js
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props ?? {})) {
+    if (value === void 0 || value === null) continue;
+    if (key === "class") node.className = value;
+    else if (key === "text") node.textContent = value;
+    else if (key === "dataset") Object.assign(node.dataset, value);
+    else if (key.startsWith("on") && typeof value === "function")
+      node.addEventListener(key.slice(2).toLowerCase(), value);
+    else if (key in node) node[key] = value;
+    else node.setAttribute(key, value);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === void 0 || kid === false) continue;
+    node.append(typeof kid === "string" || typeof kid === "number" ? String(kid) : kid);
+  }
+  return node;
+}
+var clear = (node) => node.replaceChildren();
 function status(node, message, kind = "") {
   node.className = `status ${kind}`.trim();
   node.textContent = message ?? "";
@@ -347,44 +516,190 @@ var openDashboard = () => {
 var $ = (id) => document.getElementById(id);
 var store = createStore(browser.storage.local);
 var settings = null;
-function say(message, kind = "") {
-  status($("status"), message, kind);
+var editingId = null;
+var say = (node, message, kind = "") => status(node, message, kind);
+function fillPresetOptions() {
+  const select = $("preset");
+  for (const preset of PROVIDER_PRESETS)
+    select.append(el("option", { value: preset.id, text: preset.name }));
 }
-async function init() {
-  settings = await store.settings();
-  $("baseUrl").value = settings.baseUrl ?? "";
-  $("model").value = settings.model ?? "";
-  if (settings.apiKey) {
-    $("apiKey").placeholder = "Saved key \u2014 leave blank to keep it";
-    $("key-note").textContent = `A key is saved (ending ${settings.apiKey.slice(-4)}). Leave the field blank to keep it.`;
+function applyPreset() {
+  const preset = PROVIDER_PRESETS.find((p) => p.id === $("preset").value);
+  if (!preset) return;
+  $("pname").value = preset.name;
+  $("pkind").value = preset.kind;
+  $("pbase").value = preset.baseUrl;
+  $("pmodel").value = preset.model;
+  $("pkey").value = "";
+  $("pkey").placeholder = preset.keyRequired ? "Paste a key" : "Optional for a local server";
+  $("key-note").textContent = preset.keyRequired ? "The key stays in this Thunderbird profile and goes only to this provider." : "A local server usually needs no key; if it does, it stays in this profile.";
+}
+function resetForm() {
+  editingId = null;
+  $("preset").value = "openai";
+  applyPreset();
+  $("pkey").value = "";
+  $("save-provider").textContent = "Add provider";
+  $("cancel-edit").hidden = true;
+}
+function renderProviders() {
+  const root = $("providers");
+  clear(root);
+  if (!settings.providers.length) {
+    root.append(el("p", { class: "muted", text: "No provider configured yet." }));
+    return;
+  }
+  for (const p of settings.providers) {
+    root.append(
+      el(
+        "div",
+        { class: "item" },
+        el(
+          "div",
+          { class: "item__top" },
+          el("span", { class: "item__title", text: p.name }),
+          el(
+            "span",
+            { class: "item__side" },
+            el("span", { class: "chip", text: p.kind === "openai_compatible" ? "compatible" : p.kind }),
+            p.id === settings.defaultProviderId ? el("span", { class: "chip chip--accent", text: "default" }) : null,
+            !providerUsable(p) ? el("span", { class: "chip chip--warn", text: "incomplete" }) : null
+          )
+        ),
+        el("div", { class: "item__meta", text: `${p.baseUrl || "No URL"} \xB7 ${p.model || "No model"}` }),
+        el(
+          "div",
+          { class: "actions" },
+          el("button", { class: "btn btn--small", type: "button", onclick: () => editProvider(p.id), text: "Edit" }),
+          el("button", { class: "btn btn--small btn--danger", type: "button", onclick: () => removeProvider(p.id), text: "Remove" })
+        )
+      )
+    );
   }
 }
-$("dashboard").onclick = openDashboard;
-$("dashboard2").onclick = openDashboard;
-$("f").addEventListener("submit", async (e) => {
-  e.preventDefault();
+function renderRoutes() {
+  const root = $("routes");
+  clear(root);
+  for (const task of TASKS) {
+    const route = settings.routes[task];
+    const provider = settings.providers.find((p) => p.id === route.providerId);
+    const providerSelect = el(
+      "select",
+      { "aria-label": `${TASK_LABELS[task]} provider` },
+      ...settings.providers.map(
+        (p) => el("option", { value: p.id, text: p.name, selected: p.id === route.providerId })
+      )
+    );
+    const modelInput = el("input", {
+      value: route.model,
+      placeholder: provider?.model ?? "Model",
+      "aria-label": `${TASK_LABELS[task]} model`
+    });
+    providerSelect.addEventListener("change", () => {
+      const next = settings.providers.find((p) => p.id === providerSelect.value);
+      if (next) modelInput.value = next.model;
+    });
+    root.append(
+      el(
+        "div",
+        { class: "item" },
+        el("div", { class: "item__top" }, el("span", { class: "item__title", text: TASK_LABELS[task] })),
+        el(
+          "div",
+          { class: "grid grid--2" },
+          el("label", { class: "field" }, el("span", { text: "Provider" }), providerSelect),
+          el("label", { class: "field" }, el("span", { text: "Model" }), modelInput)
+        )
+      )
+    );
+  }
+}
+function editProvider(id) {
+  const p = settings.providers.find((x) => x.id === id);
+  if (!p) return;
+  editingId = id;
+  $("pname").value = p.name;
+  $("pkind").value = p.kind;
+  $("pbase").value = p.baseUrl;
+  $("pmodel").value = p.model;
+  $("pkey").value = "";
+  $("pkey").placeholder = "Saved key \u2014 leave blank to keep it";
+  $("key-note").textContent = p.apiKey ? `A key is saved (ending ${p.apiKey.slice(-4)}). Leave blank to keep it.` : "No key saved.";
+  $("save-provider").textContent = "Save provider";
+  $("cancel-edit").hidden = false;
+}
+async function removeProvider(id) {
+  const next = settings.providers.filter((p) => p.id !== id);
+  const defaultProviderId = settings.defaultProviderId === id ? next[0]?.id ?? "" : settings.defaultProviderId;
+  settings = await store.saveSettings({ providers: next, defaultProviderId });
+  if (editingId === id) resetForm();
+  renderProviders();
+  renderRoutes();
+}
+async function saveProvider(event) {
+  event.preventDefault();
   try {
-    const baseUrl = checkBaseUrl($("baseUrl").value);
-    const model = $("model").value.trim();
-    if (!model) throw new Error("Enter a model.");
-    const key = $("apiKey").value.trim();
-    if (!key && !settings?.apiKey) throw new Error("Paste an API key.");
+    const baseUrl = checkBaseUrl($("pbase").value);
+    const model = $("pmodel").value.trim();
+    if (!model) throw new Error("Enter a default model.");
+    const existing = settings.providers.find((p) => p.id === editingId);
+    const key = $("pkey").value.trim();
+    if (!key && !existing?.apiKey && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(baseUrl))
+      throw new Error("Paste an API key.");
     const url = new URL(baseUrl);
     const allowed = await browser.permissions.request({ origins: [`${url.origin}/*`] });
-    if (!allowed) throw new Error("Permission to contact the provider was not granted.");
-    settings = await store.saveSettings({
+    if (!allowed) throw new Error("Permission to contact this provider was not granted.");
+    const provider = normalizeProvider({
+      id: existing?.id,
+      name: $("pname").value.trim() || "AI provider",
+      kind: $("pkind").value,
       baseUrl,
       model,
-      ...key ? { apiKey: key } : {}
+      apiKey: key || existing?.apiKey || "",
+      presetId: $("preset").value
     });
-    $("apiKey").value = "";
-    $("baseUrl").value = settings.baseUrl;
-    $("model").value = settings.model;
-    $("apiKey").placeholder = "Saved key \u2014 leave blank to keep it";
-    $("key-note").textContent = `A key is saved (ending ${settings.apiKey.slice(-4)}). Leave the field blank to keep it.`;
-    say("Provider saved.", "status--ok");
+    const providers = existing ? settings.providers.map((p) => p.id === existing.id ? provider : p) : [...settings.providers, provider];
+    const defaultProviderId = settings.defaultProviderId || provider.id;
+    settings = await store.saveSettings({ providers, defaultProviderId });
+    resetForm();
+    renderProviders();
+    renderRoutes();
+    say($("provider-status"), "Provider saved.", "status--ok");
   } catch (err2) {
-    say(err2?.message ?? "Could not save the provider.", "status--error");
+    say($("provider-status"), err2?.message ?? "Could not save the provider.", "status--error");
   }
-});
-void init();
+}
+async function saveRoutes() {
+  try {
+    const rows = [...$("routes").children];
+    const routes = { ...settings.routes };
+    TASKS.forEach((task, i) => {
+      const row = rows[i];
+      if (!row) return;
+      const selects = row.querySelectorAll("select");
+      const inputs = row.querySelectorAll("input");
+      routes[task] = {
+        providerId: selects[0]?.value ?? "",
+        model: inputs[0]?.value.trim() || ""
+      };
+    });
+    settings = await store.saveSettings({ routes });
+    renderRoutes();
+    say($("route-status"), "Routing saved.", "status--ok");
+  } catch (err2) {
+    say($("route-status"), err2?.message ?? "Could not save routing.", "status--error");
+  }
+}
+async function init() {
+  fillPresetOptions();
+  settings = await store.settings();
+  resetForm();
+  renderProviders();
+  renderRoutes();
+}
+$("preset").addEventListener("change", applyPreset);
+$("provider-form").addEventListener("submit", saveProvider);
+$("cancel-edit").addEventListener("click", resetForm);
+$("save-routes").addEventListener("click", saveRoutes);
+$("dashboard").onclick = openDashboard;
+void init().catch((e) => say($("provider-status"), e?.message ?? "Could not load settings.", "status--error"));

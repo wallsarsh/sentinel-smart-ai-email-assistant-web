@@ -72,6 +72,8 @@ Priority: **M** must, **S** should, **C** could.
 | TB-DRF-06 | M | Every created draft is recorded locally with message, subject, sender, account, draft id, status and time; the dashboard lists them. | Draft log survives restart; failed saves are shown as failed. |
 | TB-DRF-07 | S | The user can create or regenerate a draft for the open message from the popup, with a warning if a reply already exists. | Popup shows "Already replied" and asks before creating another. |
 | TB-DRF-08 | S | Placeholders such as `[confirm date]` are left visible in the draft; the user resolves them before sending. | Draft body keeps placeholders; docs explain. |
+| TB-DRF-09 | M | Selected reply text can be proofread or rewritten; a word-level diff lets the user accept or reject each change before it is applied. | Accepted hunks replace the selection; rejected hunks keep the original; nothing is sent. |
+| TB-DRF-10 | S | Draft text streams into the compose preview as tokens arrive. | The preview updates while generating; failure leaves the compose window intact. |
 
 ### 4.4 Sender rules (TB-RUL)
 
@@ -91,8 +93,9 @@ Priority: **M** must, **S** should, **C** could.
 | TB-CAL-01 | M | The analysis extracts calendar events only when the message names a meeting or a specific date/time; each event has title, start, end (optional), all-day flag, location and source message. | Events are validated; invalid dates are dropped. |
 | TB-CAL-02 | M | Action items with a due date but no explicit event become all-day calendar candidates. | Dated action appears as an all-day event candidate. |
 | TB-CAL-03 | M | The user can add one candidate or all candidates. The extension writes the user's calendar only through an explicit click. | No event is created without a click. |
-| TB-CAL-04 | M | Because Thunderbird's calendar API is an experiment, the default path exports a standards-compliant `.ics` file via the downloads API; if a calendar API becomes available, the adapter can be swapped without changing the UI. | `.ics` opens in Thunderbird/Google/Outlook calendar; UID, DTSTART, DTEND, SUMMARY, DESCRIPTION, LOCATION are valid. |
+| TB-CAL-04 | M | Direct calendar writes use the bundled `sentinelCalendar` experiment when it loads; otherwise the adapter exports a standards-compliant `.ics` file via the downloads API. | Direct write reports the calendar; fallback `.ics` opens in Thunderbird/Google/Outlook. |
 | TB-CAL-05 | S | Timed events preserve the message's time zone offset; date-only items are all-day events. | Tests cover both forms and escaping. |
+| TB-CAL-06 | S | A partially written direct batch is never repeated as ICS. | The adapter falls back only before the first event is written. |
 
 ### 4.6 User experience (TB-UI)
 
@@ -106,6 +109,8 @@ Priority: **M** must, **S** should, **C** could.
 | TB-UI-06 | S | `prefers-reduced-motion` removes non-essential animation. | CSS only uses motion behind the media query. |
 | TB-UI-07 | M | A Sentinel action in the reply compose window offers Standard, Professional, Friendly, Concise, Formal, Creative, Casual, Apologetic and Persuasive tones and inserts the generated draft above the quote. | The compose action is visible, tone selection changes the output, and nothing is sent. |
 | TB-UI-08 | M | The reply assistant shows the original message's priority, intent, summary, reason and actions; supports intent and length selection; and produces an editable preview before insertion. | The preview can be edited, inserted or copied; no send occurs. |
+| TB-UI-09 | M | Dashboard inbox rows can be selected and run through bounded Analyze/Create drafts batches. | Batch reports counts/errors and respects rules/caps. |
+| TB-UI-10 | M | Thunderbird's message list and message display expose a Sentinel context submenu for analysis, drafts, calendar and sender rules. | Actions operate on the selected message(s); errors exclude mail content. |
 
 ### 4.7 Security and privacy (TB-SEC)
 
@@ -117,6 +122,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-SEC-04 | M | AI is opt-in: no call until a base URL, key and model are configured and the provider origin is allowed. | Monitor reports "not configured", makes no call. |
 | TB-SEC-05 | M | Analysis and draft data are local; deleting the extension data removes them. | Documented in README; no remote Sentinel service. |
 | TB-SEC-06 | M | Email content passes through the shared redactor before any provider call. | Prompt tests confirm sensitive patterns are redacted. |
+| TB-SEC-07 | M | Each task uses its configured provider; no model/provider literals are hard-coded in feature paths. | Provider routing tests cover legacy and multi-provider settings. |
 
 ### 4.8 Non-functional (TB-NFR)
 

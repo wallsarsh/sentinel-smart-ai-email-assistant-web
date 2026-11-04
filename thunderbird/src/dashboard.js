@@ -1,4 +1,5 @@
 import { mergeSettings, normalizeSettings } from './config.js'
+import { providerUsable } from './providers.js'
 import { normalizeRule } from './rules.js'
 import { createStore } from './store.js'
 import {
@@ -19,7 +20,7 @@ import {
 
 const $ = (id) => document.getElementById(id)
 const store = createStore(browser.storage.local)
-const state = { tab: 'brief', filter: 'all', data: null }
+const state = { tab: 'brief', filter: 'all', data: null, selected: new Set(), batchMessage: '' }
 
 const FILTERS = [
   ['all', 'All'],
@@ -63,7 +64,7 @@ function pill(message, kind = '') {
 }
 
 function renderStatus({ settings, monitor, briefStatus }) {
-  if (!settings.baseUrl || !settings.apiKey || !settings.model)
+  if (!settings.providers?.some(providerUsable))
     return pill('Setup needed', 'pill--warn')
   if (monitor?.state === 'running') return pill('Checking…', 'pill--warn')
   if (monitor?.state === 'error' || briefStatus?.state === 'error')
@@ -180,7 +181,7 @@ function renderInbox({ analyses }) {
       }),
     )
   }
-  $('inbox-meta').textContent = `${rows.length} analysed`
+  $('inbox-meta').textContent = `${rows.length} analysed${state.batchMessage ? ` · ${state.batchMessage}` : ''}`
   const root = $('inbox')
   clear(root)
   const visible = rows.filter((a) => matchesFilter(a, state.filter))
@@ -191,15 +192,31 @@ function renderInbox({ analyses }) {
   const list = el('div', { class: 'list' })
   for (const a of visible) {
     const subject = a.subject || '(no subject)'
-    const row = el('button', {
-      class: 'item',
-      type: 'button',
-      onclick: () => openMessage(a.messageId),
-      title: 'Open message',
-    },
+    const selected = state.selected.has(a.messageId)
+    const checkbox = el('input', {
+      type: 'checkbox',
+      checked: selected,
+      'aria-label': `Select ${subject}`,
+      onchange: (e) => {
+        if (e.target.checked) state.selected.add(a.messageId)
+        else state.selected.delete(a.messageId)
+        renderInbox({ analyses })
+      },
+    })
+    const row = el('div', { class: 'item' },
       el('div', { class: 'item__top' },
+        checkbox,
         el('span', { class: 'item__title', text: subject }),
-        el('span', { class: 'item__side' }, priorityChip(a.priority), a.needsReply ? chip('Reply', 'chip--accent') : null),
+        el('span', { class: 'item__side' },
+          priorityChip(a.priority),
+          a.needsReply ? chip('Reply', 'chip--accent') : null,
+          el('button', {
+            class: 'btn btn--small',
+            type: 'button',
+            onclick: () => openMessage(a.messageId),
+            text: 'Open',
+          }),
+        ),
       ),
       el('div', { class: 'item__meta' },
         `${a.sender || 'Unknown sender'} · ${categoryLabel(a.category)} · ${intentLabel(a.intent)} · ${relativeTime(a.date ?? a.at)}`,
@@ -210,6 +227,33 @@ function renderInbox({ analyses }) {
     list.append(row)
   }
   root.append(list)
+  renderBatchBar()
+}
+
+function renderBatchBar() {
+  const bar = $('batch-bar')
+  const count = state.selected.size
+  bar.hidden = count === 0
+  if (!count) return
+  $('batch-count').textContent = `${count} selected`
+}
+
+async function runBatch(action) {
+  if (!state.selected.size) return
+  const ids = [...state.selected]
+  $('batch-status').textContent = action === 'analyze' ? 'Analysing selected…' : 'Creating drafts…'
+  const res = await send({ type: 'batch-run', action, ids }).catch((e) => ({
+    ok: false,
+    error: e.message,
+  }))
+  state.selected.clear()
+  if (!res) state.batchMessage = 'Batch failed.'
+  else if (res.ok === false) state.batchMessage = res.error ?? 'Batch failed.'
+  else if (action === 'analyze')
+    state.batchMessage = `Analysed ${res.analyzed ?? 0}${res.local ? `, ${res.local} local` : ''}${res.failed ? `, ${res.failed} failed` : ''}.`
+  else state.batchMessage = `Created ${res.created ?? 0} drafts${res.failed ? `, ${res.failed} failed` : ''}.`
+  await reload()
+  $('inbox-meta').textContent = `${state.data?.analyses.length ?? 0} analysed · ${state.batchMessage}`
 }
 
 function renderDrafts({ drafts }) {
@@ -365,6 +409,12 @@ function saveSettings(event) {
 $('refresh').onclick = () => refresh('all')
 $('provider').onclick = () => browser.runtime.openOptionsPage()
 $('run-now').onclick = () => refresh('all')
+$('batch-analyze').onclick = () => runBatch('analyze')
+$('batch-draft').onclick = () => runBatch('draft')
+$('batch-clear').onclick = () => {
+  state.selected.clear()
+  renderInbox(state.data)
+}
 $('settings-form').addEventListener('submit', saveSettings)
 $('rule-form').addEventListener('submit', async (e) => {
   e.preventDefault()

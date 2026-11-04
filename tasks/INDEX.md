@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 121/128 done · ready now: T009, T010, T011, T159, T160, T174
+**Progress:** 126/134 done · ready now: T009, T010, T011, T159, T160, T174
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -64,6 +64,12 @@ flowchart LR
     T176["T176"]:::done
     T177["T177"]:::done
     T178["T178"]:::done
+    T179["T179"]:::done
+    T180["T180"]:::done
+    T181["T181"]:::done
+    T182["T182"]:::done
+    T183["T183"]:::rev
+    T184["T184"]:::done
   end
   subgraph P2
     T040["T040"]:::done
@@ -406,6 +412,13 @@ flowchart LR
   T175 --> T177
   T176 --> T178
   T177 --> T178
+  T177 --> T179
+  T177 --> T180
+  T177 --> T181
+  T173 --> T182
+  T167 --> T183
+  T176 --> T183
+  T181 --> T184
 ```
 
 ## P0
@@ -466,6 +479,12 @@ flowchart LR
 | ✅ | [T176](items/T176-thunderbird-brief-badge-and-notification.md) | Thunderbird brief update badge and native notification | S | code | T173 | opencode-deepseek-v4.1-flash |
 | ✅ | [T177](items/T177-thunderbird-reply-view-assistant.md) | Thunderbird reply-view assistant with intent, length and preview | M | code | T175 | opencode-deepseek-v4.1-flash |
 | ✅ | [T178](items/T178-thunderbird-addon-review.md) | Thunderbird add-on review and feature adoption notes | S | docs | T176, T177 | opencode-deepseek-v4.1-flash |
+| ✅ | [T179](items/T179-thunderbird-proofread-rewrite-diff.md) | Thunderbird proofread and rewrite with accept/reject diff | L | code | T177 | opencode-deepseek-v4.1-flash |
+| ✅ | [T180](items/T180-thunderbird-streaming-draft-output.md) | Thunderbird streaming draft output | M | code | T177 | opencode-deepseek-v4.1-flash |
+| ✅ | [T181](items/T181-thunderbird-batch-processing.md) | Thunderbird batch processing from the inbox | M | code | T177 | opencode-deepseek-v4.1-flash |
+| ✅ | [T182](items/T182-thunderbird-provider-routing-and-presets.md) | Thunderbird per-task provider routing and native presets | L | code | T173 | opencode-deepseek-v4.1-flash |
+| 👀 | [T183](items/T183-thunderbird-direct-calendar-writes.md) | Thunderbird direct calendar writes with ICS fallback | M | code | T167, T176 | opencode-deepseek-v4.1-flash |
+| ✅ | [T184](items/T184-thunderbird-context-menus-and-message-list-actions.md) | Thunderbird context menus and message-list actions | M | code | T181 | opencode-deepseek-v4.1-flash |
 
 ## P2
 

@@ -13,10 +13,10 @@ A quiet AI assistant inside Thunderbird. It watches your inboxes, explains what 
 | Tags | Best-effort Thunderbird tags: `Sentinel P1…P4`, `Sentinel Reply`, `Sentinel Ignored`. If the tag API is unavailable, analysis still works. |
 | Daily brief | One brief for the current local day, refreshed when the monitor finds new mail (hourly at most). A count badge appears on the brief toolbar icon and a content-free native notification announces the update when enabled. You can refresh it at any time. |
 | Drafts | For messages that need a reply, at most a few reviewable drafts per run are saved in the account's own Drafts folder, threaded as a reply. Already-replied threads and existing drafts are skipped. |
-| Compose assistant | In any reply compose window, the **Sentinel** toolbar button shows the original analysis, a tone picker (Standard…Persuasive), reply intent, length and an optional instruction. It generates an editable preview, then inserts it above the quote; you review and send. |
+| Compose assistant | In any reply compose window, the **Sentinel** toolbar button shows the original analysis, a tone picker (Standard…Persuasive), reply intent, length and an optional instruction. Draft text streams into an editable preview, then inserts above the quote; you review and send. Select text and use **Proofread** or **Rewrite** to review word-level changes and accept or reject each one. |
 | Sender rules | Mark a sender/domain **Important**, **Marketing** or **Ignore**. Ignore never reaches the AI; Marketing is classified locally unless you opt in; Important is analysed first and raised to high importance. |
 | Calendar | Meeting/dated-action candidates can be added as a standards-compliant `.ics` file. Nothing is written to a calendar without your click. |
-| Dashboard | Brief, Inbox, Drafts, Senders and Settings in one calm page, with a message popup for the open email. |
+| Dashboard | Brief, Inbox, Drafts, Senders and Settings in one calm page, with a message popup for the open email. Inbox rows can be selected for bounded **Analyze selected** or **Create drafts** batches. Native message-list and message-display context menus expose the same actions. |
 
 ## Install
 
@@ -29,9 +29,10 @@ Thunderbird 140+ → **Tools → Developer Tools → Debug Add-ons → Load Temp
 
 Then:
 
-1. Open the add-on settings (**Provider settings**) and enter an OpenAI-compatible API URL, key and model. The key is stored only in this Thunderbird profile.
-2. Grant the provider origin permission when Thunderbird asks.
-3. Open **Dashboard** from the toolbar popup and press **Refresh now** for the first run.
+1. Open **Provider settings** and add one or more providers: OpenAI, Anthropic, an OpenAI-compatible endpoint, or a preset for Ollama, LM Studio, Groq, Mistral, OpenRouter or Gemini-compatible. Each key stays in this Thunderbird profile.
+2. Choose the provider and model for each task (analysis, brief, drafts, proofreading, rewrite) in **Task routing**.
+3. Grant the provider origin permission when Thunderbird asks.
+4. Open **Dashboard** from the toolbar popup and press **Refresh now** for the first run.
 
 No hosted Sentinel account or server is involved. Mail goes only to the mailbox provider and the AI provider you configured.
 
@@ -41,7 +42,7 @@ No hosted Sentinel account or server is involved. Mail goes only to the mailbox 
 inbox folders ── headers ── sender rules + bulk/security pre-filter
                                   │                 │
                                   │                 └── local classification (no tokens)
-                                  └── PromptBuilder ── OpenAI-compatible provider
+                                  └── PromptBuilder ── provider adapter (OpenAI / Anthropic / compatible)
                                           │
                      analysis cache + tags + brief + draft eligibility
                                           │
@@ -79,7 +80,7 @@ The brief covers from local midnight to now. A monitor run refreshes it only whe
 
 ## Calendar export
 
-Thunderbird's calendar WebExtension API is still an experiment. Sentinel therefore exports RFC 5545 `.ics` files through Thunderbird's downloads API; open the file with Thunderbird, Google Calendar, Outlook or any standards-compliant calendar. This is a deliberate capability boundary, not a hidden write.
+Sentinel ships a minimal, optional `sentinelCalendar` experiment API. Where Thunderbird loads it, **Add** writes the event directly to a writable calendar. Where it is unavailable or fails before any write, Sentinel falls back to the RFC 5545 `.ics` download; open that with Thunderbird, Google Calendar, Outlook or any standards-compliant calendar. The experiment is not guaranteed to be accepted by an add-on store, so the ICS path remains the safe default.
 
 ## Privacy and safety
 

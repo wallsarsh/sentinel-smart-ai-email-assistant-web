@@ -941,6 +941,132 @@ function openAiProvider(o) {
   };
 }
 
+// packages/core/src/ai/anthropic.ts
+var VERSION = "2023-06-01";
+var ANTHROPIC_BASE = "https://api.anthropic.com";
+var STOP = {
+  end_turn: "end",
+  stop_sequence: "end",
+  max_tokens: "length",
+  refusal: "refusal"
+};
+var anthropicHeaders = (apiKey) => ({
+  "x-api-key": apiKey,
+  "anthropic-version": VERSION,
+  "content-type": "application/json"
+});
+function anthropicBody(req, stream = false) {
+  return {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    ...req.temperature === void 0 ? {} : { temperature: req.temperature },
+    system: req.system,
+    messages: [{ role: "user", content: req.user }],
+    ...req.schema ? { output_config: { format: { type: "json_schema", schema: req.schema.schema } } } : {},
+    ...stream ? { stream: true } : {}
+  };
+}
+function parseAnthropic(b) {
+  return {
+    text: (b.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join(""),
+    stop: STOP[b.stop_reason ?? ""] ?? "other",
+    model: b.model ?? "",
+    usage: {
+      inputTokens: b.usage?.input_tokens ?? 0,
+      outputTokens: b.usage?.output_tokens ?? 0,
+      cachedTokens: b.usage?.cache_read_input_tokens ?? 0
+    }
+  };
+}
+function anthropicProvider(o) {
+  const base2 = (o.baseUrl ?? ANTHROPIC_BASE).replace(/\/$/, "");
+  const http = o.http ?? fetchHttp();
+  async function call(url, init2) {
+    let res;
+    try {
+      res = await http.request(url, init2);
+    } catch (e) {
+      return err(
+        e instanceof Error && e.message.startsWith("blocked:") ? { kind: "validation", field: "baseUrl", code: "private_address" } : { kind: "network" }
+      );
+    }
+    if (res.status < 200 || res.status >= 300)
+      return err(failureForStatus(res.status, res.headers.get("retry-after")));
+    try {
+      return ok(JSON.parse(res.text));
+    } catch {
+      return err({ kind: "provider", status: res.status, code: "bad_json" });
+    }
+  }
+  return {
+    kind: "anthropic",
+    async complete(req) {
+      const r = await call(`${base2}/v1/messages`, {
+        headers: anthropicHeaders(o.apiKey),
+        body: JSON.stringify(anthropicBody(req)),
+        signal: req.signal
+      });
+      return r.ok ? ok(parseAnthropic(r.value)) : r;
+    },
+    async *stream(req) {
+      let res;
+      try {
+        res = await http.stream(`${base2}/v1/messages`, {
+          headers: anthropicHeaders(o.apiKey),
+          body: JSON.stringify(anthropicBody(req, true)),
+          signal: req.signal
+        });
+      } catch (e) {
+        throw new AiStreamError(
+          e instanceof Error && e.message.startsWith("blocked:") ? { kind: "validation", field: "baseUrl", code: "private_address" } : { kind: "network" }
+        );
+      }
+      try {
+        if (res.status < 200 || res.status >= 300)
+          throw new AiStreamError(failureForStatus(res.status, res.headers.get("retry-after")));
+        let text = "";
+        let model = "";
+        let stop = "other";
+        const usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
+        for await (const ev of parseSse(res.body)) {
+          let j;
+          try {
+            j = JSON.parse(ev.data);
+          } catch {
+            continue;
+          }
+          if (j.type === "message_start") {
+            model = j.message?.model ?? model;
+            usage.inputTokens = j.message?.usage?.input_tokens ?? 0;
+            usage.cachedTokens = j.message?.usage?.cache_read_input_tokens ?? 0;
+          } else if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
+            const t = j.delta.text ?? "";
+            text += t;
+            yield { type: "delta", text: t };
+          } else if (j.type === "message_delta") {
+            stop = STOP[j.delta?.stop_reason ?? ""] ?? stop;
+            usage.outputTokens = j.usage?.output_tokens ?? usage.outputTokens;
+          } else if (j.type === "error") {
+            throw new AiStreamError(
+              j.error?.type === "rate_limit_error" ? { kind: "rate_limited" } : { kind: "provider", status: 529, code: "stream_error" }
+            );
+          } else if (j.type === "message_stop") break;
+        }
+        yield { type: "done", response: { text, usage, stop, model } };
+      } finally {
+        res.close();
+      }
+    },
+    async listModels() {
+      const r = await call(`${base2}/v1/models?limit=100`, {
+        method: "GET",
+        headers: anthropicHeaders(o.apiKey)
+      });
+      return r.ok ? ok((r.value.data ?? []).map((m) => m.id)) : r;
+    }
+  };
+}
+
 // packages/core/src/brief.ts
 function priorityOf(importance, urgency) {
   const urgent = urgency === "urgent";
@@ -1152,24 +1278,68 @@ function userContext(accounts, now = /* @__PURE__ */ new Date(), profile = {}, r
     senderHints: rules2.filter((r) => r.kind !== "normal").map((r) => `${r.pattern} \u2192 ${r.kind}`)
   };
 }
-var provider = (s, fetchImpl) => openAiProvider({
-  kind: "openai_compatible",
-  apiKey: s.apiKey,
-  baseUrl: s.baseUrl.replace(/\/+$/, ""),
-  // Local servers (Ollama, LM Studio) only know max_tokens; OpenAI proper accepts both.
-  options: { tokensParam: "max_tokens" },
-  http: fetchHttp(fetchImpl)
-});
+function providersOf(settings2) {
+  if (settings2?.providers?.length) return settings2.providers;
+  if (settings2?.baseUrl || settings2?.apiKey || settings2?.model)
+    return [
+      {
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: settings2.baseUrl,
+        apiKey: settings2.apiKey,
+        model: settings2.model
+      }
+    ];
+  return [];
+}
+function resolveRoute(settings2, task = "triage") {
+  const providers = providersOf(settings2);
+  if (!providers.length) throw new Error("Add an AI provider in Provider settings first.");
+  const route = settings2?.routes?.[task] ?? {};
+  const provider = providers.find((p) => p.id === route.providerId) ?? providers.find((p) => p.id === settings2?.defaultProviderId) ?? providers[0];
+  const model = route.model || provider.model;
+  if (!provider.baseUrl) throw new Error("Set the provider URL in Provider settings.");
+  if (!model) throw new Error("Choose a model for this task in Provider settings.");
+  if (!provider.apiKey && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(provider.baseUrl))
+    throw new Error("Set the provider API key in Provider settings.");
+  return { provider, model };
+}
+function providerFor(provider, fetchImpl) {
+  const http = fetchHttp(fetchImpl);
+  if (provider.kind === "anthropic")
+    return anthropicProvider({
+      apiKey: provider.apiKey,
+      baseUrl: (provider.baseUrl || "https://api.anthropic.com").replace(/\/v1\/?$/, ""),
+      http
+    });
+  if (provider.kind === "openai")
+    return openAiProvider({
+      kind: "openai",
+      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl.replace(/\/+$/, ""),
+      http
+    });
+  return openAiProvider({
+    kind: "openai_compatible",
+    apiKey: provider.apiKey,
+    baseUrl: provider.baseUrl.replace(/\/+$/, ""),
+    // Local servers (Ollama, LM Studio) only know max_tokens; OpenAI proper accepts both.
+    options: { tokensParam: "max_tokens" },
+    http
+  });
+}
 async function analyzeBatch(settings2, messages, ctx, fetchImpl) {
   const prompt = builder().buildTriage(
     messages.map((m) => ({ messageId: String(m.providerMessageId), message: m })),
     ctx
   );
-  const p = provider(settings2, fetchImpl);
+  const { provider, model } = resolveRoute(settings2, "triage");
+  const p = providerFor(provider, fetchImpl);
   const base2 = 300 * messages.length + 900;
   const res = await structuredCall(async (turn) => {
     const r = await p.complete({
-      model: settings2.model,
+      model,
       system: assistantPrompt.system,
       user: turn.kind === "repair" ? `${prompt.text}
 
@@ -1215,6 +1385,46 @@ function describe(f) {
   }
 }
 
+// thunderbird/src/providers.js
+var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
+var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
+var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var isLocal = (baseUrl) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
+function normalizeProvider(raw = {}) {
+  const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
+  return {
+    id: str(raw.id) || newId(),
+    name: str(raw.name) || "AI provider",
+    kind,
+    baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
+    apiKey: str(raw.apiKey),
+    model: str(raw.model),
+    ...raw.presetId ? { presetId: raw.presetId } : {}
+  };
+}
+var providerUsable = (p) => Boolean(p?.baseUrl && p?.model && (p.apiKey || isLocal(p.baseUrl)));
+function defaultRoutes(providers = []) {
+  const provider = providers[0];
+  const out = {};
+  for (const task of TASKS)
+    out[task] = { providerId: provider?.id ?? "", model: provider?.model ?? "" };
+  return out;
+}
+function normalizeRoutes(saved = {}, providers = []) {
+  const first = providers[0];
+  const out = {};
+  for (const task of TASKS) {
+    const r = saved && typeof saved[task] === "object" ? saved[task] : {};
+    const provider = providers.find((p) => p.id === r.providerId) ?? providers.find((p) => p.id === saved?.providerId) ?? first;
+    out[task] = {
+      providerId: provider?.id ?? "",
+      model: str(r.model) || provider?.model || ""
+    };
+  }
+  return out;
+}
+
 // thunderbird/src/config.js
 var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
 var TONES = ["professional", "friendly", "concise", "formal"];
@@ -1222,6 +1432,9 @@ var DEFAULT_SETTINGS = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  providers: [],
+  defaultProviderId: "",
+  routes: defaultRoutes([]),
   monitor: {
     enabled: true,
     intervalMinutes: 60,
@@ -1243,19 +1456,40 @@ var int = (v, fallback, min, max) => {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
-var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var str2 = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
 var oneOf2 = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
 var pick = (v) => v && typeof v === "object" ? v : {};
+function normalizeProviders(saved) {
+  if (Array.isArray(saved.providers)) return saved.providers.map(normalizeProvider);
+  if (saved.baseUrl || saved.apiKey || saved.model)
+    return [
+      normalizeProvider({
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: saved.baseUrl,
+        apiKey: saved.apiKey,
+        model: saved.model
+      })
+    ];
+  return [];
+}
 function normalizeSettings(raw = {}, legacyBrief = {}) {
   const saved = pick(raw);
   const monitor = pick(saved.monitor);
   const brief = pick(saved.brief);
   const profile = pick(saved.profile);
   const oldBrief = pick(legacyBrief);
+  const providers = normalizeProviders(saved);
+  const defaultProviderId = providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
+  const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0];
   return {
-    baseUrl: str(saved.baseUrl),
-    apiKey: str(saved.apiKey),
-    model: str(saved.model),
+    baseUrl: primary?.baseUrl ?? "",
+    apiKey: primary?.apiKey ?? "",
+    model: primary?.model ?? "",
+    providers,
+    defaultProviderId,
+    routes: normalizeRoutes(pick(saved.routes), providers),
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -1295,25 +1529,33 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     },
     profile: {
       tone: oneOf2(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
-      signOff: str(profile.signOff),
-      language: str(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
+      signOff: str2(profile.signOff),
+      language: str2(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
     }
   };
 }
 function mergeSettings(base2, patch = {}) {
   const p = pick(patch);
+  const routes = { ...base2.routes };
+  for (const task of TASKS)
+    routes[task] = { ...base2.routes?.[task], ...pick(p.routes?.[task]) };
   return {
     ...base2,
     ...p,
+    routes,
+    providers: Array.isArray(p.providers) ? p.providers : base2.providers,
     monitor: { ...base2.monitor, ...pick(p.monitor) },
     brief: { ...base2.brief, ...pick(p.brief) },
     profile: { ...base2.profile, ...pick(p.profile) }
   };
 }
 function monitorBlockedReason(settings2) {
-  if (!settings2?.baseUrl || !settings2?.apiKey || !settings2?.model)
-    return "Set the API URL, key and model in Settings first.";
-  if (!/^https:\/\//.test(settings2.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(settings2.baseUrl))
+  if (!settings2?.providers?.length)
+    return "Add an AI provider in Provider settings first.";
+  if (!settings2.providers.some(providerUsable))
+    return "Finish the provider setup: URL, model and API key (or a localhost server).";
+  const primary = settings2.providers.find(providerUsable) ?? settings2.providers.find((p) => p.id === settings2.defaultProviderId) ?? settings2.providers[0];
+  if (!/^https:\/\//.test(primary.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(primary.baseUrl))
     return "The API URL must use https (http is allowed only for localhost).";
   return null;
 }
@@ -1929,8 +2171,9 @@ function renderCalendar(events) {
 }
 async function addCalendar(events) {
   const res = await send({ type: "calendar-download", events }).catch((e) => ({ ok: false, error: e.message }));
-  if (res?.ok === false) say(res.error ?? "Could not save the calendar file.", "status--error");
-  else say("Calendar file downloaded.", "status--ok");
+  if (res?.ok === false) say(res.error ?? "Could not save the calendar item.", "status--error");
+  else if (res?.mode === "direct") say("Added to your calendar.", "status--ok");
+  else say("Calendar file downloaded. Open it with your calendar.", "status--ok");
 }
 function renderSenderRule() {
   const rule = matchRule(senderAddress(current?.header?.author), rules);
