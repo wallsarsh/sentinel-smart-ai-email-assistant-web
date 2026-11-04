@@ -394,6 +394,7 @@ const tabs = wireTabs(document.querySelector('.tabs'), (tab) => {
 const initial = location.hash.replace('#', '') || 'brief'
 const index = Math.max(0, [...document.querySelectorAll('[role="tab"]')].findIndex((t) => t.dataset.tab === initial))
 tabs.select(index)
+void send({ type: 'brief-seen' }).catch(() => undefined)
 void reload().catch((e) => {
   $('status').className = 'pill pill--error'
   $('status').textContent = e?.message ?? 'Could not load the dashboard.'
