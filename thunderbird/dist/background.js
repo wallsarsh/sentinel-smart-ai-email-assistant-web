@@ -1643,6 +1643,18 @@ async function foldersBySpecialUse(use) {
   );
 }
 var inboxFolders = () => foldersBySpecialUse("inbox");
+async function localMailFolders() {
+  const accounts = await browser.accounts.list(true);
+  const local = accounts.filter(
+    (a) => a.type === "none" || a.type === "local" || !a.identities?.length
+  );
+  const system = /* @__PURE__ */ new Set(["drafts", "sent", "trash", "junk", "outbox", "templates", "archives"]);
+  return flattenFolders(local).filter((f) => {
+    if (f.type && system.has(f.type)) return false;
+    if (f.specialUse?.some((u) => system.has(String(u).toLowerCase()))) return false;
+    return !system.has(String(f.name ?? "").toLowerCase());
+  });
+}
 var sentFolders = () => foldersBySpecialUse("sent");
 var draftsFolders = () => foldersBySpecialUse("drafts");
 var accountIdOf = (header) => header?.folder?.accountId ?? null;
@@ -1862,7 +1874,8 @@ var DEFAULT_SETTINGS = {
     maxDraftsPerRun: 3,
     draftMinPriority: "p2_today",
     analyzeMarketing: false,
-    tagging: true
+    tagging: true,
+    includeLocalFolders: true
   },
   brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
@@ -1936,7 +1949,11 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
         DEFAULT_SETTINGS.monitor.draftMinPriority
       ),
       analyzeMarketing: bool(monitor.analyzeMarketing, DEFAULT_SETTINGS.monitor.analyzeMarketing),
-      tagging: bool(monitor.tagging, DEFAULT_SETTINGS.monitor.tagging)
+      tagging: bool(monitor.tagging, DEFAULT_SETTINGS.monitor.tagging),
+      includeLocalFolders: bool(
+        monitor.includeLocalFolders,
+        DEFAULT_SETTINGS.monitor.includeLocalFolders
+      )
     },
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
@@ -2043,7 +2060,7 @@ async function generateBrief({
 }) {
   const since = windowStart ? new Date(windowStart) : new Date(now.getTime() - hours * 36e5);
   const self = ctx.selfAddresses;
-  const headers = (await api2.recent(since, maxMessages)).filter((h) => !self.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, maxMessages);
+  const headers = (await api2.recent(since, maxMessages, settings)).filter((h) => !self.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, maxMessages);
   const rows = [];
   const todo = [];
   for (const h of headers) {
@@ -2577,7 +2594,11 @@ async function runMonitor({
   let headers;
   let rawHeaders;
   try {
-    rawHeaders = await api2.recent(since, settings.monitor.maxMessagesPerRun * 2);
+    rawHeaders = await api2.recent(
+      since,
+      settings.monitor.maxMessagesPerRun * 2,
+      settings
+    );
     headers = pickHeaders(rawHeaders, {
       self: ctx?.selfAddresses,
       since,
@@ -2937,10 +2958,16 @@ async function folderMessages(folderId, since, max) {
   }
   return out.slice(0, max);
 }
-async function recentHeaders(since, max) {
+async function recentHeaders(since, max, settings = {}) {
   const out = [];
-  for (const folder of await inboxFolders()) {
-    if (out.length >= max * 2) break;
+  const folders = [...await inboxFolders()];
+  if (settings?.monitor?.includeLocalFolders !== false) {
+    folders.push(...await localMailFolders());
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const folder of folders) {
+    if (seen.has(folder.id)) continue;
+    seen.add(folder.id);
     try {
       out.push(...await folderMessages(folder.id, since, max * 2));
     } catch {

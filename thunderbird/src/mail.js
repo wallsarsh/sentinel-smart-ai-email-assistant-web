@@ -109,6 +109,20 @@ export async function foldersBySpecialUse(use) {
 }
 
 export const inboxFolders = () => foldersBySpecialUse('inbox')
+
+/** Local Folders mailboxes (including a generated demo folder), excluding system folders. */
+export async function localMailFolders() {
+  const accounts = await browser.accounts.list(true)
+  const local = accounts.filter(
+    (a) => a.type === 'none' || a.type === 'local' || !(a.identities?.length),
+  )
+  const system = new Set(['drafts', 'sent', 'trash', 'junk', 'outbox', 'templates', 'archives'])
+  return flattenFolders(local).filter((f) => {
+    if (f.type && system.has(f.type)) return false
+    if (f.specialUse?.some((u) => system.has(String(u).toLowerCase()))) return false
+    return !system.has(String(f.name ?? '').toLowerCase())
+  })
+}
 export const sentFolders = () => foldersBySpecialUse('sent')
 export const draftsFolders = () => foldersBySpecialUse('drafts')
 
