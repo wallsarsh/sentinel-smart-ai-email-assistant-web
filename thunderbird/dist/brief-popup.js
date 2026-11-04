@@ -39,10 +39,7 @@ function status(node, message, kind = "") {
 function empty(message, action = null) {
   return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
 }
-var openDashboard = () => {
-  void browser.runtime.sendMessage({ type: "brief-seen" }).catch(() => void 0);
-  return browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
-};
+var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 var send = (message) => browser.runtime.sendMessage(message);
 
 // thunderbird/src/brief-view.js
@@ -513,7 +510,11 @@ var $ = (id) => document.getElementById(id);
 var store = createStore(browser.storage.local);
 var open = (id) => browser.messageDisplay.open({ messageId: Number(id) }).catch(() => void 0);
 async function show() {
-  void send({ type: "brief-seen" }).catch(() => void 0);
+  const alive = await browser.runtime.sendMessage({ type: "ping" }).catch(() => null);
+  if (!alive?.ok) {
+    status($("status"), "Background service not running \u2014 reload the add-on.", "status--error");
+    return;
+  }
   const [brief, briefStatus, settings] = await Promise.all([
     store.brief(),
     store.briefStatus(),
