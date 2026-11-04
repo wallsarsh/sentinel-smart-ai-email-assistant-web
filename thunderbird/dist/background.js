@@ -3060,24 +3060,27 @@ async function tagger({ header, analysis, known }) {
   return applyTags({ api: api2, header, analysis, known });
 }
 function createMenus() {
-  if (!browser.menus?.create) return;
-  browser.menus.removeAll?.();
-  const contexts = ["message_list", "message_display"];
-  browser.menus.create({ id: "sentinel", title: "Sentinel AI", contexts });
-  for (const [id, title] of [
-    ["sentinel-analyze", "Analyze selected"],
-    ["sentinel-draft", "Create draft reply"],
-    ["sentinel-calendar", "Add to calendar"]
-  ])
-    browser.menus.create({ id, parentId: "sentinel", title, contexts });
-  browser.menus.create({ id: "sentinel-sender", parentId: "sentinel", title: "Sender rule", contexts });
-  for (const [id, title] of [
-    ["sentinel-important", "Important"],
-    ["sentinel-marketing", "Marketing"],
-    ["sentinel-ignore", "Ignore"],
-    ["sentinel-normal", "Normal"]
-  ])
-    browser.menus.create({ id, parentId: "sentinel-sender", title, contexts });
+  try {
+    if (!browser.menus?.create) return;
+    browser.menus.removeAll?.();
+    const contexts = ["message_list", "message_display"];
+    browser.menus.create({ id: "sentinel", title: "Sentinel AI", contexts });
+    for (const [id, title] of [
+      ["sentinel-analyze", "Analyze selected"],
+      ["sentinel-draft", "Create draft reply"],
+      ["sentinel-calendar", "Add to calendar"]
+    ])
+      browser.menus.create({ id, parentId: "sentinel", title, contexts });
+    browser.menus.create({ id: "sentinel-sender", parentId: "sentinel", title: "Sender rule", contexts });
+    for (const [id, title] of [
+      ["sentinel-important", "Important"],
+      ["sentinel-marketing", "Marketing"],
+      ["sentinel-ignore", "Ignore"],
+      ["sentinel-normal", "Normal"]
+    ])
+      browser.menus.create({ id, parentId: "sentinel-sender", title, contexts });
+  } catch {
+  }
 }
 async function targetHeaders(info) {
   if (info?.selectedMessages?.messages?.length) return info.selectedMessages.messages;
@@ -3259,7 +3262,17 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
       if (settings.brief.notify) await notifyBriefUpdated(brief.brief);
     }
     return { ok: true, monitor, drafts, brief, status };
-  })().finally(() => {
+  })().catch(async (e) => {
+    const status = {
+      state: "error",
+      at: (/* @__PURE__ */ new Date()).toISOString(),
+      reason,
+      error: safeError(e),
+      nextRunAt: null
+    };
+    await store.saveMonitor(status).catch(() => void 0);
+    return { ok: false, error: status.error, status };
+  }).finally(() => {
     monitorRunning = null;
   });
   return monitorRunning;
@@ -3300,10 +3313,10 @@ browser.runtime.onStartup.addListener(() => {
 });
 browser.runtime.onInstalled.addListener(() => {
   createMenus();
-  void schedule();
+  void schedule().catch(() => void 0);
 });
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && (changes.settings || changes.senderRules)) void schedule();
+  if (area === "local" && (changes.settings || changes.senderRules)) void schedule().catch(() => void 0);
 });
 async function registerComposeScript() {
   if (!browser.composeScripts?.register) return;
@@ -3518,4 +3531,4 @@ browser.notifications.onClicked.addListener(() => {
   void clearBriefBadge();
   void browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 });
-void schedule();
+void schedule().catch(() => void 0);

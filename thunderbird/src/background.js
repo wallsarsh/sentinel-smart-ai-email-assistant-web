@@ -180,24 +180,28 @@ async function tagger({ header, analysis, known }) {
 // ---- native context menus --------------------------------------------------------------------------------------
 
 function createMenus() {
-  if (!browser.menus?.create) return
-  browser.menus.removeAll?.()
-  const contexts = ['message_list', 'message_display']
-  browser.menus.create({ id: 'sentinel', title: 'Sentinel AI', contexts })
-  for (const [id, title] of [
-    ['sentinel-analyze', 'Analyze selected'],
-    ['sentinel-draft', 'Create draft reply'],
-    ['sentinel-calendar', 'Add to calendar'],
-  ])
-    browser.menus.create({ id, parentId: 'sentinel', title, contexts })
-  browser.menus.create({ id: 'sentinel-sender', parentId: 'sentinel', title: 'Sender rule', contexts })
-  for (const [id, title] of [
-    ['sentinel-important', 'Important'],
-    ['sentinel-marketing', 'Marketing'],
-    ['sentinel-ignore', 'Ignore'],
-    ['sentinel-normal', 'Normal'],
-  ])
-    browser.menus.create({ id, parentId: 'sentinel-sender', title, contexts })
+  try {
+    if (!browser.menus?.create) return
+    browser.menus.removeAll?.()
+    const contexts = ['message_list', 'message_display']
+    browser.menus.create({ id: 'sentinel', title: 'Sentinel AI', contexts })
+    for (const [id, title] of [
+      ['sentinel-analyze', 'Analyze selected'],
+      ['sentinel-draft', 'Create draft reply'],
+      ['sentinel-calendar', 'Add to calendar'],
+    ])
+      browser.menus.create({ id, parentId: 'sentinel', title, contexts })
+    browser.menus.create({ id: 'sentinel-sender', parentId: 'sentinel', title: 'Sender rule', contexts })
+    for (const [id, title] of [
+      ['sentinel-important', 'Important'],
+      ['sentinel-marketing', 'Marketing'],
+      ['sentinel-ignore', 'Ignore'],
+      ['sentinel-normal', 'Normal'],
+    ])
+      browser.menus.create({ id, parentId: 'sentinel-sender', title, contexts })
+  } catch {
+    // A missing menu API or an unsupported context must not stop the background page.
+  }
 }
 
 async function targetHeaders(info) {
@@ -397,9 +401,21 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
       if (settings.brief.notify) await notifyBriefUpdated(brief.brief)
     }
     return { ok: true, monitor, drafts, brief, status }
-  })().finally(() => {
-    monitorRunning = null
-  })
+  })()
+    .catch(async (e) => {
+      const status = {
+        state: 'error',
+        at: new Date().toISOString(),
+        reason,
+        error: safeError(e),
+        nextRunAt: null,
+      }
+      await store.saveMonitor(status).catch(() => undefined)
+      return { ok: false, error: status.error, status }
+    })
+    .finally(() => {
+      monitorRunning = null
+    })
   return monitorRunning
 }
 
@@ -443,11 +459,11 @@ browser.runtime.onStartup.addListener(() => {
 })
 browser.runtime.onInstalled.addListener(() => {
   createMenus()
-  void schedule()
+  void schedule().catch(() => undefined)
 })
 
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && (changes.settings || changes.senderRules)) void schedule()
+  if (area === 'local' && (changes.settings || changes.senderRules)) void schedule().catch(() => undefined)
 })
 
 async function registerComposeScript() {
@@ -678,4 +694,4 @@ browser.notifications.onClicked.addListener(() => {
   void browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 })
 
-void schedule()
+void schedule().catch(() => undefined)
