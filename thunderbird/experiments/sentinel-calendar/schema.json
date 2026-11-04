@@ -1,0 +1,33 @@
+[
+  {
+    "namespace": "sentinelCalendar",
+    "description": "Minimal direct calendar writer for Sentinel.",
+    "functions": [
+      {
+        "name": "listCalendars",
+        "type": "function",
+        "async": true,
+        "parameters": []
+      },
+      {
+        "name": "createEvent",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          {
+            "name": "event",
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "start": { "type": "string" },
+              "end": { "type": "string", "optional": true },
+              "allDay": { "type": "boolean", "optional": true },
+              "location": { "type": "string", "optional": true },
+              "description": { "type": "string", "optional": true }
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

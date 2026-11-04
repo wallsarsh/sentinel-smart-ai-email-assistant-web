@@ -146,8 +146,9 @@ function renderCalendar(events) {
 
 async function addCalendar(events) {
   const res = await send({ type: 'calendar-download', events }).catch((e) => ({ ok: false, error: e.message }))
-  if (res?.ok === false) say(res.error ?? 'Could not save the calendar file.', 'status--error')
-  else say('Calendar file downloaded.', 'status--ok')
+  if (res?.ok === false) say(res.error ?? 'Could not save the calendar item.', 'status--error')
+  else if (res?.mode === 'direct') say('Added to your calendar.', 'status--ok')
+  else say('Calendar file downloaded. Open it with your calendar.', 'status--ok')
 }
 
 function renderSenderRule() {

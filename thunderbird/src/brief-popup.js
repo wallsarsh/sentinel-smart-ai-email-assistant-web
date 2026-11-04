@@ -7,6 +7,7 @@ const store = createStore(browser.storage.local)
 const open = (id) => browser.messageDisplay.open({ messageId: Number(id) }).catch(() => undefined)
 
 async function show() {
+  void send({ type: 'brief-seen' }).catch(() => undefined)
   const [brief, briefStatus, settings] = await Promise.all([
     store.brief(),
     store.briefStatus(),

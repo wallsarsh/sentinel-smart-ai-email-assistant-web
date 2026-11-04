@@ -1,4 +1,12 @@
 // Settings shape and migration for the Thunderbird assistant. Pure: no browser APIs, so it is testable in Node.
+import {
+  TASKS,
+  defaultRoutes,
+  normalizeProvider,
+  normalizeRoutes,
+  providerUsable,
+} from './providers'
+
 export const INTERVAL_OPTIONS = [15, 30, 60, 120, 240]
 export const DRAFT_PRIORITIES = ['p1_do_now', 'p2_today', 'p3_this_week']
 export const TONES = ['professional', 'friendly', 'concise', 'formal']
@@ -7,6 +15,9 @@ export const DEFAULT_SETTINGS = {
   baseUrl: '',
   apiKey: '',
   model: '',
+  providers: [],
+  defaultProviderId: '',
+  routes: defaultRoutes([]),
   monitor: {
     enabled: true,
     intervalMinutes: 60,
@@ -19,7 +30,7 @@ export const DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true,
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: 'professional', signOff: '', language: 'auto' },
 }
 
@@ -34,6 +45,23 @@ const oneOf = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback)
 
 const pick = (v) => (v && typeof v === 'object' ? v : {})
 
+function normalizeProviders(saved) {
+  if (Array.isArray(saved.providers)) return saved.providers.map(normalizeProvider)
+  // Migration from the single-provider version.
+  if (saved.baseUrl || saved.apiKey || saved.model)
+    return [
+      normalizeProvider({
+        id: 'legacy',
+        name: 'Default provider',
+        kind: 'openai_compatible',
+        baseUrl: saved.baseUrl,
+        apiKey: saved.apiKey,
+        model: saved.model,
+      }),
+    ]
+  return []
+}
+
 /**
  * Merges saved settings over defaults, accepts the old top-level `briefSettings`,
  * clamps values and never mutates the input.
@@ -44,10 +72,17 @@ export function normalizeSettings(raw = {}, legacyBrief = {}) {
   const brief = pick(saved.brief)
   const profile = pick(saved.profile)
   const oldBrief = pick(legacyBrief)
+  const providers = normalizeProviders(saved)
+  const defaultProviderId =
+    providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? ''
+  const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
   return {
-    baseUrl: str(saved.baseUrl),
-    apiKey: str(saved.apiKey),
-    model: str(saved.model),
+    baseUrl: primary?.baseUrl ?? '',
+    apiKey: primary?.apiKey ?? '',
+    model: primary?.model ?? '',
+    providers,
+    defaultProviderId,
+    routes: normalizeRoutes(pick(saved.routes), providers),
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -83,6 +118,7 @@ export function normalizeSettings(raw = {}, legacyBrief = {}) {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
       updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify),
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
@@ -95,24 +131,34 @@ export function normalizeSettings(raw = {}, legacyBrief = {}) {
 /** Deep-merges a patch over already-normalised settings, so saving one panel keeps the others. */
 export function mergeSettings(base, patch = {}) {
   const p = pick(patch)
+  const routes = { ...base.routes }
+  for (const task of TASKS)
+    routes[task] = { ...base.routes?.[task], ...pick(p.routes?.[task]) }
   return {
     ...base,
     ...p,
+    routes,
+    providers: Array.isArray(p.providers) ? p.providers : base.providers,
     monitor: { ...base.monitor, ...pick(p.monitor) },
     brief: { ...base.brief, ...pick(p.brief) },
     profile: { ...base.profile, ...pick(p.profile) },
   }
 }
 
-/** True when the user has completed the minimum provider setup. */
-export const providerConfigured = (s) =>
-  Boolean(s?.baseUrl && s?.apiKey && s?.model && /^https?:/.test(s.baseUrl))
+/** True when at least one configured provider can be called. */
+export const providerConfigured = (s) => Boolean(s?.providers?.some(providerUsable))
 
 /** Settings a monitor run needs, or a readable reason why it cannot start. */
 export function monitorBlockedReason(settings) {
-  if (!settings?.baseUrl || !settings?.apiKey || !settings?.model)
-    return 'Set the API URL, key and model in Settings first.'
-  if (!/^https:\/\//.test(settings.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(settings.baseUrl))
+  if (!settings?.providers?.length)
+    return 'Add an AI provider in Provider settings first.'
+  if (!settings.providers.some(providerUsable))
+    return 'Finish the provider setup: URL, model and API key (or a localhost server).'
+  const primary =
+    settings.providers.find(providerUsable) ??
+    settings.providers.find((p) => p.id === settings.defaultProviderId) ??
+    settings.providers[0]
+  if (!/^https:\/\//.test(primary.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(primary.baseUrl))
     return 'The API URL must use https (http is allowed only for localhost).'
   return null
 }

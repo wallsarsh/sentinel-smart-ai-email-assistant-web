@@ -24,4 +24,5 @@ await build({
 for (const f of ['popup.html', 'options.html', 'brief.html', 'dashboard.html', 'compose.html'])
   cpSync(`thunderbird/src/${f}`, `thunderbird/dist/${f}`)
 cpSync('thunderbird/src/theme.css', 'thunderbird/dist/theme.css')
+cpSync('thunderbird/src/compose-script.js', 'thunderbird/dist/compose-script.js')
 console.log('extension written to thunderbird/dist (load thunderbird/manifest.json)')

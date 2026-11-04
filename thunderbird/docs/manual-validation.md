@@ -31,6 +31,13 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 4. Confirm every “Open” link opens the referenced message and that counts match the Inbox view.
 5. Confirm the notification text (if enabled) contains no subject, sender or body.
 
+## 3a. Providers and routing
+
+1. Add an OpenAI provider and an Anthropic provider; confirm the key is preserved when editing without re-entering it.
+2. Add an Ollama or LM Studio local provider without a key; confirm it is not marked incomplete.
+3. Route analysis to provider A, brief to B and drafts to C; run each feature and confirm the provider usage/log shows the selected model.
+4. Remove a provider used by a route; confirm the route falls back to another configured provider.
+
 ## 4. Drafts and already-replied detection
 
 1. Note a Needs-reply message with no reply.
@@ -41,12 +48,30 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 6. Turn auto-draft off; confirm no new drafts. Use “Save AI draft” in the popup; confirm it still saves one.
 7. Confirm the extension has no Send button and no send permission.
 
+## 4a. Streaming, proofread and rewrite
+
+1. Generate a reply and confirm the preview fills progressively, then insert it.
+2. Select a sentence in the compose window, choose Proofread, accept one hunk and reject another; confirm only accepted text replaces the selection.
+3. Repeat with Rewrite and a different tone; confirm facts/links are preserved.
+
+## 4b. Batch and context menus
+
+1. Select three inbox rows in the dashboard and run Analyze selected; confirm counts and that rules/cache still apply.
+2. Select two Needs-reply rows and run Create drafts; confirm at most the batch limit and the draft folder.
+3. Right-click selected messages in Thunderbird's message list; run Analyze, Create draft, Add to calendar and each sender rule.
+
 ## 5. Calendar
 
 1. Open a message with a concrete meeting date/time. Confirm a calendar candidate appears.
 2. Click **Add**. Confirm an `.ics` downloads; open it in Thunderbird Calendar and one external calendar. Check title, start/end, all-day flag, location.
 3. Open a message with a dated action item and no meeting. Confirm the action becomes an all-day candidate.
 4. Confirm no calendar event is created without clicking Add.
+
+## 5a. Direct calendar writes
+
+1. With the bundled calendar experiment loaded, Add a candidate and confirm the event appears in the selected writable Thunderbird calendar.
+2. Temporarily disable/rename the experiment and confirm Add falls back to a downloaded `.ics`.
+3. Confirm a failed write after the first event is not retried as an ICS duplicate.
 
 ## 6. Resilience and accessibility
 

@@ -1,3 +1,43 @@
+// thunderbird/src/providers.js
+var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
+var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
+var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var isLocal = (baseUrl) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
+function normalizeProvider(raw = {}) {
+  const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
+  return {
+    id: str(raw.id) || newId(),
+    name: str(raw.name) || "AI provider",
+    kind,
+    baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
+    apiKey: str(raw.apiKey),
+    model: str(raw.model),
+    ...raw.presetId ? { presetId: raw.presetId } : {}
+  };
+}
+var providerUsable = (p) => Boolean(p?.baseUrl && p?.model && (p.apiKey || isLocal(p.baseUrl)));
+function defaultRoutes(providers = []) {
+  const provider = providers[0];
+  const out = {};
+  for (const task of TASKS)
+    out[task] = { providerId: provider?.id ?? "", model: provider?.model ?? "" };
+  return out;
+}
+function normalizeRoutes(saved = {}, providers = []) {
+  const first = providers[0];
+  const out = {};
+  for (const task of TASKS) {
+    const r = saved && typeof saved[task] === "object" ? saved[task] : {};
+    const provider = providers.find((p) => p.id === r.providerId) ?? providers.find((p) => p.id === saved?.providerId) ?? first;
+    out[task] = {
+      providerId: provider?.id ?? "",
+      model: str(r.model) || provider?.model || ""
+    };
+  }
+  return out;
+}
+
 // thunderbird/src/config.js
 var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
 var TONES = ["professional", "friendly", "concise", "formal"];
@@ -5,6 +45,9 @@ var DEFAULT_SETTINGS = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  providers: [],
+  defaultProviderId: "",
+  routes: defaultRoutes([]),
   monitor: {
     enabled: true,
     intervalMinutes: 60,
@@ -17,7 +60,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -26,19 +69,40 @@ var int = (v, fallback, min, max) => {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
-var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var str2 = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
 var oneOf = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
 var pick = (v) => v && typeof v === "object" ? v : {};
+function normalizeProviders(saved) {
+  if (Array.isArray(saved.providers)) return saved.providers.map(normalizeProvider);
+  if (saved.baseUrl || saved.apiKey || saved.model)
+    return [
+      normalizeProvider({
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: saved.baseUrl,
+        apiKey: saved.apiKey,
+        model: saved.model
+      })
+    ];
+  return [];
+}
 function normalizeSettings(raw = {}, legacyBrief = {}) {
   const saved = pick(raw);
   const monitor = pick(saved.monitor);
   const brief = pick(saved.brief);
   const profile = pick(saved.profile);
   const oldBrief = pick(legacyBrief);
+  const providers = normalizeProviders(saved);
+  const defaultProviderId = providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
+  const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0];
   return {
-    baseUrl: str(saved.baseUrl),
-    apiKey: str(saved.apiKey),
-    model: str(saved.model),
+    baseUrl: primary?.baseUrl ?? "",
+    apiKey: primary?.apiKey ?? "",
+    model: primary?.model ?? "",
+    providers,
+    defaultProviderId,
+    routes: normalizeRoutes(pick(saved.routes), providers),
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -73,20 +137,26 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
-      signOff: str(profile.signOff),
-      language: str(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
+      signOff: str2(profile.signOff),
+      language: str2(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
     }
   };
 }
 function mergeSettings(base, patch = {}) {
   const p = pick(patch);
+  const routes = { ...base.routes };
+  for (const task of TASKS)
+    routes[task] = { ...base.routes?.[task], ...pick(p.routes?.[task]) };
   return {
     ...base,
     ...p,
+    routes,
+    providers: Array.isArray(p.providers) ? p.providers : base.providers,
     monitor: { ...base.monitor, ...pick(p.monitor) },
     brief: { ...base.brief, ...pick(p.brief) },
     profile: { ...base.profile, ...pick(p.profile) }
@@ -451,7 +521,7 @@ function wireTabs(root, onChange) {
 // thunderbird/src/dashboard.js
 var $ = (id) => document.getElementById(id);
 var store = createStore(browser.storage.local);
-var state = { tab: "brief", filter: "all", data: null };
+var state = { tab: "brief", filter: "all", data: null, selected: /* @__PURE__ */ new Set(), batchMessage: "" };
 var FILTERS = [
   ["all", "All"],
   ["reply", "Needs reply"],
@@ -491,7 +561,7 @@ function pill(message, kind = "") {
   node.textContent = message;
 }
 function renderStatus({ settings, monitor, briefStatus }) {
-  if (!settings.baseUrl || !settings.apiKey || !settings.model)
+  if (!settings.providers?.some(providerUsable))
     return pill("Setup needed", "pill--warn");
   if (monitor?.state === "running") return pill("Checking\u2026", "pill--warn");
   if (monitor?.state === "error" || briefStatus?.state === "error")
@@ -612,7 +682,7 @@ function renderInbox({ analyses }) {
       })
     );
   }
-  $("inbox-meta").textContent = `${rows.length} analysed`;
+  $("inbox-meta").textContent = `${rows.length} analysed${state.batchMessage ? ` \xB7 ${state.batchMessage}` : ""}`;
   const root = $("inbox");
   clear(root);
   const visible = rows.filter((a) => matchesFilter(a, state.filter));
@@ -623,19 +693,37 @@ function renderInbox({ analyses }) {
   const list = el("div", { class: "list" });
   for (const a of visible) {
     const subject = a.subject || "(no subject)";
+    const selected = state.selected.has(a.messageId);
+    const checkbox = el("input", {
+      type: "checkbox",
+      checked: selected,
+      "aria-label": `Select ${subject}`,
+      onchange: (e) => {
+        if (e.target.checked) state.selected.add(a.messageId);
+        else state.selected.delete(a.messageId);
+        renderInbox({ analyses });
+      }
+    });
     const row = el(
-      "button",
-      {
-        class: "item",
-        type: "button",
-        onclick: () => openMessage(a.messageId),
-        title: "Open message"
-      },
+      "div",
+      { class: "item" },
       el(
         "div",
         { class: "item__top" },
+        checkbox,
         el("span", { class: "item__title", text: subject }),
-        el("span", { class: "item__side" }, priorityChip(a.priority), a.needsReply ? chip("Reply", "chip--accent") : null)
+        el(
+          "span",
+          { class: "item__side" },
+          priorityChip(a.priority),
+          a.needsReply ? chip("Reply", "chip--accent") : null,
+          el("button", {
+            class: "btn btn--small",
+            type: "button",
+            onclick: () => openMessage(a.messageId),
+            text: "Open"
+          })
+        )
       ),
       el(
         "div",
@@ -648,6 +736,31 @@ function renderInbox({ analyses }) {
     list.append(row);
   }
   root.append(list);
+  renderBatchBar();
+}
+function renderBatchBar() {
+  const bar = $("batch-bar");
+  const count = state.selected.size;
+  bar.hidden = count === 0;
+  if (!count) return;
+  $("batch-count").textContent = `${count} selected`;
+}
+async function runBatch(action) {
+  if (!state.selected.size) return;
+  const ids = [...state.selected];
+  $("batch-status").textContent = action === "analyze" ? "Analysing selected\u2026" : "Creating drafts\u2026";
+  const res = await send({ type: "batch-run", action, ids }).catch((e) => ({
+    ok: false,
+    error: e.message
+  }));
+  state.selected.clear();
+  if (!res) state.batchMessage = "Batch failed.";
+  else if (res.ok === false) state.batchMessage = res.error ?? "Batch failed.";
+  else if (action === "analyze")
+    state.batchMessage = `Analysed ${res.analyzed ?? 0}${res.local ? `, ${res.local} local` : ""}${res.failed ? `, ${res.failed} failed` : ""}.`;
+  else state.batchMessage = `Created ${res.created ?? 0} drafts${res.failed ? `, ${res.failed} failed` : ""}.`;
+  await reload();
+  $("inbox-meta").textContent = `${state.data?.analyses.length ?? 0} analysed \xB7 ${state.batchMessage}`;
 }
 function renderDrafts({ drafts }) {
   const root = $("drafts");
@@ -733,6 +846,7 @@ function renderSettings({ settings }) {
   $("monitor-marketing").checked = settings.monitor.analyzeMarketing;
   $("brief-enabled").checked = settings.brief.enabled;
   $("brief-hourly").checked = settings.brief.updateHourly;
+  $("brief-notify").checked = settings.brief.notify;
   const hour = $("brief-hour");
   if (!hour.options.length) {
     for (let h = 0; h < 24; h++)
@@ -785,7 +899,8 @@ function saveSettings(event) {
     brief: {
       enabled: $("brief-enabled").checked,
       hour: Number($("brief-hour").value),
-      updateHourly: $("brief-hourly").checked
+      updateHourly: $("brief-hourly").checked,
+      notify: $("brief-notify").checked
     },
     profile: {
       tone: $("profile-tone").value,
@@ -801,6 +916,12 @@ function saveSettings(event) {
 $("refresh").onclick = () => refresh("all");
 $("provider").onclick = () => browser.runtime.openOptionsPage();
 $("run-now").onclick = () => refresh("all");
+$("batch-analyze").onclick = () => runBatch("analyze");
+$("batch-draft").onclick = () => runBatch("draft");
+$("batch-clear").onclick = () => {
+  state.selected.clear();
+  renderInbox(state.data);
+};
 $("settings-form").addEventListener("submit", saveSettings);
 $("rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -828,6 +949,7 @@ var tabs = wireTabs(document.querySelector(".tabs"), (tab) => {
 var initial = location.hash.replace("#", "") || "brief";
 var index = Math.max(0, [...document.querySelectorAll('[role="tab"]')].findIndex((t) => t.dataset.tab === initial));
 tabs.select(index);
+void send({ type: "brief-seen" }).catch(() => void 0);
 void reload().catch((e) => {
   $("status").className = "pill pill--error";
   $("status").textContent = e?.message ?? "Could not load the dashboard.";

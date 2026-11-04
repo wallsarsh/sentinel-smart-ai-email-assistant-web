@@ -40,8 +40,13 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | `thunderbird/src/calendar.js` | Candidate normalisation, ICS serialisation, download adapter. | `thunderbird.calendar` |
 | `thunderbird/src/brief.js` | Daily window, hourly refresh policy, cached analysis reuse, brief assembly. | extends existing brief tests |
 | `thunderbird/src/tags.js` | Best-effort Thunderbird tag mapping. | `thunderbird.tags` |
-| `thunderbird/src/tones.js` | Compose tone presets (Standard…Persuasive) mapped to core tones/instructions. | `thunderbird.ui` |
-| `thunderbird/src/compose.*` | Reply-compose action: tone picker, instruction, generate above the quote. | `thunderbird.ui` + manual |
+| `thunderbird/src/tones.js` | Compose tone, intent and length presets mapped to core tones/instructions. | `thunderbird.ui` |
+| `thunderbird/src/notify.js` | Brief toolbar badge, title and content-free native notifications. | `thunderbird.notify` |
+| `thunderbird/src/providers.js` | Provider presets, provider normalisation and per-task route defaults. | `thunderbird.providers` |
+| `thunderbird/src/diff.js` | Bounded word-level diff and accepted-hunk reconstruction. | `thunderbird.diff` |
+| `thunderbird/src/selection.js`, `compose-script.js` | Compose selection read/replace through `composeScripts`. | `thunderbird.selection` |
+| `thunderbird/experiments/sentinel-calendar/` | Direct event creation experiment; ICS remains the fallback. | manual + manifest test |
+| `thunderbird/src/compose.*` | Reply-compose action: analysis, tone/intent/length, editable preview, insert/copy. | `thunderbird.ui` + manual |
 | `thunderbird/src/ui.js` | Safe DOM primitives, labels, relative time, chips. | `thunderbird.ui` |
 | `thunderbird/src/theme.css` | Design tokens, layout, cards, chips, tabs, forms, dark mode, reduced motion. | visual/manual |
 | `thunderbird/src/dashboard.*` | Brief/Inbox/Drafts/Senders/Settings views. | `thunderbird.ui` + manual |
@@ -67,6 +72,16 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | T173 | Manifest, build, docs and automated smoke | T169–T172 | `manifest.json`, `README.md`, `tools/build-extension.mjs`, tests |
 | T174 | Real-Thunderbird validation matrix | T173 | manual only |
 | T175 | Dashboard URL, IMAP draft identity and compose tones | T173 | `compose.*`, `tones.js`, `drafts.js`, `ui.js`, manifest, build, tests |
+| T176 | Brief update badge and native notification | T173 | `notify.js`, `background.js`, `config.js`, dashboard, brief popup, tests |
+| T177 | Reply-view assistant with intent, length and preview | T175 | `compose.*`, `tones.js`, `theme.css`, tests |
+| T178 | Add-on review and feature adoption notes | T176, T177 | `thunderbird/docs/addon-review.md`, requirements, plan, README |
+| T179 | Proofread/rewrite with accept/reject diff | T177 | compose, selection, diff, prompts, theme, tests |
+| T180 | Streaming draft output | T177 | `ai.js`, compose, tests |
+| T181 | Batch processing | T177 | dashboard, background, tests |
+| T182 | Provider routing and native presets | T173 | providers, config, ai, options, tests |
+| T183 | Direct calendar writes with ICS fallback | T167, T176 | experiment, calendar, background, popup, manifest, tests |
+| T184 | Context menus and message-list actions | T181 | background, manifest, tests |
+| T185 | Demo mail generator and Thunderbird Local Folders import | T173 | `tools/generate-demo-mail.mjs`, tests, docs |
 
 Critical path: T162 → T163 → T164 → T165 → T168 → T169 → T172 → T173 → T174.
 
@@ -119,7 +134,7 @@ The existing `tests/unit/thunderbird-spike.test.ts` remains the regression suite
 
 ## 9. Status at handoff (2026-11-02)
 
-T162–T173 are implemented and their acceptance boxes are ticked. T175 fixes the three issues found in the first real-client test (dashboard path, draft identity/folder, compose tone action). The automated evidence is:
+T162–T184 are implemented and their acceptance boxes are ticked, with T183's experimental calendar API pending real-client review. T175 fixed the first real-client issues; T176–T178 add the brief badge/notification, richer reply assistant and add-on review; T179–T184 add proofread/rewrite diff, streaming, batch processing, per-task provider routing, direct calendar writes and context menus. The automated evidence is:
 
 ```sh
 npx vitest run tests/unit/thunderbird-spike.test.ts tests/unit/thunderbird-assistant.test.ts tests/unit/thunderbird-ui.test.ts

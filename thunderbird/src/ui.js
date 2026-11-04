@@ -101,8 +101,11 @@ export const openMessage = (id) =>
     ? Promise.resolve()
     : browser.messageDisplay.open({ messageId: Number(id) }).catch(() => undefined)
 
-export const openDashboard = () =>
-  browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
+export const openDashboard = () => {
+  // Seeing the dashboard clears the brief badge without waiting for another monitor run.
+  void browser.runtime.sendMessage({ type: 'brief-seen' }).catch(() => undefined)
+  return browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
+}
 
 export const send = (message) => browser.runtime.sendMessage(message)
 
