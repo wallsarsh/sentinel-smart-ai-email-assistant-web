@@ -21,6 +21,8 @@ import {
 // @ts-expect-error plain JS modules shipped inside the extension
 import { createStore, memoryArea, triageKey } from '../../thunderbird/src/store.js'
 // @ts-expect-error plain JS modules shipped inside the extension
+import { flattenFolders } from '../../thunderbird/src/mail.js'
+// @ts-expect-error plain JS modules shipped inside the extension
 import { normalizeAnalysis } from '../../thunderbird/src/analysis.js'
 // @ts-expect-error plain JS modules shipped inside the extension
 import { assistantPrompt } from '../../thunderbird/src/prompts.js'
@@ -214,6 +216,27 @@ describe('sender rules', () => {
       actionItems: [],
       calendarEvents: [],
     })
+  })
+})
+
+describe('Thunderbird account folder shapes', () => {
+  it('flattens the Thunderbird rootFolder shape and the legacy folders shape', () => {
+    const root = {
+      id: 'root',
+      name: 'Root',
+      subFolders: [
+        { id: 'inbox', name: 'Inbox', type: 'inbox', subFolders: [] },
+        { id: 'demo', name: 'Sentinel Demo', subFolders: [] },
+      ],
+    }
+    expect(flattenFolders([{ rootFolder: root }]).map((f: { id: string }) => f.id)).toEqual([
+      'root',
+      'inbox',
+      'demo',
+    ])
+    expect(flattenFolders([{ folders: [{ id: 'legacy' }] }]).map((f: { id: string }) => f.id)).toEqual([
+      'legacy',
+    ])
   })
 })
 
