@@ -172,7 +172,6 @@ describe('extension package', () => {
       'clipboardWrite',
       'compose',
       'compose.save',
-      'composeScripts',
       'downloads',
       'menus',
       'messagesRead',

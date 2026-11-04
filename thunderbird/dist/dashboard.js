@@ -574,9 +574,12 @@ function renderStatus({ settings, monitor, briefStatus }) {
   if (monitor?.at) return pill(`Updated ${relativeTime(monitor.at)}`, "pill--ok");
   return pill("Ready");
 }
-function renderBrief({ brief, briefStatus }) {
+function renderBrief({ brief, briefStatus, monitor }) {
   const root = $("brief");
   clear(root);
+  if (monitor?.state === "error" && monitor.error) {
+    root.append(el("div", { class: "error", text: `Last check: ${monitor.error}` }));
+  }
   if (briefStatus?.state === "running") {
     root.append(el("div", { class: "notice", text: "Updating the brief\u2026" }));
   }
@@ -593,6 +596,7 @@ function renderBrief({ brief, briefStatus }) {
     return;
   }
   const stats = brief.stats ?? {};
+  const checkText = monitor?.at ? `Last check ${relativeTime(monitor.at)} \xB7 ${monitor.processed ?? 0} checked \xB7 ${monitor.analysed ?? 0} analysed${monitor.pending ? ` \xB7 ${monitor.pending} pending` : ""}` : "No check has run yet.";
   const head = el(
     "section",
     { class: "card card--accent stack" },
@@ -602,6 +606,7 @@ function renderBrief({ brief, briefStatus }) {
       el("span", { class: "chip chip--accent", text: "Daily brief" }),
       el("span", { class: "brief-generated", text: `Generated ${formatDateTime(brief.createdAt)}` })
     ),
+    el("p", { class: "meta", text: checkText }),
     el("p", { class: "brief-headline", text: brief.headline || "Nothing needs your attention right now." }),
     el(
       "div",
