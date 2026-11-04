@@ -3485,6 +3485,7 @@ async function removeRule(id) {
 browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== "object") return void 0;
   try {
+    if (msg.type === "ping") return { ok: true, at: Date.now() };
     if (msg.type === "monitor-run") {
       void runAssistant({ reason: "manual", forceBrief: Boolean(msg.brief) });
       return { started: true };

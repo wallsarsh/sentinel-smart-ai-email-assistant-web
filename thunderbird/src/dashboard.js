@@ -373,6 +373,12 @@ async function removeRule(id) {
 }
 
 async function reload() {
+  const ping = await send({ type: 'ping' }).catch(() => null)
+  if (!ping?.ok) {
+    $('status').className = 'pill pill--error'
+    $('status').textContent = 'Background service not running — reload the add-on'
+    return
+  }
   await load()
   render()
 }
