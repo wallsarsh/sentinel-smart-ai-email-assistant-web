@@ -7,7 +7,11 @@ const store = createStore(browser.storage.local)
 const open = (id) => browser.messageDisplay.open({ messageId: Number(id) }).catch(() => undefined)
 
 async function show() {
-  void send({ type: 'brief-seen' }).catch(() => undefined)
+  const alive = await browser.runtime.sendMessage({ type: 'ping' }).catch(() => null)
+  if (!alive?.ok) {
+    status($('status'), 'Background service not running — reload the add-on.', 'status--error')
+    return
+  }
   const [brief, briefStatus, settings] = await Promise.all([
     store.brief(),
     store.briefStatus(),
