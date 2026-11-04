@@ -81,6 +81,7 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | T182 | Provider routing and native presets | T173 | providers, config, ai, options, tests |
 | T183 | Direct calendar writes with ICS fallback | T167, T176 | experiment, calendar, background, popup, manifest, tests |
 | T184 | Context menus and message-list actions | T181 | background, manifest, tests |
+| T185 | Demo mail generator and Thunderbird Local Folders import | T173 | `tools/generate-demo-mail.mjs`, tests, docs |
 
 Critical path: T162 → T163 → T164 → T165 → T168 → T169 → T172 → T173 → T174.
 

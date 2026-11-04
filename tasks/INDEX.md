@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 126/134 done · ready now: T009, T010, T011, T159, T160, T174
+**Progress:** 127/135 done · ready now: T009, T010, T011, T159, T160, T174
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -70,6 +70,7 @@ flowchart LR
     T182["T182"]:::done
     T183["T183"]:::rev
     T184["T184"]:::done
+    T185["T185"]:::done
   end
   subgraph P2
     T040["T040"]:::done
@@ -419,6 +420,7 @@ flowchart LR
   T167 --> T183
   T176 --> T183
   T181 --> T184
+  T173 --> T185
 ```
 
 ## P0
@@ -485,6 +487,7 @@ flowchart LR
 | ✅ | [T182](items/T182-thunderbird-provider-routing-and-presets.md) | Thunderbird per-task provider routing and native presets | L | code | T173 | opencode-deepseek-v4.1-flash |
 | 👀 | [T183](items/T183-thunderbird-direct-calendar-writes.md) | Thunderbird direct calendar writes with ICS fallback | M | code | T167, T176 | opencode-deepseek-v4.1-flash |
 | ✅ | [T184](items/T184-thunderbird-context-menus-and-message-list-actions.md) | Thunderbird context menus and message-list actions | M | code | T181 | opencode-deepseek-v4.1-flash |
+| ✅ | [T185](items/T185-demo-mail-generator.md) | Demo mail generator with Thunderbird Local Folders import | M | tool | T173 | opencode-deepseek-v4.1-flash |
 
 ## P2
 

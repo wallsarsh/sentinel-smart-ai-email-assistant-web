@@ -90,6 +90,16 @@ Sentinel ships a minimal, optional `sentinelCalendar` experiment API. Where Thun
 - Errors and status contain no subject lines, bodies or addresses.
 - Provider URL must be HTTPS (or localhost for a local model server).
 
+## Demo mailbox
+
+For realistic test traffic, generate synthetic threaded mail and install it into Local Folders:
+
+```sh
+npm run demo:mail -- --days 5 --apply
+```
+
+See [`docs/demo-mail.md`](docs/demo-mail.md) for periods, seeds, output files and profile handling. The content is synthetic and for testing only.
+
 ## Tests
 
 ```sh

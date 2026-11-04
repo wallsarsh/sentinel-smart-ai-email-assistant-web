@@ -26,7 +26,8 @@
     "budget": "node tools/bundle-budget.mjs",
     "secrets": "node tools/secrets-scan.mjs",
     "kek:rotate": "tsx server/db/rotate-kek.ts",
-    "ext:build": "node tools/build-extension.mjs"
+    "ext:build": "node tools/build-extension.mjs",
+    "demo:mail": "node tools/generate-demo-mail.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.12",
