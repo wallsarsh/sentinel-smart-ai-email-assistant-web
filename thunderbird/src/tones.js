@@ -37,6 +37,16 @@ export const TONES = [
 
 export const TONE_IDS = TONES.map((t) => t.id)
 
+export const LENGTHS = [
+  { id: 'short', label: 'Short', instruction: 'Keep it to two or three sentences.' },
+  { id: 'standard', label: 'Standard', instruction: '' },
+  {
+    id: 'detailed',
+    label: 'Detailed',
+    instruction: 'Use two or three short paragraphs with a clear next step.',
+  },
+]
+
 /** Request for the shared draft prompt. Unknown ids fall back to Standard. */
 export function toneRequest(id, { intent = 'acknowledge', instruction = '' } = {}) {
   const preset = TONES.find((t) => t.id === id) ?? TONES[0]
@@ -49,3 +59,12 @@ export function toneRequest(id, { intent = 'acknowledge', instruction = '' } = {
 }
 
 export const toneLabel = (id) => TONES.find((t) => t.id === id)?.label ?? 'Standard'
+
+/** Compose request combining tone, intent, length and the user's own instruction. */
+export function composeRequest({ tone = 'standard', intent = 'acknowledge', length = 'standard', instruction = '' } = {}) {
+  const lengthInstruction = LENGTHS.find((l) => l.id === length)?.instruction ?? ''
+  return toneRequest(tone, {
+    intent,
+    instruction: [lengthInstruction, instruction.trim()].filter(Boolean).join(' '),
+  })
+}

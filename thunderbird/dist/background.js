@@ -1297,6 +1297,133 @@ function openAiProvider(o) {
   };
 }
 
+// packages/core/src/ai/anthropic.ts
+init_result();
+var VERSION = "2023-06-01";
+var ANTHROPIC_BASE = "https://api.anthropic.com";
+var STOP = {
+  end_turn: "end",
+  stop_sequence: "end",
+  max_tokens: "length",
+  refusal: "refusal"
+};
+var anthropicHeaders = (apiKey) => ({
+  "x-api-key": apiKey,
+  "anthropic-version": VERSION,
+  "content-type": "application/json"
+});
+function anthropicBody(req, stream = false) {
+  return {
+    model: req.model,
+    max_tokens: req.maxTokens,
+    ...req.temperature === void 0 ? {} : { temperature: req.temperature },
+    system: req.system,
+    messages: [{ role: "user", content: req.user }],
+    ...req.schema ? { output_config: { format: { type: "json_schema", schema: req.schema.schema } } } : {},
+    ...stream ? { stream: true } : {}
+  };
+}
+function parseAnthropic(b) {
+  return {
+    text: (b.content ?? []).filter((c) => c.type === "text").map((c) => c.text ?? "").join(""),
+    stop: STOP[b.stop_reason ?? ""] ?? "other",
+    model: b.model ?? "",
+    usage: {
+      inputTokens: b.usage?.input_tokens ?? 0,
+      outputTokens: b.usage?.output_tokens ?? 0,
+      cachedTokens: b.usage?.cache_read_input_tokens ?? 0
+    }
+  };
+}
+function anthropicProvider(o) {
+  const base2 = (o.baseUrl ?? ANTHROPIC_BASE).replace(/\/$/, "");
+  const http = o.http ?? fetchHttp();
+  async function call(url, init) {
+    let res;
+    try {
+      res = await http.request(url, init);
+    } catch (e) {
+      return err(
+        e instanceof Error && e.message.startsWith("blocked:") ? { kind: "validation", field: "baseUrl", code: "private_address" } : { kind: "network" }
+      );
+    }
+    if (res.status < 200 || res.status >= 300)
+      return err(failureForStatus(res.status, res.headers.get("retry-after")));
+    try {
+      return ok(JSON.parse(res.text));
+    } catch {
+      return err({ kind: "provider", status: res.status, code: "bad_json" });
+    }
+  }
+  return {
+    kind: "anthropic",
+    async complete(req) {
+      const r = await call(`${base2}/v1/messages`, {
+        headers: anthropicHeaders(o.apiKey),
+        body: JSON.stringify(anthropicBody(req)),
+        signal: req.signal
+      });
+      return r.ok ? ok(parseAnthropic(r.value)) : r;
+    },
+    async *stream(req) {
+      let res;
+      try {
+        res = await http.stream(`${base2}/v1/messages`, {
+          headers: anthropicHeaders(o.apiKey),
+          body: JSON.stringify(anthropicBody(req, true)),
+          signal: req.signal
+        });
+      } catch (e) {
+        throw new AiStreamError(
+          e instanceof Error && e.message.startsWith("blocked:") ? { kind: "validation", field: "baseUrl", code: "private_address" } : { kind: "network" }
+        );
+      }
+      try {
+        if (res.status < 200 || res.status >= 300)
+          throw new AiStreamError(failureForStatus(res.status, res.headers.get("retry-after")));
+        let text = "";
+        let model = "";
+        let stop = "other";
+        const usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
+        for await (const ev of parseSse(res.body)) {
+          let j;
+          try {
+            j = JSON.parse(ev.data);
+          } catch {
+            continue;
+          }
+          if (j.type === "message_start") {
+            model = j.message?.model ?? model;
+            usage.inputTokens = j.message?.usage?.input_tokens ?? 0;
+            usage.cachedTokens = j.message?.usage?.cache_read_input_tokens ?? 0;
+          } else if (j.type === "content_block_delta" && j.delta?.type === "text_delta") {
+            const t = j.delta.text ?? "";
+            text += t;
+            yield { type: "delta", text: t };
+          } else if (j.type === "message_delta") {
+            stop = STOP[j.delta?.stop_reason ?? ""] ?? stop;
+            usage.outputTokens = j.usage?.output_tokens ?? usage.outputTokens;
+          } else if (j.type === "error") {
+            throw new AiStreamError(
+              j.error?.type === "rate_limit_error" ? { kind: "rate_limited" } : { kind: "provider", status: 529, code: "stream_error" }
+            );
+          } else if (j.type === "message_stop") break;
+        }
+        yield { type: "done", response: { text, usage, stop, model } };
+      } finally {
+        res.close();
+      }
+    },
+    async listModels() {
+      const r = await call(`${base2}/v1/models?limit=100`, {
+        method: "GET",
+        headers: anthropicHeaders(o.apiKey)
+      });
+      return r.ok ? ok((r.value.data ?? []).map((m) => m.id)) : r;
+    }
+  };
+}
+
 // thunderbird/src/analysis.js
 init_brief();
 var INTENTS = [
@@ -1539,24 +1666,68 @@ function userContext(accounts, now = /* @__PURE__ */ new Date(), profile = {}, r
     senderHints: rules.filter((r) => r.kind !== "normal").map((r) => `${r.pattern} \u2192 ${r.kind}`)
   };
 }
-var provider = (s, fetchImpl) => openAiProvider({
-  kind: "openai_compatible",
-  apiKey: s.apiKey,
-  baseUrl: s.baseUrl.replace(/\/+$/, ""),
-  // Local servers (Ollama, LM Studio) only know max_tokens; OpenAI proper accepts both.
-  options: { tokensParam: "max_tokens" },
-  http: fetchHttp(fetchImpl)
-});
+function providersOf(settings) {
+  if (settings?.providers?.length) return settings.providers;
+  if (settings?.baseUrl || settings?.apiKey || settings?.model)
+    return [
+      {
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+        model: settings.model
+      }
+    ];
+  return [];
+}
+function resolveRoute(settings, task = "triage") {
+  const providers = providersOf(settings);
+  if (!providers.length) throw new Error("Add an AI provider in Provider settings first.");
+  const route = settings?.routes?.[task] ?? {};
+  const provider = providers.find((p) => p.id === route.providerId) ?? providers.find((p) => p.id === settings?.defaultProviderId) ?? providers[0];
+  const model = route.model || provider.model;
+  if (!provider.baseUrl) throw new Error("Set the provider URL in Provider settings.");
+  if (!model) throw new Error("Choose a model for this task in Provider settings.");
+  if (!provider.apiKey && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(provider.baseUrl))
+    throw new Error("Set the provider API key in Provider settings.");
+  return { provider, model };
+}
+function providerFor(provider, fetchImpl) {
+  const http = fetchHttp(fetchImpl);
+  if (provider.kind === "anthropic")
+    return anthropicProvider({
+      apiKey: provider.apiKey,
+      baseUrl: (provider.baseUrl || "https://api.anthropic.com").replace(/\/v1\/?$/, ""),
+      http
+    });
+  if (provider.kind === "openai")
+    return openAiProvider({
+      kind: "openai",
+      apiKey: provider.apiKey,
+      baseUrl: provider.baseUrl.replace(/\/+$/, ""),
+      http
+    });
+  return openAiProvider({
+    kind: "openai_compatible",
+    apiKey: provider.apiKey,
+    baseUrl: provider.baseUrl.replace(/\/+$/, ""),
+    // Local servers (Ollama, LM Studio) only know max_tokens; OpenAI proper accepts both.
+    options: { tokensParam: "max_tokens" },
+    http
+  });
+}
 async function analyzeBatch(settings, messages, ctx, fetchImpl) {
   const prompt = builder().buildTriage(
     messages.map((m) => ({ messageId: String(m.providerMessageId), message: m })),
     ctx
   );
-  const p = provider(settings, fetchImpl);
+  const { provider, model } = resolveRoute(settings, "triage");
+  const p = providerFor(provider, fetchImpl);
   const base2 = 300 * messages.length + 900;
   const res = await structuredCall(async (turn) => {
     const r = await p.complete({
-      model: settings.model,
+      model,
       system: assistantPrompt.system,
       user: turn.kind === "repair" ? `${prompt.text}
 
@@ -1584,20 +1755,25 @@ async function analyze(settings, message, ctx, fetchImpl) {
   return item2;
 }
 function briefAsk(settings, fetchImpl) {
-  const p = provider(settings, fetchImpl);
+  const { provider, model } = resolveRoute(settings, "brief");
+  const p = providerFor(provider, fetchImpl);
   return async (req) => {
-    const r = await p.complete({ ...req, model: settings.model });
+    const r = await p.complete({ ...req, model });
     return r.ok ? { ok: true, value: { text: r.value.text, stop: r.value.stop } } : r;
   };
 }
-async function draftReply(settings, thread, ctx, request, fetchImpl) {
-  const prompt = builder().buildDraft(
+function draftPromptFor(thread, ctx, request) {
+  return builder().buildDraft(
     thread.map((m, i) => ({ messageId: String(m.providerMessageId ?? i), message: m })),
     ctx,
     request
   );
-  const r = await provider(settings, fetchImpl).complete({
-    model: settings.model,
+}
+async function draftReply(settings, thread, ctx, request, fetchImpl) {
+  const prompt = draftPromptFor(thread, ctx, request);
+  const { provider, model } = resolveRoute(settings, "draft");
+  const r = await providerFor(provider, fetchImpl).complete({
+    model,
     system: draftPrompt.system,
     user: prompt.text,
     maxTokens: 1500,
@@ -1626,6 +1802,46 @@ function describe(f) {
   }
 }
 
+// thunderbird/src/providers.js
+var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
+var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
+var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var isLocal = (baseUrl) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
+function normalizeProvider(raw = {}) {
+  const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
+  return {
+    id: str(raw.id) || newId(),
+    name: str(raw.name) || "AI provider",
+    kind,
+    baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
+    apiKey: str(raw.apiKey),
+    model: str(raw.model),
+    ...raw.presetId ? { presetId: raw.presetId } : {}
+  };
+}
+var providerUsable = (p) => Boolean(p?.baseUrl && p?.model && (p.apiKey || isLocal(p.baseUrl)));
+function defaultRoutes(providers = []) {
+  const provider = providers[0];
+  const out = {};
+  for (const task of TASKS)
+    out[task] = { providerId: provider?.id ?? "", model: provider?.model ?? "" };
+  return out;
+}
+function normalizeRoutes(saved = {}, providers = []) {
+  const first = providers[0];
+  const out = {};
+  for (const task of TASKS) {
+    const r = saved && typeof saved[task] === "object" ? saved[task] : {};
+    const provider = providers.find((p) => p.id === r.providerId) ?? providers.find((p) => p.id === saved?.providerId) ?? first;
+    out[task] = {
+      providerId: provider?.id ?? "",
+      model: str(r.model) || provider?.model || ""
+    };
+  }
+  return out;
+}
+
 // thunderbird/src/config.js
 var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
 var TONES = ["professional", "friendly", "concise", "formal"];
@@ -1633,6 +1849,9 @@ var DEFAULT_SETTINGS = {
   baseUrl: "",
   apiKey: "",
   model: "",
+  providers: [],
+  defaultProviderId: "",
+  routes: defaultRoutes([]),
   monitor: {
     enabled: true,
     intervalMinutes: 60,
@@ -1645,7 +1864,7 @@ var DEFAULT_SETTINGS = {
     analyzeMarketing: false,
     tagging: true
   },
-  brief: { enabled: true, hour: 8, updateHourly: true },
+  brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
 };
 var bool = (v, fallback) => typeof v === "boolean" ? v : fallback;
@@ -1654,19 +1873,40 @@ var int = (v, fallback, min, max) => {
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, Math.round(n)));
 };
-var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var str2 = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
 var oneOf2 = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
 var pick = (v) => v && typeof v === "object" ? v : {};
+function normalizeProviders(saved) {
+  if (Array.isArray(saved.providers)) return saved.providers.map(normalizeProvider);
+  if (saved.baseUrl || saved.apiKey || saved.model)
+    return [
+      normalizeProvider({
+        id: "legacy",
+        name: "Default provider",
+        kind: "openai_compatible",
+        baseUrl: saved.baseUrl,
+        apiKey: saved.apiKey,
+        model: saved.model
+      })
+    ];
+  return [];
+}
 function normalizeSettings(raw = {}, legacyBrief = {}) {
   const saved = pick(raw);
   const monitor = pick(saved.monitor);
   const brief = pick(saved.brief);
   const profile = pick(saved.profile);
   const oldBrief = pick(legacyBrief);
+  const providers = normalizeProviders(saved);
+  const defaultProviderId = providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
+  const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0];
   return {
-    baseUrl: str(saved.baseUrl),
-    apiKey: str(saved.apiKey),
-    model: str(saved.model),
+    baseUrl: primary?.baseUrl ?? "",
+    apiKey: primary?.apiKey ?? "",
+    model: primary?.model ?? "",
+    providers,
+    defaultProviderId,
+    routes: normalizeRoutes(pick(saved.routes), providers),
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -1701,29 +1941,38 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
       hour: int(brief.hour ?? oldBrief.hour, DEFAULT_SETTINGS.brief.hour, 0, 23),
-      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly)
+      updateHourly: bool(brief.updateHourly, DEFAULT_SETTINGS.brief.updateHourly),
+      notify: bool(brief.notify, DEFAULT_SETTINGS.brief.notify)
     },
     profile: {
       tone: oneOf2(profile.tone, TONES, DEFAULT_SETTINGS.profile.tone),
-      signOff: str(profile.signOff),
-      language: str(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
+      signOff: str2(profile.signOff),
+      language: str2(profile.language, DEFAULT_SETTINGS.profile.language) || "auto"
     }
   };
 }
 function mergeSettings(base2, patch = {}) {
   const p = pick(patch);
+  const routes = { ...base2.routes };
+  for (const task of TASKS)
+    routes[task] = { ...base2.routes?.[task], ...pick(p.routes?.[task]) };
   return {
     ...base2,
     ...p,
+    routes,
+    providers: Array.isArray(p.providers) ? p.providers : base2.providers,
     monitor: { ...base2.monitor, ...pick(p.monitor) },
     brief: { ...base2.brief, ...pick(p.brief) },
     profile: { ...base2.profile, ...pick(p.profile) }
   };
 }
 function monitorBlockedReason(settings) {
-  if (!settings?.baseUrl || !settings?.apiKey || !settings?.model)
-    return "Set the API URL, key and model in Settings first.";
-  if (!/^https:\/\//.test(settings.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(settings.baseUrl))
+  if (!settings?.providers?.length)
+    return "Add an AI provider in Provider settings first.";
+  if (!settings.providers.some(providerUsable))
+    return "Finish the provider setup: URL, model and API key (or a localhost server).";
+  const primary = settings.providers.find(providerUsable) ?? settings.providers.find((p) => p.id === settings.defaultProviderId) ?? settings.providers[0];
+  if (!/^https:\/\//.test(primary.baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/.test(primary.baseUrl))
     return "The API URL must use https (http is allowed only for localhost).";
   return null;
 }
@@ -1916,11 +2165,65 @@ async function refreshBrief({
 
 // thunderbird/src/calendar.js
 var DAY2 = 24 * 36e5;
+var clip4 = (s, n) => {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return t.length <= n ? t : `${t.slice(0, n - 1)}\u2026`;
+};
 var pad = (n) => String(n).padStart(2, "0");
 var dateOnly2 = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 var compactDate = (s) => s.replace(/-/g, "");
 var compactUtc = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
 var isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`));
+function normalizeEvent(raw) {
+  if (!raw) return null;
+  const title = clip4(raw.title, 140);
+  const startIn = String(raw.start ?? "").trim();
+  if (!title || !startIn) return null;
+  const allDay = raw.allDay === true || isDate(startIn);
+  const start = allDay ? startIn.slice(0, 10) : new Date(startIn);
+  if (allDay ? !isDate(start) : !Number.isFinite(start.getTime())) return null;
+  let end = null;
+  if (raw.end) {
+    const e = allDay ? String(raw.end).slice(0, 10) : new Date(raw.end);
+    if (allDay ? isDate(e) : Number.isFinite(e.getTime())) end = allDay ? e : e.toISOString();
+  }
+  return {
+    title,
+    start: allDay ? start : start.toISOString(),
+    end,
+    allDay,
+    location: raw.location ? clip4(raw.location, 120) : null,
+    description: raw.description ? clip4(raw.description, 500) : null,
+    sourceMessageId: raw.sourceMessageId ?? null
+  };
+}
+function eventsFromAnalysis(analysis, { header = null } = {}) {
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add = (e) => {
+    const key = `${e.title.toLowerCase()}|${e.start}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(e);
+  };
+  for (const raw of analysis?.calendarEvents ?? []) {
+    const e = normalizeEvent({ ...raw, sourceMessageId: header?.headerMessageId ?? null });
+    if (e) add(e);
+  }
+  for (const a of analysis?.actionItems ?? []) {
+    if (!a?.dueDate || !isDate(a.dueDate)) continue;
+    const e = normalizeEvent({
+      title: a.text,
+      start: a.dueDate,
+      allDay: true,
+      description: analysis.summary ?? "",
+      location: null,
+      sourceMessageId: header?.headerMessageId ?? null
+    });
+    if (e) add(e);
+  }
+  return out.slice(0, 5);
+}
 var escape = (s) => String(s ?? "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 var fold = (line) => {
   if (line.length <= 75) return line;
@@ -1993,6 +2296,20 @@ async function downloadIcs(events, { downloads, now = /* @__PURE__ */ new Date()
   } finally {
     setTimeout(() => URL.revokeObjectURL(url), 1e4);
   }
+}
+async function writeCalendarEvents(events, { api: api2, downloads, now = /* @__PURE__ */ new Date(), filename } = {}) {
+  if (!events?.length) throw new Error("There is no calendar item to add.");
+  if (api2?.createEvent) {
+    const created = [];
+    try {
+      for (const event of events) created.push(await api2.createEvent(event));
+      return { mode: "direct", count: created.length, created };
+    } catch (e) {
+      if (created.length) throw e;
+    }
+  }
+  await downloadIcs(events, { downloads, now, filename });
+  return { mode: "ics", count: events.length };
 }
 
 // thunderbird/src/drafts.js
@@ -2156,6 +2473,47 @@ async function saveDraftWithCompose(header, body, { identityId = null } = {}) {
   if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
   await browser.tabs.remove(tab.id).catch(() => void 0);
   return saved;
+}
+
+// thunderbird/src/notify.js
+var BADGE_COLOR = "#3F51B5";
+var DEFAULT_TITLE = "Sentinel daily brief";
+function briefBadgeCount(brief) {
+  const n = Number(brief?.stats?.total ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(99, Math.round(n));
+}
+async function safely(fn) {
+  try {
+    await fn();
+  } catch {
+  }
+}
+async function updateBriefBadge(brief, action = globalThis.browser?.action) {
+  if (!action?.setBadgeText) return;
+  const count = briefBadgeCount(brief);
+  await safely(() => action.setBadgeText({ text: count ? String(count) : "" }));
+  if (count) await safely(() => action.setBadgeBackgroundColor({ color: BADGE_COLOR }));
+  const when = brief?.createdAt ? new Date(brief.createdAt) : null;
+  const title = when && Number.isFinite(when.getTime()) ? `Sentinel brief \u2014 updated ${when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : DEFAULT_TITLE;
+  if (action.setTitle) await safely(() => action.setTitle({ title }));
+}
+async function clearBriefBadge(action = globalThis.browser?.action) {
+  if (!action?.setBadgeText) return;
+  await safely(() => action.setBadgeText({ text: "" }));
+  if (action.setTitle) await safely(() => action.setTitle({ title: DEFAULT_TITLE }));
+}
+async function notifyBriefUpdated(brief, { notifications = globalThis.browser?.notifications } = {}) {
+  const count = briefBadgeCount(brief);
+  if (!count || !notifications?.create) return false;
+  await safely(
+    () => notifications.create("sentinel-brief", {
+      type: "basic",
+      title: "Sentinel AI",
+      message: `Brief updated \xB7 ${count} new message${count === 1 ? "" : "s"}.`
+    })
+  );
+  return true;
 }
 
 // thunderbird/src/monitor.js
@@ -2347,6 +2705,9 @@ async function runMonitor({
   await store2.saveMonitor(status);
   return { status, analyses, errors };
 }
+
+// thunderbird/src/background.js
+init_rules();
 
 // thunderbird/src/store.js
 init_rules();
@@ -2671,6 +3032,90 @@ async function tagger({ header, analysis, known }) {
   if (!api2) return { known, warning: "This Thunderbird build does not support message tags." };
   return applyTags({ api: api2, header, analysis, known });
 }
+function createMenus() {
+  if (!browser.menus?.create) return;
+  browser.menus.removeAll?.();
+  const contexts = ["message_list", "message_display"];
+  browser.menus.create({ id: "sentinel", title: "Sentinel AI", contexts });
+  for (const [id, title] of [
+    ["sentinel-analyze", "Analyze selected"],
+    ["sentinel-draft", "Create draft reply"],
+    ["sentinel-calendar", "Add to calendar"]
+  ])
+    browser.menus.create({ id, parentId: "sentinel", title, contexts });
+  browser.menus.create({ id: "sentinel-sender", parentId: "sentinel", title: "Sender rule", contexts });
+  for (const [id, title] of [
+    ["sentinel-important", "Important"],
+    ["sentinel-marketing", "Marketing"],
+    ["sentinel-ignore", "Ignore"],
+    ["sentinel-normal", "Normal"]
+  ])
+    browser.menus.create({ id, parentId: "sentinel-sender", title, contexts });
+}
+async function targetHeaders(info) {
+  if (info?.selectedMessages?.messages?.length) return info.selectedMessages.messages;
+  if (info?.messageId != null) {
+    const header = await browser.messages.get(info.messageId);
+    return header ? [header] : [];
+  }
+  if (info?.tab?.id != null) {
+    const header = await browser.messageDisplay.getDisplayedMessage(info.tab.id);
+    return header ? [header] : [];
+  }
+  return [];
+}
+browser.menus?.onClicked.addListener(async (info) => {
+  try {
+    const headers = await targetHeaders(info);
+    if (!headers.length) return;
+    if (info.menuItemId === "sentinel-important") {
+      await addRule(headers[0].author, "important");
+      return;
+    }
+    if (info.menuItemId === "sentinel-marketing") {
+      await addRule(headers[0].author, "marketing");
+      return;
+    }
+    if (info.menuItemId === "sentinel-ignore") {
+      await addRule(headers[0].author, "ignore");
+      return;
+    }
+    if (info.menuItemId === "sentinel-normal") {
+      await addRule(headers[0].author, "normal");
+      return;
+    }
+    if (info.menuItemId === "sentinel-analyze") {
+      await batchAnalyze(headers.map((h) => h.id));
+      await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
+      return;
+    }
+    if (info.menuItemId === "sentinel-draft") {
+      await batchDraft(headers.map((h) => h.id));
+      return;
+    }
+    if (info.menuItemId === "sentinel-calendar") {
+      const analysis = await store.analysis(headers[0]);
+      if (!analysis) throw new Error("Analyze the message first.");
+      const events = eventsFromAnalysis(analysis, { header: headers[0] });
+      if (!events.length) throw new Error("No dated action or event found.");
+      const written = await writeCalendarEvents(events, {
+        api: browser.sentinelCalendar,
+        downloads: browser.downloads
+      });
+      await browser.notifications.create("sentinel-calendar", {
+        type: "basic",
+        title: "Sentinel AI",
+        message: written.mode === "direct" ? "Added to your calendar." : "Calendar file downloaded."
+      }).catch(() => void 0);
+    }
+  } catch (e) {
+    await browser.notifications.create("sentinel-context-error", {
+      type: "basic",
+      title: "Sentinel AI",
+      message: safeError(e)
+    }).catch(() => void 0);
+  }
+});
 async function load() {
   const [settings, rules] = await Promise.all([store.settings(), store.rules()]);
   return { settings, rules };
@@ -2726,12 +3171,12 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     ctx,
     now,
     fetchImpl: void 0
-  }).finally(() => {
+  }).then((result) => ({ ...result, updated: true })).finally(() => {
     briefRunning = null;
   });
   return briefRunning;
 }
-function runAssistant({ reason = "alarm", force = false, forceBrief = false, notify = false } = {}) {
+function runAssistant({ reason = "alarm", force = false, forceBrief = false } = {}) {
   if (monitorRunning) return monitorRunning;
   monitorRunning = (async () => {
     const now = /* @__PURE__ */ new Date();
@@ -2782,12 +3227,10 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false, not
       briefAt: brief?.status?.at ?? null
     };
     await store.saveMonitor(status);
-    if (notify && brief?.status?.state === "done")
-      await browser.notifications.create("sentinel-brief", {
-        type: "basic",
-        title: "Sentinel AI",
-        message: "Your brief is up to date."
-      }).catch(() => void 0);
+    if (brief?.updated) {
+      await updateBriefBadge(brief.brief);
+      if (settings.brief.notify) await notifyBriefUpdated(brief.brief);
+    }
     return { ok: true, monitor, drafts, brief, status };
   })().finally(() => {
     monitorRunning = null;
@@ -2811,7 +3254,7 @@ async function schedule() {
 }
 browser.alarms.onAlarm.addListener((a) => {
   if (a.name === MONITOR_ALARM) void runAssistant({ reason: "alarm" });
-  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: "daily-brief", notify: true });
+  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: "daily-brief" });
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM);
     void runAssistant({ reason: "startup" });
@@ -2829,11 +3272,21 @@ browser.runtime.onStartup.addListener(() => {
   })();
 });
 browser.runtime.onInstalled.addListener(() => {
+  createMenus();
   void schedule();
 });
 browser.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && (changes.settings || changes.senderRules)) void schedule();
 });
+async function registerComposeScript() {
+  if (!browser.composeScripts?.register) return;
+  try {
+    await browser.composeScripts.register({ js: [{ file: "dist/compose-script.js" }] });
+  } catch {
+  }
+}
+void registerComposeScript();
+createMenus();
 browser.messages.onNewMailReceived?.addListener?.((folder) => {
   if (folder?.type && folder.type !== "inbox") return;
   void (async () => {
@@ -2895,6 +3348,83 @@ async function manualDraft(messageId, { force = false } = {}) {
   await store.appendDraft(entry);
   return { ok: true, draft: entry };
 }
+async function batchAnalyze(ids) {
+  const { settings, rules } = await load();
+  const blocked = monitorBlockedReason(settings);
+  if (blocked) return { ok: false, error: blocked };
+  const ctx = await context(settings, rules);
+  const headers = [];
+  for (const id of ids.slice(0, 10)) {
+    try {
+      const header = await browser.messages.get(id);
+      if (header) headers.push(header);
+    } catch {
+    }
+  }
+  const pending = [];
+  let local = 0;
+  let analyzed = 0;
+  const failed = [];
+  let knownTags = await store.tagKeys();
+  for (const header of headers) {
+    try {
+      const message = toMailMessage(header, await browser.messages.getFull(header.id));
+      const plan = preFilter(message, rules, settings, /* @__PURE__ */ new Date());
+      if (plan.action === "local") {
+        const stored = withSender(applyAnalysisPolicy(plan.analysis, plan), header);
+        stored.promptVersion = null;
+        await store.saveAnalysis(header, stored);
+        local++;
+      } else pending.push({ header, message, plan });
+    } catch (e) {
+      failed.push(safeError(e));
+    }
+  }
+  for (let i = 0; i < pending.length; i += 8) {
+    const chunk = pending.slice(i, i + 8);
+    try {
+      const out = await analyzeBatch(settings, chunk.map((c) => c.message), ctx);
+      for (const item2 of chunk) {
+        const raw = out.get(String(item2.message.providerMessageId));
+        if (!raw) {
+          failed.push("No result for one message");
+          continue;
+        }
+        const stored = withSender(applyAnalysisPolicy(normalizeAnalysis(raw), item2.plan), item2.header);
+        stored.promptVersion = "assistant.v1";
+        await store.saveAnalysis(item2.header, stored);
+        analyzed++;
+        if (settings.monitor.tagging) {
+          try {
+            const r = await tagger({ header: item2.header, analysis: stored, known: knownTags });
+            if (r?.known) knownTags = r.known;
+          } catch {
+          }
+        }
+      }
+    } catch (e) {
+      failed.push(safeError(e));
+    }
+  }
+  if (Object.keys(knownTags).length) await store.saveTagKeys(knownTags);
+  return { ok: true, analyzed, local, failed: failed.length, error: failed[0] ?? null };
+}
+async function batchDraft(ids) {
+  const results = [];
+  for (const id of ids.slice(0, 5)) {
+    try {
+      results.push(await manualDraft(id));
+    } catch (e) {
+      results.push({ ok: false, error: safeError(e) });
+    }
+  }
+  return {
+    ok: true,
+    created: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    error: results.find((r) => !r.ok)?.error ?? null
+  };
+}
 async function addRule(pattern, kind) {
   const { normalizeRule: normalizeRule2 } = await Promise.resolve().then(() => (init_rules(), rules_exports));
   const rule = normalizeRule2({ pattern, kind });
@@ -2912,14 +3442,23 @@ browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== "object") return void 0;
   try {
     if (msg.type === "monitor-run") {
-      void runAssistant({ reason: "manual", forceBrief: Boolean(msg.brief), notify: false });
+      void runAssistant({ reason: "manual", forceBrief: Boolean(msg.brief) });
       return { started: true };
     }
     if (msg.type === "brief-run") {
-      void runAssistant({ reason: "brief-manual", forceBrief: true, notify: false });
+      void runAssistant({ reason: "brief-manual", forceBrief: true });
       return { started: true };
     }
+    if (msg.type === "brief-seen") {
+      await clearBriefBadge();
+      return { ok: true };
+    }
     if (msg.type === "draft-create") return manualDraft(msg.messageId, { force: msg.force });
+    if (msg.type === "batch-run") {
+      if (msg.action === "analyze") return batchAnalyze(msg.ids ?? []);
+      if (msg.action === "draft") return batchDraft(msg.ids ?? []);
+      return { ok: false, error: "Unknown batch action." };
+    }
     if (msg.type === "tag-message") {
       const header = await browser.messages.get(msg.messageId);
       const analysis = await store.analysis(header);
@@ -2931,10 +3470,14 @@ browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === "rule-set") return addRule(msg.pattern, msg.kind);
     if (msg.type === "rule-remove") return removeRule(msg.id);
     if (msg.type === "calendar-download") {
-      await downloadIcs(msg.events ?? [], { downloads: browser.downloads });
-      return { ok: true };
+      const written = await writeCalendarEvents(msg.events ?? [], {
+        api: browser.sentinelCalendar,
+        downloads: browser.downloads
+      });
+      return { ok: true, ...written };
     }
     if (msg.type === "open-dashboard") {
+      await clearBriefBadge();
       await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") });
       return { ok: true };
     }
@@ -2945,6 +3488,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
   return void 0;
 });
 browser.notifications.onClicked.addListener(() => {
+  void clearBriefBadge();
   void browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 });
 void schedule();

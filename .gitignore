@@ -10,3 +10,4 @@ coverage
 !.env.example
 tests/visual/__output__
 tests/perf/last-run.json
+demo-mail/

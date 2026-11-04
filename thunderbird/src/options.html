@@ -13,7 +13,7 @@
           <span class="brand__mark" aria-hidden="true">S</span>
           <div>
             <div class="brand__name">Sentinel</div>
-            <div class="brand__sub">Provider settings</div>
+            <div class="brand__sub">Providers and task routing</div>
           </div>
         </div>
         <button id="dashboard" class="btn btn--small" type="button">Open dashboard</button>
@@ -22,52 +22,70 @@
       <main class="stack--lg stack">
         <section class="card stack">
           <div class="section-title">
-            <h2>AI provider</h2>
-            <span class="meta">OpenAI-compatible</span>
+            <h2>AI providers</h2>
+            <span class="meta">Native and OpenAI-compatible</span>
           </div>
-          <form id="f" class="stack" autocomplete="off">
+          <div id="providers" class="list"></div>
+
+          <form id="provider-form" class="stack" autocomplete="off">
+            <div class="grid grid--2">
+              <label class="field">
+                <span>Preset</span>
+                <select id="preset"></select>
+              </label>
+              <label class="field">
+                <span>Name</span>
+                <input id="pname" required placeholder="My provider" />
+              </label>
+              <label class="field">
+                <span>Kind</span>
+                <select id="pkind">
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai_compatible">OpenAI-compatible</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Default model</span>
+                <input id="pmodel" required placeholder="gpt-4o-mini" />
+              </label>
+            </div>
             <label class="field">
-              <span>API URL</span>
-              <input id="baseUrl" type="url" required placeholder="https://api.openai.com/v1" />
+              <span>Base URL</span>
+              <input id="pbase" type="url" required placeholder="https://api.openai.com/v1" />
             </label>
             <label class="field">
               <span>API key</span>
-              <input id="apiKey" type="password" autocomplete="off" placeholder="Paste a key" />
+              <input id="pkey" type="password" autocomplete="off" placeholder="Paste a key" />
             </label>
-            <p id="key-note" class="meta">The key is stored in this Thunderbird profile and sent only to the URL above.</p>
-            <label class="field">
-              <span>Model</span>
-              <input id="model" required placeholder="gpt-4o-mini" />
-            </label>
+            <p id="key-note" class="meta">Keys stay in this Thunderbird profile and go only to the provider.</p>
             <div class="actions">
-              <button class="btn btn--primary" type="submit">Save provider</button>
-              <span id="status" class="status" role="status"></span>
+              <button id="save-provider" class="btn btn--primary" type="submit">Add provider</button>
+              <button id="cancel-edit" class="btn" type="button" hidden>Cancel edit</button>
+              <span id="provider-status" class="status" role="status"></span>
             </div>
           </form>
         </section>
 
         <section class="card stack">
-          <h2>What leaves Thunderbird</h2>
-          <p class="muted">
-            Only the sender, subject, compact message text, and what you have configured leave this profile — and only
-            to the provider above. Attachments are never read. Security mail is classified locally. Marketing and
-            ignored senders never reach the AI by default.
-          </p>
-          <p class="muted">
-            Sentinel cannot send mail. It only saves drafts to your own Drafts folder, where you can review and send
-            them from any device.
-          </p>
+          <div class="section-title">
+            <h2>Task routing</h2>
+            <span class="meta">Provider and model per feature</span>
+          </div>
+          <div id="routes" class="stack"></div>
+          <div class="actions">
+            <button id="save-routes" class="btn btn--primary" type="button">Save routing</button>
+            <span id="route-status" class="status" role="status"></span>
+          </div>
         </section>
 
         <section class="card stack">
-          <h2>Cost controls</h2>
+          <h2>What leaves Thunderbird</h2>
           <p class="muted">
-            Monitoring, sender rules, draft limits and brief settings live in the dashboard. Sender rules and the
-            analysis cache are the main ways to keep token use low.
+            Only the sender, subject, compact message text and your settings leave this profile — and only to the
+            provider selected for the task. Attachments are never read. Security mail is classified locally.
           </p>
-          <div class="actions">
-            <button id="dashboard2" class="btn" type="button">Open dashboard</button>
-          </div>
+          <p class="muted">Sentinel cannot send mail. It only writes drafts into your own Drafts folder.</p>
         </section>
       </main>
       <p class="footer">Sentinel AI for Thunderbird · local profile only</p>

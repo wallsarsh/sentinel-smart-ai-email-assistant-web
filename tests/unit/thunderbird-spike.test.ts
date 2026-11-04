@@ -169,15 +169,19 @@ describe('extension package', () => {
     expect([...m.permissions].sort()).toEqual([
       'accountsRead',
       'alarms',
+      'clipboardWrite',
       'compose',
       'compose.save',
+      'composeScripts',
       'downloads',
+      'menus',
       'messagesRead',
       'messagesTags',
       'messagesTagsList',
       'messagesUpdate',
       'notifications',
       'storage',
+      'tabs',
     ])
     expect(m.manifest_version).toBe(3)
     for (const path of [
@@ -188,6 +192,8 @@ describe('extension package', () => {
       m.action.default_popup,
       'dist/dashboard.html',
       'dist/theme.css',
+      'experiments/sentinel-calendar/schema.json',
+      'experiments/sentinel-calendar/implementation.js',
     ])
       expect(existsSync(`thunderbird/${path}`), path).toBe(true)
   })

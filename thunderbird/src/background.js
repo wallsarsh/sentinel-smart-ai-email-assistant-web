@@ -1,10 +1,10 @@
 // Background event page: alarms, monitor, drafts, brief, calendar exports and message handlers.
 // Nothing here can send mail; the add-on does not request send permissions.
-import { userContext, analyze, draftReply } from './ai.js'
+import { userContext, analyze, analyzeBatch, draftReply } from './ai.js'
 import { normalizeAnalysis } from './analysis.js'
 import { monitorBlockedReason } from './config.js'
 import { nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
-import { downloadIcs } from './calendar.js'
+import { eventsFromAnalysis, writeCalendarEvents } from './calendar.js'
 import {
   buildReplyIndex,
   draftEligibility,
@@ -23,7 +23,9 @@ import {
   sentFolders,
   toMailMessage,
 } from './mail.js'
+import { clearBriefBadge, notifyBriefUpdated, updateBriefBadge } from './notify.js'
 import { runMonitor } from './monitor.js'
+import { applyAnalysisPolicy, preFilter, withSender } from './rules.js'
 import { createStore } from './store.js'
 import { applyTags } from './tags.js'
 
@@ -168,6 +170,99 @@ async function tagger({ header, analysis, known }) {
   return applyTags({ api, header, analysis, known })
 }
 
+// ---- native context menus --------------------------------------------------------------------------------------
+
+function createMenus() {
+  if (!browser.menus?.create) return
+  browser.menus.removeAll?.()
+  const contexts = ['message_list', 'message_display']
+  browser.menus.create({ id: 'sentinel', title: 'Sentinel AI', contexts })
+  for (const [id, title] of [
+    ['sentinel-analyze', 'Analyze selected'],
+    ['sentinel-draft', 'Create draft reply'],
+    ['sentinel-calendar', 'Add to calendar'],
+  ])
+    browser.menus.create({ id, parentId: 'sentinel', title, contexts })
+  browser.menus.create({ id: 'sentinel-sender', parentId: 'sentinel', title: 'Sender rule', contexts })
+  for (const [id, title] of [
+    ['sentinel-important', 'Important'],
+    ['sentinel-marketing', 'Marketing'],
+    ['sentinel-ignore', 'Ignore'],
+    ['sentinel-normal', 'Normal'],
+  ])
+    browser.menus.create({ id, parentId: 'sentinel-sender', title, contexts })
+}
+
+async function targetHeaders(info) {
+  if (info?.selectedMessages?.messages?.length) return info.selectedMessages.messages
+  if (info?.messageId != null) {
+    const header = await browser.messages.get(info.messageId)
+    return header ? [header] : []
+  }
+  if (info?.tab?.id != null) {
+    const header = await browser.messageDisplay.getDisplayedMessage(info.tab.id)
+    return header ? [header] : []
+  }
+  return []
+}
+
+browser.menus?.onClicked.addListener(async (info) => {
+  try {
+    const headers = await targetHeaders(info)
+    if (!headers.length) return
+    if (info.menuItemId === 'sentinel-important') {
+      await addRule(headers[0].author, 'important')
+      return
+    }
+    if (info.menuItemId === 'sentinel-marketing') {
+      await addRule(headers[0].author, 'marketing')
+      return
+    }
+    if (info.menuItemId === 'sentinel-ignore') {
+      await addRule(headers[0].author, 'ignore')
+      return
+    }
+    if (info.menuItemId === 'sentinel-normal') {
+      await addRule(headers[0].author, 'normal')
+      return
+    }
+    if (info.menuItemId === 'sentinel-analyze') {
+      await batchAnalyze(headers.map((h) => h.id))
+      await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
+      return
+    }
+    if (info.menuItemId === 'sentinel-draft') {
+      await batchDraft(headers.map((h) => h.id))
+      return
+    }
+    if (info.menuItemId === 'sentinel-calendar') {
+      const analysis = await store.analysis(headers[0])
+      if (!analysis) throw new Error('Analyze the message first.')
+      const events = eventsFromAnalysis(analysis, { header: headers[0] })
+      if (!events.length) throw new Error('No dated action or event found.')
+      const written = await writeCalendarEvents(events, {
+        api: browser.sentinelCalendar,
+        downloads: browser.downloads,
+      })
+      await browser.notifications
+        .create('sentinel-calendar', {
+          type: 'basic',
+          title: 'Sentinel AI',
+          message: written.mode === 'direct' ? 'Added to your calendar.' : 'Calendar file downloaded.',
+        })
+        .catch(() => undefined)
+    }
+  } catch (e) {
+    await browser.notifications
+      .create('sentinel-context-error', {
+        type: 'basic',
+        title: 'Sentinel AI',
+        message: safeError(e),
+      })
+      .catch(() => undefined)
+  }
+})
+
 // ---- orchestration ---------------------------------------------------------------------------------------------
 
 async function load() {
@@ -230,14 +325,16 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     ctx,
     now,
     fetchImpl: undefined,
-  }).finally(() => {
-    briefRunning = null
   })
+    .then((result) => ({ ...result, updated: true }))
+    .finally(() => {
+      briefRunning = null
+    })
   return briefRunning
 }
 
 /** One monitor → drafts → brief pass. Concurrent requests share the same run. */
-function runAssistant({ reason = 'alarm', force = false, forceBrief = false, notify = false } = {}) {
+function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = {}) {
   if (monitorRunning) return monitorRunning
   monitorRunning = (async () => {
     const now = new Date()
@@ -288,14 +385,10 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false, not
       briefAt: brief?.status?.at ?? null,
     }
     await store.saveMonitor(status)
-    if (notify && brief?.status?.state === 'done')
-      await browser.notifications
-        .create('sentinel-brief', {
-          type: 'basic',
-          title: 'Sentinel AI',
-          message: 'Your brief is up to date.',
-        })
-        .catch(() => undefined)
+    if (brief?.updated) {
+      await updateBriefBadge(brief.brief)
+      if (settings.brief.notify) await notifyBriefUpdated(brief.brief)
+    }
     return { ok: true, monitor, drafts, brief, status }
   })().finally(() => {
     monitorRunning = null
@@ -323,7 +416,7 @@ async function schedule() {
 
 browser.alarms.onAlarm.addListener((a) => {
   if (a.name === MONITOR_ALARM) void runAssistant({ reason: 'alarm' })
-  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief', notify: true })
+  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief' })
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM)
     void runAssistant({ reason: 'startup' })
@@ -342,12 +435,24 @@ browser.runtime.onStartup.addListener(() => {
   })()
 })
 browser.runtime.onInstalled.addListener(() => {
+  createMenus()
   void schedule()
 })
 
 browser.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && (changes.settings || changes.senderRules)) void schedule()
 })
+
+async function registerComposeScript() {
+  if (!browser.composeScripts?.register) return
+  try {
+    await browser.composeScripts.register({ js: [{ file: 'dist/compose-script.js' }] })
+  } catch {
+    // Older Thunderbird builds: the compose assistant still works without selection tools.
+  }
+}
+void registerComposeScript()
+createMenus()
 
 // Debounced new-mail wake; the monitor de-duplicates and filters.
 browser.messages.onNewMailReceived?.addListener?.((folder) => {
@@ -415,6 +520,87 @@ async function manualDraft(messageId, { force = false } = {}) {
   return { ok: true, draft: entry }
 }
 
+async function batchAnalyze(ids) {
+  const { settings, rules } = await load()
+  const blocked = monitorBlockedReason(settings)
+  if (blocked) return { ok: false, error: blocked }
+  const ctx = await context(settings, rules)
+  const headers = []
+  for (const id of ids.slice(0, 10)) {
+    try {
+      const header = await browser.messages.get(id)
+      if (header) headers.push(header)
+    } catch {
+      // Skip a message that disappeared.
+    }
+  }
+  const pending = []
+  let local = 0
+  let analyzed = 0
+  const failed = []
+  let knownTags = await store.tagKeys()
+  for (const header of headers) {
+    try {
+      const message = toMailMessage(header, await browser.messages.getFull(header.id))
+      const plan = preFilter(message, rules, settings, new Date())
+      if (plan.action === 'local') {
+        const stored = withSender(applyAnalysisPolicy(plan.analysis, plan), header)
+        stored.promptVersion = null
+        await store.saveAnalysis(header, stored)
+        local++
+      } else pending.push({ header, message, plan })
+    } catch (e) {
+      failed.push(safeError(e))
+    }
+  }
+  for (let i = 0; i < pending.length; i += 8) {
+    const chunk = pending.slice(i, i + 8)
+    try {
+      const out = await analyzeBatch(settings, chunk.map((c) => c.message), ctx)
+      for (const item of chunk) {
+        const raw = out.get(String(item.message.providerMessageId))
+        if (!raw) {
+          failed.push('No result for one message')
+          continue
+        }
+        const stored = withSender(applyAnalysisPolicy(normalizeAnalysis(raw), item.plan), item.header)
+        stored.promptVersion = 'assistant.v1'
+        await store.saveAnalysis(item.header, stored)
+        analyzed++
+        if (settings.monitor.tagging) {
+          try {
+            const r = await tagger({ header: item.header, analysis: stored, known: knownTags })
+            if (r?.known) knownTags = r.known
+          } catch {
+            // Tagging is optional.
+          }
+        }
+      }
+    } catch (e) {
+      failed.push(safeError(e))
+    }
+  }
+  if (Object.keys(knownTags).length) await store.saveTagKeys(knownTags)
+  return { ok: true, analyzed, local, failed: failed.length, error: failed[0] ?? null }
+}
+
+async function batchDraft(ids) {
+  const results = []
+  for (const id of ids.slice(0, 5)) {
+    try {
+      results.push(await manualDraft(id))
+    } catch (e) {
+      results.push({ ok: false, error: safeError(e) })
+    }
+  }
+  return {
+    ok: true,
+    created: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+    error: results.find((r) => !r.ok)?.error ?? null,
+  }
+}
+
 async function addRule(pattern, kind) {
   const { normalizeRule } = await import('./rules.js')
   const rule = normalizeRule({ pattern, kind })
@@ -434,14 +620,23 @@ browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== 'object') return undefined
   try {
     if (msg.type === 'monitor-run') {
-      void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief), notify: false })
+      void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief) })
       return { started: true }
     }
     if (msg.type === 'brief-run') {
-      void runAssistant({ reason: 'brief-manual', forceBrief: true, notify: false })
+      void runAssistant({ reason: 'brief-manual', forceBrief: true })
       return { started: true }
     }
+    if (msg.type === 'brief-seen') {
+      await clearBriefBadge()
+      return { ok: true }
+    }
     if (msg.type === 'draft-create') return manualDraft(msg.messageId, { force: msg.force })
+    if (msg.type === 'batch-run') {
+      if (msg.action === 'analyze') return batchAnalyze(msg.ids ?? [])
+      if (msg.action === 'draft') return batchDraft(msg.ids ?? [])
+      return { ok: false, error: 'Unknown batch action.' }
+    }
     if (msg.type === 'tag-message') {
       const header = await browser.messages.get(msg.messageId)
       const analysis = await store.analysis(header)
@@ -453,10 +648,14 @@ browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === 'rule-set') return addRule(msg.pattern, msg.kind)
     if (msg.type === 'rule-remove') return removeRule(msg.id)
     if (msg.type === 'calendar-download') {
-      await downloadIcs(msg.events ?? [], { downloads: browser.downloads })
-      return { ok: true }
+      const written = await writeCalendarEvents(msg.events ?? [], {
+        api: browser.sentinelCalendar,
+        downloads: browser.downloads,
+      })
+      return { ok: true, ...written }
     }
     if (msg.type === 'open-dashboard') {
+      await clearBriefBadge()
       await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') })
       return { ok: true }
     }
@@ -468,6 +667,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
 })
 
 browser.notifications.onClicked.addListener(() => {
+  void clearBriefBadge()
   void browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 })
 
