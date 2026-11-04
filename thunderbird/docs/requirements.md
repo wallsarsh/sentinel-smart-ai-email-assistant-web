@@ -35,7 +35,7 @@ Priority: **M** must, **S** should, **C** could.
 
 | ID | Pri | Requirement | Acceptance |
 |---|---|---|---|
-| TB-MON-01 | M | Monitor every inbox folder of every configured account on an alarm (default every 60 minutes) and on `messages.onNewMailReceived` when available. | With monitoring on, a new inbox message is analysed within one interval or the debounce after arrival. |
+| TB-MON-01 | M | Monitor every inbox folder of every configured account, plus Local Folders by default (excluding system folders), on an alarm (default every 60 minutes) and on `messages.onNewMailReceived` when available. | With monitoring on, a new inbox or Local Folders message is analysed within one interval or the debounce after arrival. |
 | TB-MON-02 | M | A run is incremental: previously analysed messages are not sent to the AI again unless the user forces analysis. | Second run with unchanged mail makes zero triage calls. |
 | TB-MON-03 | M | A run is bounded: `maxMessagesPerRun` headers and `maxAiMessagesPerRun` AI messages, newest and rule-important first. | A 500-message backlog never exceeds the limits; the status shows what was left for next run. |
 | TB-MON-04 | M | Ignore own messages, messages older than `lookbackDays`, duplicates and messages already in the analysis cache. | Own and duplicate messages produce no AI call and no draft. |

@@ -80,7 +80,11 @@ export async function runMonitor({
   let headers
   let rawHeaders
   try {
-    rawHeaders = await api.recent(since, settings.monitor.maxMessagesPerRun * 2)
+    rawHeaders = await api.recent(
+      since,
+      settings.monitor.maxMessagesPerRun * 2,
+      settings,
+    )
     headers = pickHeaders(rawHeaders, {
       self: ctx?.selfAddresses,
       since,

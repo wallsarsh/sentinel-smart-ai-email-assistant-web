@@ -17,6 +17,7 @@ import {
   accountIdOf,
   draftsFolders,
   flattenFolders,
+  localMailFolders,
   inboxFolders,
   safeError,
   selfFrom,
@@ -58,10 +59,16 @@ async function folderMessages(folderId, since, max) {
 }
 
 /** Headers from every inbox folder. The monitor de-duplicates, filters and sorts. */
-async function recentHeaders(since, max) {
+async function recentHeaders(since, max, settings = {}) {
   const out = []
-  for (const folder of await inboxFolders()) {
-    if (out.length >= max * 2) break
+  const folders = [...(await inboxFolders())]
+  if (settings?.monitor?.includeLocalFolders !== false) {
+    folders.push(...(await localMailFolders()))
+  }
+  const seen = new Set()
+  for (const folder of folders) {
+    if (seen.has(folder.id)) continue
+    seen.add(folder.id)
     try {
       out.push(...(await folderMessages(folder.id, since, max * 2)))
     } catch {

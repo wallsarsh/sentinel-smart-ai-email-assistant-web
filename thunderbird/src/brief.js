@@ -71,7 +71,7 @@ export async function generateBrief({
 }) {
   const since = windowStart ? new Date(windowStart) : new Date(now.getTime() - hours * 3600_000)
   const self = ctx.selfAddresses
-  const headers = (await api.recent(since, maxMessages))
+  const headers = (await api.recent(since, maxMessages, settings))
     .filter((h) => !self.has(String(h.author).replace(/^.*<|>$/g, '').toLowerCase()))
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, maxMessages)

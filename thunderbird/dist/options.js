@@ -147,7 +147,8 @@ var DEFAULT_SETTINGS = {
     maxDraftsPerRun: 3,
     draftMinPriority: "p2_today",
     analyzeMarketing: false,
-    tagging: true
+    tagging: true,
+    includeLocalFolders: true
   },
   brief: { enabled: true, hour: 8, updateHourly: true, notify: true },
   profile: { tone: "professional", signOff: "", language: "auto" }
@@ -221,7 +222,11 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
         DEFAULT_SETTINGS.monitor.draftMinPriority
       ),
       analyzeMarketing: bool(monitor.analyzeMarketing, DEFAULT_SETTINGS.monitor.analyzeMarketing),
-      tagging: bool(monitor.tagging, DEFAULT_SETTINGS.monitor.tagging)
+      tagging: bool(monitor.tagging, DEFAULT_SETTINGS.monitor.tagging),
+      includeLocalFolders: bool(
+        monitor.includeLocalFolders,
+        DEFAULT_SETTINGS.monitor.includeLocalFolders
+      )
     },
     brief: {
       enabled: bool(brief.enabled ?? oldBrief.enabled, DEFAULT_SETTINGS.brief.enabled),
