@@ -89,7 +89,8 @@ export function checkBaseUrl(raw) {
 /** All folders below the accounts, flattened. */
 export function flattenFolders(accounts) {
   const walk = (folders) => (folders ?? []).flatMap((f) => [f, ...walk(f.subFolders)])
-  return (accounts ?? []).flatMap((a) => walk(a.folders))
+  // Thunderbird exposes account folders as MailAccount.rootFolder; older code/fakes used .folders.
+  return (accounts ?? []).flatMap((a) => walk(a.rootFolder ? [a.rootFolder] : (a.folders ?? [])))
 }
 
 /** Folders with a special use (inbox, sent, drafts, ...), with an account-walk fallback for older builds. */
@@ -116,8 +117,10 @@ export async function localMailFolders() {
   const local = accounts.filter(
     (a) => a.type === 'none' || a.type === 'local' || !(a.identities?.length),
   )
+  const roots = new Set(local.map((a) => a.rootFolder?.id).filter(Boolean))
   const system = new Set(['drafts', 'sent', 'trash', 'junk', 'outbox', 'templates', 'archives'])
   return flattenFolders(local).filter((f) => {
+    if (roots.has(f.id)) return false
     if (f.type && system.has(f.type)) return false
     if (f.specialUse?.some((u) => system.has(String(u).toLowerCase()))) return false
     return !system.has(String(f.name ?? '').toLowerCase())
