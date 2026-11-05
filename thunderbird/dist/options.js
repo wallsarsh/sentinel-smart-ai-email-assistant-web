@@ -1,3 +1,58 @@
+// thunderbird/src/ui.js
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props ?? {})) {
+    if (value === void 0 || value === null) continue;
+    if (key === "class") node.className = value;
+    else if (key === "text") node.textContent = value;
+    else if (key === "dataset") Object.assign(node.dataset, value);
+    else if (key.startsWith("on") && typeof value === "function")
+      node.addEventListener(key.slice(2).toLowerCase(), value);
+    else if (key in node) node[key] = value;
+    else node.setAttribute(key, value);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === void 0 || kid === false) continue;
+    node.append(typeof kid === "string" || typeof kid === "number" ? String(kid) : kid);
+  }
+  return node;
+}
+var clear = (node) => node.replaceChildren();
+function status(node, message, kind = "") {
+  node.className = `status ${kind}`.trim();
+  node.textContent = message ?? "";
+  node.hidden = !message;
+}
+var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
+function busyAction(action) {
+  return async function(event) {
+    const button = event.currentTarget;
+    if (button.dataset.busy === "true") return;
+    const label = button.textContent;
+    const disabled = button.disabled;
+    button.dataset.busy = "true";
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = `${label}\u2026`;
+    try {
+      return await action.call(this, event);
+    } catch (error) {
+      const node = document.getElementById("status");
+      if (node) status(node, error.message || "The action failed.", "status--error");
+    } finally {
+      button.textContent = label;
+      button.disabled = disabled;
+      button.removeAttribute("aria-busy");
+      delete button.dataset.busy;
+    }
+  };
+}
+function enhanceActions() {
+  document.querySelectorAll("button").forEach((button) => {
+    if (button.onclick) button.onclick = busyAction(button.onclick);
+  });
+}
+
 // thunderbird/src/mail.js
 function checkBaseUrl(raw) {
   const u = new URL(String(raw).trim());
@@ -348,6 +403,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -436,6 +492,13 @@ function createStore(area) {
       await set(KEYS.brief, brief);
       return brief;
     },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
+    },
     async briefStatus() {
       return get(KEYS.briefStatus);
     },
@@ -486,33 +549,6 @@ function createStore(area) {
     }
   };
 }
-
-// thunderbird/src/ui.js
-function el(tag, props = {}, ...kids) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(props ?? {})) {
-    if (value === void 0 || value === null) continue;
-    if (key === "class") node.className = value;
-    else if (key === "text") node.textContent = value;
-    else if (key === "dataset") Object.assign(node.dataset, value);
-    else if (key.startsWith("on") && typeof value === "function")
-      node.addEventListener(key.slice(2).toLowerCase(), value);
-    else if (key in node) node[key] = value;
-    else node.setAttribute(key, value);
-  }
-  for (const kid of kids.flat()) {
-    if (kid === null || kid === void 0 || kid === false) continue;
-    node.append(typeof kid === "string" || typeof kid === "number" ? String(kid) : kid);
-  }
-  return node;
-}
-var clear = (node) => node.replaceChildren();
-function status(node, message, kind = "") {
-  node.className = `status ${kind}`.trim();
-  node.textContent = message ?? "";
-  node.hidden = !message;
-}
-var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 
 // thunderbird/src/options.js
 var $ = (id) => document.getElementById(id);
@@ -705,3 +741,4 @@ $("cancel-edit").addEventListener("click", resetForm);
 $("save-routes").addEventListener("click", saveRoutes);
 $("dashboard").onclick = openDashboard;
 void init().catch((e) => say($("provider-status"), e?.message ?? "Could not load settings.", "status--error"));
+enhanceActions();

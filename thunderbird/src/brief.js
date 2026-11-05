@@ -1,6 +1,6 @@
 import { PromptBuilder } from '../../packages/core/src/prompts/builder'
 import { briefRank, PRIORITY_LABEL, priorityOf, runBrief } from '../../packages/core/src/brief'
-import { analyzeBatch, briefAsk, describe } from './ai.js'
+import { analyze, analyzeBatch, briefAsk, describe } from './ai.js'
 import { toMailMessage } from './mail.js'
 import { applyAnalysisPolicy, preFilter, withSender } from './rules.js'
 import { TRIAGE_PREFIX, triageKey } from './cache.js'
@@ -177,36 +177,234 @@ export async function refreshBrief({
   ctx,
   now = new Date(),
   fetchImpl,
+  analyzeOne = analyze,
+  summarize = runBrief,
 }) {
-  const started = now.toISOString()
-  await store.saveBriefStatus({ state: 'running', at: started })
-  try {
-    const brief = await generateBrief({
-      api,
-      settings,
-      rules,
-      ctx,
-      now,
-      windowStart: briefWindow(now),
-      maxMessages: Math.max(60, settings.monitor.maxMessagesPerRun),
-      fetchImpl,
+  const startedAt = now.toISOString()
+  const windowStart = briefWindow(now)
+  const windowKey = windowStart.toISOString()
+  const windowEnd = now
+  const previousJob = await store.briefJob()
+  const resume =
+    previousJob &&
+    previousJob.windowStart === windowKey &&
+    ['running', 'partial', 'error'].includes(previousJob.state)
+  const job = {
+    id: resume ? previousJob.id : `${windowKey}-${now.getTime()}`,
+    state: 'running',
+    windowStart: windowKey,
+    windowEnd: windowEnd.toISOString(),
+    startedAt: resume ? previousJob.startedAt : startedAt,
+    updatedAt: startedAt,
+    total: 0,
+    processed: 0,
+    analyzed: 0,
+    cached: 0,
+    local: 0,
+    failed: 0,
+    currentId: null,
+    error: previousJob?.error ?? null,
+  }
+  await store.saveBriefJob(job)
+
+  const saveFailure = async (message) => {
+    job.state = 'error'
+    job.updatedAt = new Date().toISOString()
+    job.error = message
+    await store.saveBriefJob(job)
+    await store.saveBriefStatus({
+      state: 'error',
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message,
+      progress: progressOf(job),
     })
+    return { brief: await store.brief(), status: await store.briefStatus(), job }
+  }
+
+  let headers
+  try {
+    headers = (await api.recent(windowStart, Math.max(60, settings.monitor.maxMessagesPerRun), settings))
+      .filter((h) => !ctx.selfAddresses.has(String(h.author).replace(/^.*<|>$/g, '').toLowerCase()))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, Math.max(60, settings.monitor.maxMessagesPerRun))
+  } catch (e) {
+    return saveFailure(String(e?.message ?? e).slice(0, 180))
+  }
+
+  job.total = headers.length
+  const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]))
+  const rows = []
+  const base = () => ({
+    createdAt: startedAt,
+    windowStart: windowKey,
+    windowEnd: windowEnd.toISOString(),
+    stats: selectForBrief(rows).stats,
+    heads,
+    headline: '',
+    sections: [],
+    model: null,
+    partial: job.failed > 0 || job.processed < job.total,
+    progress: progressOf(job),
+  })
+  const savePartial = async () => {
+    job.updatedAt = new Date().toISOString()
+    await store.saveBriefJob(job)
+    await store.saveBrief(base())
+    await store.saveBriefStatus({
+      state: 'running',
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      progress: progressOf(job),
+    })
+  }
+  await savePartial()
+
+  const mark = (analysis) => ({
+    ...analysis,
+    briefAt: Date.now(),
+    briefWindow: windowKey,
+  })
+
+  let consecutiveFailures = 0
+  for (const header of headers) {
+    job.currentId = String(header.id)
+    try {
+      let analysis = await store.analysis(header)
+      if (analysis?.briefWindow === windowKey) {
+        job.cached++
+      } else if (analysis) {
+        analysis = mark(analysis)
+        await store.saveAnalysis(header, analysis)
+        job.cached++
+      } else {
+        const message = toMailMessage(header, await api.full(header.id))
+        const plan = preFilter(message, rules, settings, now)
+        if (plan.action === 'local') {
+          analysis = mark(withSender(applyAnalysisPolicy(plan.analysis, plan), header, now.getTime()))
+          analysis.promptVersion = null
+          await store.saveAnalysis(header, analysis)
+          job.local++
+        } else {
+          analysis = mark(
+            withSender(await analyzeOne(settings, message, ctx, fetchImpl), header, now.getTime()),
+          )
+          analysis.promptVersion = 'assistant.v1'
+          await store.saveAnalysis(header, analysis)
+          job.analyzed++
+        }
+      }
+      rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } })
+      job.processed++
+      consecutiveFailures = 0
+      job.error = null
+    } catch (e) {
+      job.failed++
+      consecutiveFailures++
+      job.error = String(e?.message ?? e).slice(0, 180)
+      if (consecutiveFailures >= 3) {
+        job.error = `${job.error} · paused after 3 consecutive failures`
+        break
+      }
+    }
+    await savePartial()
+  }
+
+  // Do not make a second, monolithic provider call while individual messages are still failing.
+  if (job.failed > 0) {
+    const brief = base()
+    job.state = 'partial'
+    job.updatedAt = new Date().toISOString()
+    await store.saveBriefJob(job)
+    await store.saveBrief(brief)
+    const status = {
+      state: 'partial',
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message: job.error,
+      progress: progressOf(job),
+    }
+    await store.saveBriefStatus(status)
+    return { brief, status, job }
+  }
+
+  const { stats, emails } = selectForBrief(rows)
+  const baseBrief = { ...base(), stats }
+  if (!emails.length) {
+    const brief = { ...baseBrief, partial: false, progress: progressOf(job) }
+    job.state = 'done'
+    job.updatedAt = new Date().toISOString()
+    await store.saveBriefJob(job)
+    await store.saveBrief(brief)
+    const status = { state: 'done', at: job.updatedAt, windowStart: windowKey, progress: progressOf(job) }
+    await store.saveBriefStatus(status)
+    return { brief, status, job }
+  }
+
+  try {
+    const res = await summarize({
+      emails,
+      ctx,
+      window: { start: windowStart, end: windowEnd },
+      stats,
+      builder: new PromptBuilder({ compact: true }),
+      ask: briefAsk(settings, fetchImpl),
+    })
+    if (!res.ok) throw new Error(describe(res.error))
+    const brief = {
+      ...baseBrief,
+      headline: res.value.headline,
+      sections: res.value.sections,
+      model: settings.routes?.brief?.model || settings.model || null,
+      partial: false,
+      progress: progressOf(job),
+    }
+    job.state = 'done'
+    job.updatedAt = new Date().toISOString()
+    await store.saveBriefJob(job)
     await store.saveBrief(brief)
     const status = {
       state: 'done',
-      at: now.toISOString(),
-      windowStart: brief.windowStart,
+      at: job.updatedAt,
+      windowStart: windowKey,
       model: brief.model,
+      progress: progressOf(job),
     }
     await store.saveBriefStatus(status)
-    return { brief, status }
+    return { brief, status, job }
   } catch (e) {
+    const message = String(e?.message ?? e).slice(0, 180)
+    job.state = 'error'
+    job.updatedAt = new Date().toISOString()
+    job.error = message
+    await store.saveBriefJob(job)
+    const brief = { ...baseBrief, partial: true, progress: progressOf(job) }
+    await store.saveBrief(brief)
     const status = {
       state: 'error',
-      at: now.toISOString(),
-      message: String(e?.message ?? e).slice(0, 180),
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message,
+      progress: progressOf(job),
     }
     await store.saveBriefStatus(status)
-    return { brief: await store.brief(), status }
+    return { brief, status, job }
+  }
+}
+
+function progressOf(job) {
+  return {
+    total: job.total,
+    processed: job.processed,
+    analyzed: job.analyzed,
+    cached: job.cached,
+    local: job.local,
+    failed: job.failed,
+    currentId: job.currentId,
+    state: job.state,
   }
 }

@@ -502,6 +502,94 @@ var init_rules = __esm({
   }
 });
 
+// thunderbird/src/menus.js
+function menuRegistrar(api2, report) {
+  let running = null;
+  const create = (properties) => new Promise((resolve, reject) => {
+    api2.menus.create(properties, () => {
+      const error = api2.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
+  });
+  return function register() {
+    if (running) return running;
+    running = (async () => {
+      try {
+        if (!api2.menus?.create) throw new Error("Thunderbird menus API is unavailable.");
+        await api2.menus.removeAll();
+        const contexts = ["message_list", "message_display_action", "page"];
+        await create({ id: "sentinel", title: "Sentinel AI", contexts });
+        for (const [id, title] of [
+          ["sentinel-analyze", "Analyze selected"],
+          ["sentinel-draft", "Create draft replies (never send)"],
+          ["sentinel-summary", "Summarize selected messages"],
+          ["sentinel-actions", "Extract action items"],
+          ["sentinel-categorize", "Categorize and apply priority tags"],
+          ["sentinel-dashboard", "Open dashboard"],
+          ["sentinel-calendar", "Add to calendar"]
+        ])
+          await create({ id, parentId: "sentinel", title, contexts });
+        await create({ id: "sentinel-sender", parentId: "sentinel", title: "Sender rule", contexts });
+        for (const [id, title] of [
+          ["sentinel-important", "Important"],
+          ["sentinel-marketing", "Marketing"],
+          ["sentinel-ignore", "Ignore"],
+          ["sentinel-normal", "Normal"]
+        ])
+          await create({ id, parentId: "sentinel-sender", title, contexts });
+        await report({ state: "ready" });
+      } catch (error) {
+        await report({ state: "error", error: error.message || "Menu registration failed." });
+      }
+    })().finally(() => {
+      running = null;
+    });
+    return running;
+  };
+}
+
+// thunderbird/src/bulk.js
+async function runBulk(ids, process, save, action, previous = null) {
+  const results = previous?.results?.filter((r) => !r.error) || [];
+  const job = { action, ids: [...new Set(ids)], state: "running", total: new Set(ids).size, processed: results.length, failed: 0, results };
+  await save(job);
+  const completed = new Set(results.map((r) => r.id));
+  for (const id of new Set(ids)) {
+    if (completed.has(id)) continue;
+    try {
+      const result = await process(id);
+      if (result?.ok === false) throw new Error(result.error || "Action failed");
+      job.results.push({ id, ...result });
+    } catch (error) {
+      job.failed++;
+      job.results.push({ id, error: error.message || "Action failed" });
+    }
+    job.processed++;
+    await save(job);
+  }
+  job.state = job.failed ? "partial" : "done";
+  await save(job);
+  return job;
+}
+async function selectedHeaders(info, tab, api2) {
+  if (info.selectedMessages) {
+    let page = info.selectedMessages;
+    const headers = [...page.messages || []];
+    while (page.id) {
+      page = await api2.messages.continueList(page.id);
+      headers.push(...page.messages);
+    }
+    return [...new Map(headers.map((h) => [h.id, h])).values()];
+  }
+  if (info.messageId != null) return [await api2.messages.get(info.messageId)];
+  if (tab?.id != null) {
+    const header = await api2.messageDisplay.getDisplayedMessage(tab.id);
+    return header ? [header] : [];
+  }
+  return [];
+}
+
 // packages/core/src/redactor.ts
 var defaultRedaction = {
   cards: true,
@@ -1797,6 +1885,19 @@ async function draftReply(settings, thread, ctx, request, fetchImpl) {
   if (!r.value.text.trim()) throw new Error("The AI returned no text.");
   return r.value.text.trim();
 }
+async function runTextTask(settings, task, system, user, { maxTokens = 1500, temperature = 0.2, fetchImpl } = {}) {
+  const { provider, model } = resolveRoute(settings, task);
+  const r = await providerFor(provider, fetchImpl).complete({
+    model,
+    system,
+    user,
+    maxTokens,
+    temperature
+  });
+  if (!r.ok) throw new Error(describe(r.error));
+  if (!r.value.text.trim()) throw new Error("The AI returned no text.");
+  return r.value.text.trim();
+}
 function describe(f) {
   switch (f.kind) {
     case "auth":
@@ -1999,15 +2100,8 @@ function monitorBlockedReason(settings) {
 // thunderbird/src/brief.js
 init_brief();
 init_rules();
-
-// thunderbird/src/cache.js
-var TRIAGE_PREFIX = "sentinel.triage:";
-var triageKey = (header) => `${TRIAGE_PREFIX}${header.headerMessageId ?? header.id}`;
-
-// thunderbird/src/brief.js
 var DAY = 24 * 36e5;
 var KEEP_MS = 14 * DAY;
-var BATCH = 8;
 function briefWindow(now = /* @__PURE__ */ new Date()) {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
@@ -2049,84 +2143,6 @@ function selectForBrief(rows, { max = 60 } = {}) {
   }));
   return { stats, emails };
 }
-async function generateBrief({
-  api: api2,
-  settings,
-  rules = [],
-  ctx,
-  now = /* @__PURE__ */ new Date(),
-  hours = 24,
-  windowStart = null,
-  maxMessages = 60,
-  fetchImpl
-}) {
-  const since = windowStart ? new Date(windowStart) : new Date(now.getTime() - hours * 36e5);
-  const self = ctx.selfAddresses;
-  const headers = (await api2.recent(since, maxMessages, settings)).filter((h) => !self.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, maxMessages);
-  const rows = [];
-  const todo = [];
-  for (const h of headers) {
-    const key = triageKey(h);
-    const hit = await api2.cache.get(key);
-    if (hit)
-      rows.push({ id: h.id, at: new Date(h.date), t: { ...hit, sender: hit.sender || h.author } });
-    else todo.push({ h, key });
-  }
-  const pending = [];
-  for (const { h, key } of todo) {
-    const m = toMailMessage(h, await api2.full(h.id));
-    const plan = preFilter(m, rules, settings, now);
-    if (plan.action === "local") {
-      const t = withSender(applyAnalysisPolicy(plan.analysis, plan), h, now.getTime());
-      await api2.cache.set(key, t);
-      rows.push({ id: h.id, at: new Date(h.date), t });
-    } else pending.push({ h, key, m });
-  }
-  for (let i = 0; i < pending.length; i += BATCH) {
-    const chunk = pending.slice(i, i + BATCH);
-    const out = await analyzeBatch(
-      settings,
-      chunk.map((c) => c.m),
-      ctx,
-      fetchImpl
-    );
-    for (const c of chunk) {
-      const r = out.get(String(c.m.providerMessageId));
-      if (!r) continue;
-      const t = withSender(applyAnalysisPolicy(r, { rule: null }), c.h, now.getTime());
-      await api2.cache.set(c.key, t);
-      rows.push({ id: c.h.id, at: new Date(c.h.date), t });
-    }
-  }
-  await api2.cache.prune(TRIAGE_PREFIX, Date.now() - KEEP_MS);
-  const { stats, emails } = selectForBrief(rows);
-  const heads = Object.fromEntries(
-    headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }])
-  );
-  const base2 = {
-    createdAt: now.toISOString(),
-    windowStart: since.toISOString(),
-    windowEnd: now.toISOString(),
-    stats,
-    heads
-  };
-  if (!emails.length) return { ...base2, headline: "", sections: [], model: null };
-  const res = await runBrief({
-    emails,
-    ctx,
-    window: { start: since, end: now },
-    stats,
-    builder: new PromptBuilder({ compact: true }),
-    ask: briefAsk(settings, fetchImpl)
-  });
-  if (!res.ok) throw new Error(describe(res.error));
-  return {
-    ...base2,
-    headline: res.value.headline,
-    sections: res.value.sections,
-    model: settings.model
-  };
-}
 function nextRun(now, hour) {
   const d = new Date(now);
   d.setHours(hour, 0, 0, 0);
@@ -2147,39 +2163,221 @@ async function refreshBrief({
   rules = [],
   ctx,
   now = /* @__PURE__ */ new Date(),
-  fetchImpl
+  fetchImpl,
+  analyzeOne = analyze,
+  summarize = runBrief
 }) {
-  const started = now.toISOString();
-  await store2.saveBriefStatus({ state: "running", at: started });
-  try {
-    const brief = await generateBrief({
-      api: api2,
-      settings,
-      rules,
-      ctx,
-      now,
-      windowStart: briefWindow(now),
-      maxMessages: Math.max(60, settings.monitor.maxMessagesPerRun),
-      fetchImpl
+  const startedAt = now.toISOString();
+  const windowStart = briefWindow(now);
+  const windowKey = windowStart.toISOString();
+  const windowEnd = now;
+  const previousJob = await store2.briefJob();
+  const resume = previousJob && previousJob.windowStart === windowKey && ["running", "partial", "error"].includes(previousJob.state);
+  const job = {
+    id: resume ? previousJob.id : `${windowKey}-${now.getTime()}`,
+    state: "running",
+    windowStart: windowKey,
+    windowEnd: windowEnd.toISOString(),
+    startedAt: resume ? previousJob.startedAt : startedAt,
+    updatedAt: startedAt,
+    total: 0,
+    processed: 0,
+    analyzed: 0,
+    cached: 0,
+    local: 0,
+    failed: 0,
+    currentId: null,
+    error: previousJob?.error ?? null
+  };
+  await store2.saveBriefJob(job);
+  const saveFailure = async (message) => {
+    job.state = "error";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    job.error = message;
+    await store2.saveBriefJob(job);
+    await store2.saveBriefStatus({
+      state: "error",
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message,
+      progress: progressOf(job)
     });
+    return { brief: await store2.brief(), status: await store2.briefStatus(), job };
+  };
+  let headers;
+  try {
+    headers = (await api2.recent(windowStart, Math.max(60, settings.monitor.maxMessagesPerRun), settings)).filter((h) => !ctx.selfAddresses.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, Math.max(60, settings.monitor.maxMessagesPerRun));
+  } catch (e) {
+    return saveFailure(String(e?.message ?? e).slice(0, 180));
+  }
+  job.total = headers.length;
+  const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]));
+  const rows = [];
+  const base2 = () => ({
+    createdAt: startedAt,
+    windowStart: windowKey,
+    windowEnd: windowEnd.toISOString(),
+    stats: selectForBrief(rows).stats,
+    heads,
+    headline: "",
+    sections: [],
+    model: null,
+    partial: job.failed > 0 || job.processed < job.total,
+    progress: progressOf(job)
+  });
+  const savePartial = async () => {
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
+    await store2.saveBrief(base2());
+    await store2.saveBriefStatus({
+      state: "running",
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      progress: progressOf(job)
+    });
+  };
+  await savePartial();
+  const mark = (analysis) => ({
+    ...analysis,
+    briefAt: Date.now(),
+    briefWindow: windowKey
+  });
+  let consecutiveFailures = 0;
+  for (const header of headers) {
+    job.currentId = String(header.id);
+    try {
+      let analysis = await store2.analysis(header);
+      if (analysis?.briefWindow === windowKey) {
+        job.cached++;
+      } else if (analysis) {
+        analysis = mark(analysis);
+        await store2.saveAnalysis(header, analysis);
+        job.cached++;
+      } else {
+        const message = toMailMessage(header, await api2.full(header.id));
+        const plan = preFilter(message, rules, settings, now);
+        if (plan.action === "local") {
+          analysis = mark(withSender(applyAnalysisPolicy(plan.analysis, plan), header, now.getTime()));
+          analysis.promptVersion = null;
+          await store2.saveAnalysis(header, analysis);
+          job.local++;
+        } else {
+          analysis = mark(
+            withSender(await analyzeOne(settings, message, ctx, fetchImpl), header, now.getTime())
+          );
+          analysis.promptVersion = "assistant.v1";
+          await store2.saveAnalysis(header, analysis);
+          job.analyzed++;
+        }
+      }
+      rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } });
+      job.processed++;
+      consecutiveFailures = 0;
+      job.error = null;
+    } catch (e) {
+      job.failed++;
+      consecutiveFailures++;
+      job.error = String(e?.message ?? e).slice(0, 180);
+      if (consecutiveFailures >= 3) {
+        job.error = `${job.error} \xB7 paused after 3 consecutive failures`;
+        break;
+      }
+    }
+    await savePartial();
+  }
+  if (job.failed > 0) {
+    const brief = base2();
+    job.state = "partial";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
+    await store2.saveBrief(brief);
+    const status = {
+      state: "partial",
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message: job.error,
+      progress: progressOf(job)
+    };
+    await store2.saveBriefStatus(status);
+    return { brief, status, job };
+  }
+  const { stats, emails } = selectForBrief(rows);
+  const baseBrief = { ...base2(), stats };
+  if (!emails.length) {
+    const brief = { ...baseBrief, partial: false, progress: progressOf(job) };
+    job.state = "done";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
+    await store2.saveBrief(brief);
+    const status = { state: "done", at: job.updatedAt, windowStart: windowKey, progress: progressOf(job) };
+    await store2.saveBriefStatus(status);
+    return { brief, status, job };
+  }
+  try {
+    const res = await summarize({
+      emails,
+      ctx,
+      window: { start: windowStart, end: windowEnd },
+      stats,
+      builder: new PromptBuilder({ compact: true }),
+      ask: briefAsk(settings, fetchImpl)
+    });
+    if (!res.ok) throw new Error(describe(res.error));
+    const brief = {
+      ...baseBrief,
+      headline: res.value.headline,
+      sections: res.value.sections,
+      model: settings.routes?.brief?.model || settings.model || null,
+      partial: false,
+      progress: progressOf(job)
+    };
+    job.state = "done";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
     await store2.saveBrief(brief);
     const status = {
       state: "done",
-      at: now.toISOString(),
-      windowStart: brief.windowStart,
-      model: brief.model
+      at: job.updatedAt,
+      windowStart: windowKey,
+      model: brief.model,
+      progress: progressOf(job)
     };
     await store2.saveBriefStatus(status);
-    return { brief, status };
+    return { brief, status, job };
   } catch (e) {
+    const message = String(e?.message ?? e).slice(0, 180);
+    job.state = "error";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    job.error = message;
+    await store2.saveBriefJob(job);
+    const brief = { ...baseBrief, partial: true, progress: progressOf(job) };
+    await store2.saveBrief(brief);
     const status = {
       state: "error",
-      at: now.toISOString(),
-      message: String(e?.message ?? e).slice(0, 180)
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message,
+      progress: progressOf(job)
     };
     await store2.saveBriefStatus(status);
-    return { brief: await store2.brief(), status };
+    return { brief, status, job };
   }
+}
+function progressOf(job) {
+  return {
+    total: job.total,
+    processed: job.processed,
+    analyzed: job.analyzed,
+    cached: job.cached,
+    local: job.local,
+    failed: job.failed,
+    currentId: job.currentId,
+    state: job.state
+  };
 }
 
 // thunderbird/src/calendar.js
@@ -2188,10 +2386,6 @@ var clip4 = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
   return t.length <= n ? t : `${t.slice(0, n - 1)}\u2026`;
 };
-var pad = (n) => String(n).padStart(2, "0");
-var dateOnly2 = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-var compactDate = (s) => s.replace(/-/g, "");
-var compactUtc = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
 var isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`));
 function normalizeEvent(raw) {
   if (!raw) return null;
@@ -2243,18 +2437,6 @@ function eventsFromAnalysis(analysis, { header = null } = {}) {
   }
   return out.slice(0, 5);
 }
-var escape = (s) => String(s ?? "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
-var fold = (line) => {
-  if (line.length <= 75) return line;
-  let out = line.slice(0, 75);
-  let rest = line.slice(75);
-  while (rest.length) {
-    out += `\r
- ${rest.slice(0, 74)}`;
-    rest = rest.slice(74);
-  }
-  return out;
-};
 var hash = (s) => {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -2264,71 +2446,18 @@ var hash = (s) => {
   return (h >>> 0).toString(36);
 };
 var uidFor = (event) => `${hash(`${event.title}|${event.start}|${event.sourceMessageId ?? ""}`)}@sentinel.local`;
-function toIcs(events, { now = /* @__PURE__ */ new Date(), prodId = "-//Sentinel//AI Email Assistant//EN" } = {}) {
-  const stamp = compactUtc(now);
-  const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    `PRODID:${prodId}`,
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH"
-  ];
-  for (const event of events) {
-    const start = event.start;
-    let dtstart;
-    let dtend;
-    if (event.allDay) {
-      dtstart = `DTSTART;VALUE=DATE:${compactDate(start)}`;
-      const end = event.end && isDate(event.end) ? event.end : dateOnly2(new Date(Date.parse(`${start}T00:00:00Z`) + DAY2));
-      dtend = `DTEND;VALUE=DATE:${compactDate(end)}`;
-    } else {
-      const s = new Date(start);
-      const e = event.end ? new Date(event.end) : new Date(s.getTime() + 36e5);
-      dtstart = `DTSTART:${compactUtc(s)}`;
-      dtend = `DTEND:${compactUtc(e)}`;
-    }
-    lines.push(
-      "BEGIN:VEVENT",
-      `UID:${uidFor(event)}`,
-      `DTSTAMP:${stamp}`,
-      dtstart,
-      dtend,
-      `SUMMARY:${escape(event.title)}`,
-      ...event.location ? [`LOCATION:${escape(event.location)}`] : [],
-      ...event.description ? [`DESCRIPTION:${escape(event.description)}`] : [],
-      "END:VEVENT"
-    );
-  }
-  lines.push("END:VCALENDAR");
-  return lines.map(fold).join("\r\n") + "\r\n";
-}
-var icsFilename = (now = /* @__PURE__ */ new Date()) => `sentinel-${dateOnly2(now)}.ics`;
-async function downloadIcs(events, { downloads, now = /* @__PURE__ */ new Date(), filename } = {}) {
+async function writeCalendarEvents(events, { api: api2 } = {}) {
   if (!events?.length) throw new Error("There is no calendar item to add.");
-  if (!downloads?.download || typeof URL?.createObjectURL !== "function")
-    throw new Error("This Thunderbird build cannot save calendar files.");
-  const blob = new Blob([toIcs(events, { now })], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  try {
-    await downloads.download({ url, filename: filename ?? icsFilename(now), saveAs: true });
-    return { filename: filename ?? icsFilename(now) };
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1e4);
+  if (!api2?.createEvent) throw new Error("Direct calendar access is unavailable. Reload the add-on and enable its calendar experiment.");
+  const created = [];
+  for (const raw of events) {
+    const event = normalizeEvent(raw);
+    if (!event) throw new Error("Invalid calendar event.");
+    const details = { title: event.title, start: event.start, allDay: event.allDay, uid: uidFor(event) };
+    for (const key of ["end", "location", "description"]) if (event[key]) details[key] = event[key];
+    created.push(await api2.createEvent(details));
   }
-}
-async function writeCalendarEvents(events, { api: api2, downloads, now = /* @__PURE__ */ new Date(), filename } = {}) {
-  if (!events?.length) throw new Error("There is no calendar item to add.");
-  if (api2?.createEvent) {
-    const created = [];
-    try {
-      for (const event of events) created.push(await api2.createEvent(event));
-      return { mode: "direct", count: created.length, created };
-    } catch (e) {
-      if (created.length) throw e;
-    }
-  }
-  await downloadIcs(events, { downloads, now, filename });
-  return { mode: "ics", count: events.length };
+  return { mode: "direct", count: created.length, created };
 }
 
 // thunderbird/src/drafts.js
@@ -2538,7 +2667,7 @@ async function notifyBriefUpdated(brief, { notifications = globalThis.browser?.n
 // thunderbird/src/monitor.js
 init_rules();
 var DAY4 = 24 * 36e5;
-var BATCH2 = 8;
+var BATCH = 8;
 var safeError2 = (e) => {
   const text = String(e?.message ?? e ?? "Unknown error").replace(/\s+/g, " ").trim();
   return text.length <= 180 ? text : `${text.slice(0, 179)}\u2026`;
@@ -2671,8 +2800,8 @@ async function runMonitor({
       tagWarning = "The message could not be tagged.";
     }
   };
-  for (let i = 0; i < runnable.length; i += BATCH2) {
-    const chunk = runnable.slice(i, i + BATCH2);
+  for (let i = 0; i < runnable.length; i += BATCH) {
+    const chunk = runnable.slice(i, i + BATCH);
     let result;
     try {
       result = await analyze2(
@@ -2740,6 +2869,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -2827,6 +2957,13 @@ function createStore(area) {
     async saveBrief(brief) {
       await set(KEYS.brief, brief);
       return brief;
+    },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
     },
     async briefStatus() {
       return get(KEYS.briefStatus);
@@ -3061,85 +3198,20 @@ async function tagger({ header, analysis, known }) {
   if (!api2) return { known, warning: "This Thunderbird build does not support message tags." };
   return applyTags({ api: api2, header, analysis, known });
 }
-function createMenus() {
+var createMenus = menuRegistrar(browser, (state) => browser.storage.local.set({ "sentinel.menuStatus": state }));
+browser.menus?.onClicked.addListener(async (info, tab) => {
+  if (!String(info.menuItemId).startsWith("sentinel-")) return;
   try {
-    if (!browser.menus?.create) return;
-    browser.menus.removeAll?.();
-    const contexts = ["message_list", "message_display"];
-    browser.menus.create({ id: "sentinel", title: "Sentinel AI", contexts });
-    for (const [id, title] of [
-      ["sentinel-analyze", "Analyze selected"],
-      ["sentinel-draft", "Create draft reply"],
-      ["sentinel-calendar", "Add to calendar"]
-    ])
-      browser.menus.create({ id, parentId: "sentinel", title, contexts });
-    browser.menus.create({ id: "sentinel-sender", parentId: "sentinel", title: "Sender rule", contexts });
-    for (const [id, title] of [
-      ["sentinel-important", "Important"],
-      ["sentinel-marketing", "Marketing"],
-      ["sentinel-ignore", "Ignore"],
-      ["sentinel-normal", "Normal"]
-    ])
-      browser.menus.create({ id, parentId: "sentinel-sender", title, contexts });
-  } catch {
-  }
-}
-async function targetHeaders(info) {
-  if (info?.selectedMessages?.messages?.length) return info.selectedMessages.messages;
-  if (info?.messageId != null) {
-    const header = await browser.messages.get(info.messageId);
-    return header ? [header] : [];
-  }
-  if (info?.tab?.id != null) {
-    const header = await browser.messageDisplay.getDisplayedMessage(info.tab.id);
-    return header ? [header] : [];
-  }
-  return [];
-}
-browser.menus?.onClicked.addListener(async (info) => {
-  try {
-    const headers = await targetHeaders(info);
-    if (!headers.length) return;
-    if (info.menuItemId === "sentinel-important") {
-      await addRule(headers[0].author, "important");
+    if (info.menuItemId === "sentinel-dashboard") {
+      await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") });
       return;
     }
-    if (info.menuItemId === "sentinel-marketing") {
-      await addRule(headers[0].author, "marketing");
-      return;
-    }
-    if (info.menuItemId === "sentinel-ignore") {
-      await addRule(headers[0].author, "ignore");
-      return;
-    }
-    if (info.menuItemId === "sentinel-normal") {
-      await addRule(headers[0].author, "normal");
-      return;
-    }
-    if (info.menuItemId === "sentinel-analyze") {
-      await batchAnalyze(headers.map((h) => h.id));
-      await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
-      return;
-    }
-    if (info.menuItemId === "sentinel-draft") {
-      await batchDraft(headers.map((h) => h.id));
-      return;
-    }
-    if (info.menuItemId === "sentinel-calendar") {
-      const analysis = await store.analysis(headers[0]);
-      if (!analysis) throw new Error("Analyze the message first.");
-      const events = eventsFromAnalysis(analysis, { header: headers[0] });
-      if (!events.length) throw new Error("No dated action or event found.");
-      const written = await writeCalendarEvents(events, {
-        api: browser.sentinelCalendar,
-        downloads: browser.downloads
-      });
-      await browser.notifications.create("sentinel-calendar", {
-        type: "basic",
-        title: "Sentinel AI",
-        message: written.mode === "direct" ? "Added to your calendar." : "Calendar file downloaded."
-      }).catch(() => void 0);
-    }
+    const headers = await selectedHeaders(info, tab, browser);
+    if (!headers.length) throw new Error("Select one or more messages first.");
+    const action = info.menuItemId.replace("sentinel-", "");
+    const result = await startBulk(headers.map((h) => h.id), action);
+    if (!result.ok) throw new Error(result.error);
+    await browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html#inbox") });
   } catch (e) {
     await browser.notifications.create("sentinel-context-error", {
       type: "basic",
@@ -3148,6 +3220,58 @@ browser.menus?.onClicked.addListener(async (info) => {
     }).catch(() => void 0);
   }
 });
+var bulkRunning = false;
+async function startBulk(ids, action, previous = null, queueKey = null) {
+  const allowed = ["analyze", "draft", "summary", "actions", "categorize", "calendar", "important", "marketing", "ignore", "normal"];
+  if (!allowed.includes(action) || !ids.length) return { ok: false, error: "Choose messages and an action." };
+  if (bulkRunning) return { ok: false, error: "A bulk action is already running. See its progress in the dashboard." };
+  bulkRunning = true;
+  const key = queueKey || `sentinel.retryJob:${crypto.randomUUID()}`;
+  const attempt = (previous?.attempt || 0) + 1;
+  const save = async (job) => {
+    const record = { ...job, attempt, nextRetry: Date.now() + Math.min(60, 5 * 2 ** Math.min(attempt - 1, 4)) * 6e4 };
+    await browser.storage.local.set({ [key]: record, "sentinel.bulkJob": record });
+    if (job.state === "done") await browser.storage.local.remove(key);
+  };
+  void runBulk(ids, async (id) => {
+    const header = await browser.messages.get(id);
+    if (["important", "marketing", "ignore", "normal"].includes(action)) {
+      await addRule(header.author, action);
+      return { subject: header.subject, summary: `Sender rule saved: ${action}` };
+    }
+    if (action === "draft") {
+      const result = await manualDraft(id);
+      return { ...result, subject: header.subject, summary: result.ok ? "Draft saved. Nothing sent." : "" };
+    }
+    let analysis = await store.analysis(header);
+    if (!analysis || action === "analyze" || action === "categorize") {
+      const result = await batchAnalyze([id]);
+      if (!result.ok || result.failed) throw new Error(result.error || "Analysis failed");
+      analysis = await store.analysis(header);
+    }
+    if (!analysis) throw new Error("No analysis available");
+    if (action === "categorize") {
+      const result = await tagger({ header, analysis, known: await store.tagKeys() });
+      if (result.warning) throw new Error(result.warning);
+      await store.saveTagKeys(result.known);
+    }
+    if (action === "calendar") {
+      const events = eventsFromAnalysis(analysis, { header });
+      if (!events.length) throw new Error("No dated action or event found");
+      await writeCalendarEvents(events, { api: browser.sentinelCalendar, downloads: browser.downloads });
+    }
+    return { subject: header.subject, summary: analysis.summary, category: analysis.category, actionItems: analysis.actionItems };
+  }, save, action, previous).catch((e) => browser.storage.local.set({ "sentinel.bulkJob": { state: "error", error: safeError(e) } })).finally(() => {
+    bulkRunning = false;
+  });
+  return { ok: true, started: true };
+}
+async function retryFailedMessages() {
+  if (bulkRunning) return;
+  const entries = Object.entries(await browser.storage.local.get(null)).filter(([key, job]) => key.startsWith("sentinel.retryJob:") && job.nextRetry <= Date.now()).sort((a, b) => a[1].nextRetry - b[1].nextRetry);
+  const next = entries[0];
+  if (next) await startBulk(next[1].ids, next[1].action, next[1], next[0]);
+}
 async function load() {
   const [settings, rules] = await Promise.all([store.settings(), store.rules()]);
   return { settings, rules };
@@ -3204,6 +3328,36 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     now,
     fetchImpl: void 0
   }).then((result) => ({ ...result, updated: true })).finally(() => {
+    briefRunning = null;
+  });
+  return briefRunning;
+}
+async function runBriefOnly() {
+  const { settings, rules } = await load();
+  const blocked = monitorBlockedReason(settings);
+  if (blocked) {
+    const at = (/* @__PURE__ */ new Date()).toISOString();
+    await store.saveBriefStatus({ state: "error", at, message: blocked, progress: null });
+    return { ok: false, error: blocked };
+  }
+  if (briefRunning) return briefRunning;
+  const ctx = await context(settings, rules);
+  briefRunning = refreshBrief({
+    store,
+    api,
+    settings,
+    rules,
+    ctx,
+    now: /* @__PURE__ */ new Date(),
+    fetchImpl: void 0
+  }).then(async (result) => {
+    if (result.status?.state === "done") await updateBriefBadge(result.brief);
+    return result;
+  }).catch(async (e) => {
+    const message = safeError(e);
+    await store.saveBriefStatus({ state: "error", at: (/* @__PURE__ */ new Date()).toISOString(), message });
+    return { brief: await store.brief(), status: { state: "error", message } };
+  }).finally(() => {
     briefRunning = null;
   });
   return briefRunning;
@@ -3284,6 +3438,7 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
   return monitorRunning;
 }
 async function schedule() {
+  browser.alarms.create("sentinel-retry", { periodInMinutes: 5 });
   const { settings } = await load();
   await browser.alarms.clear(MONITOR_ALARM);
   await browser.alarms.clear(BRIEF_ALARM);
@@ -3299,7 +3454,8 @@ async function schedule() {
     });
 }
 browser.alarms.onAlarm.addListener((a) => {
-  if (a.name === MONITOR_ALARM) void runAssistant({ reason: "alarm" });
+  if (a.name === "sentinel-retry") void retryFailedMessages().catch(() => void 0);
+  else if (a.name === MONITOR_ALARM) void runAssistant({ reason: "alarm" });
   else if (a.name === BRIEF_ALARM) void runAssistant({ reason: "daily-brief" });
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM);
@@ -3341,7 +3497,9 @@ browser.messages.onNewMailReceived?.addListener?.((folder) => {
       browser.alarms.create(NEW_MAIL_ALARM, { when: Date.now() + 3e4 });
   })();
 });
-async function manualDraft(messageId, { force = false } = {}) {
+async function manualDraft(messageId, { force = false, progress = async () => {
+} } = {}) {
+  await progress("Reading message and checking draft eligibility\u2026");
   const header = await browser.messages.get(messageId);
   if (!header) return { ok: false, error: "Open a message first." };
   const { settings } = await load();
@@ -3371,12 +3529,14 @@ async function manualDraft(messageId, { force = false } = {}) {
     });
     if (!eligible.ok) return { ok: false, error: eligible.reason };
   }
+  await progress("Generating reply with your AI provider\u2026");
   const body = await draftReply(
     settings,
     [toMailMessage(header, await browser.messages.getFull(header.id))],
     ctx,
     draftRequest(analysis, settings)
   );
+  await progress("Saving reply to Thunderbird Drafts\u2026");
   const saved = await saveDraftFor(header, body);
   const entry = {
     messageId: header.id,
@@ -3455,22 +3615,6 @@ async function batchAnalyze(ids) {
   if (Object.keys(knownTags).length) await store.saveTagKeys(knownTags);
   return { ok: true, analyzed, local, failed: failed.length, error: failed[0] ?? null };
 }
-async function batchDraft(ids) {
-  const results = [];
-  for (const id of ids.slice(0, 5)) {
-    try {
-      results.push(await manualDraft(id));
-    } catch (e) {
-      results.push({ ok: false, error: safeError(e) });
-    }
-  }
-  return {
-    ok: true,
-    created: results.filter((r) => r.ok).length,
-    failed: results.filter((r) => !r.ok).length,
-    error: results.find((r) => !r.ok)?.error ?? null
-  };
-}
 async function addRule(pattern, kind) {
   const { normalizeRule: normalizeRule2 } = await Promise.resolve().then(() => (init_rules(), rules_exports));
   const rule = normalizeRule2({ pattern, kind });
@@ -3484,28 +3628,95 @@ async function removeRule(id) {
   await store.saveRules(rules.filter((r) => r.id !== id));
   return { ok: true };
 }
+var messageJobs = /* @__PURE__ */ new Set();
+var jobKey = (id) => `sentinel.messageJob:${id}`;
+async function startMessageJob(id, action, force) {
+  if (!Number.isInteger(id) || !["draft", "analyze"].includes(action)) throw new Error("Invalid message action.");
+  if (messageJobs.has(id)) return { ok: false, error: "An action is already running for this message." };
+  messageJobs.add(id);
+  const key = jobKey(id);
+  try {
+    await browser.storage.local.set({ [key]: { state: "running", action, at: Date.now() } });
+  } catch (e) {
+    messageJobs.delete(id);
+    throw e;
+  }
+  void (async () => {
+    try {
+      let result;
+      if (action === "draft") result = await manualDraft(id, { force, progress: (stage) => browser.storage.local.set({ [key]: { state: "running", action, stage, at: Date.now() } }) });
+      else {
+        const header = await browser.messages.get(id);
+        const { settings, rules } = await load();
+        const blocked = monitorBlockedReason(settings);
+        if (blocked) throw new Error(blocked);
+        const message = toMailMessage(header, await browser.messages.getFull(id));
+        const plan = preFilter(message, rules, settings, /* @__PURE__ */ new Date());
+        const output = plan.action === "local" ? plan.analysis : await analyze(settings, message, await context(settings, rules));
+        const stored = withSender(applyAnalysisPolicy(output, plan), header, Date.now());
+        stored.by = plan.action === "local" ? "rule" : "ai";
+        stored.promptVersion = plan.action === "local" ? null : "assistant.v1";
+        await store.saveAnalysis(header, stored);
+        try {
+          const tagged = await tagger({ header, analysis: stored, known: await store.tagKeys() });
+          if (tagged?.known) await store.saveTagKeys(tagged.known);
+        } catch {
+        }
+        result = { ok: true };
+      }
+      if (result?.ok === false) throw new Error(result.error);
+      await browser.storage.local.set({ [key]: { state: "done", action, at: Date.now() } });
+    } catch (e) {
+      await browser.storage.local.set({ [key]: { state: "error", action, error: safeError(e), at: Date.now() } });
+    } finally {
+      messageJobs.delete(id);
+    }
+  })();
+  return { ok: true };
+}
+var composeJobs = /* @__PURE__ */ new Map();
+function startComposeJob(msg) {
+  if (composeJobs.get(msg.tabId)?.state === "running") return { ok: false, error: "A compose action is already running." };
+  const job = { state: "running", kind: msg.kind, selected: msg.selected };
+  composeJobs.set(msg.tabId, job);
+  void (async () => {
+    try {
+      const { settings, rules } = await load();
+      const blocked = monitorBlockedReason(settings);
+      if (blocked) throw new Error(blocked);
+      job.result = msg.kind === "draft" ? await draftReply(settings, [msg.message], await context(settings, rules), msg.request) : await runTextTask(settings, msg.kind, msg.system, msg.user);
+      job.state = "done";
+    } catch (e) {
+      job.state = "error";
+      job.error = safeError(e);
+    }
+  })();
+  return { ok: true };
+}
+browser.tabs.onRemoved?.addListener((id) => composeJobs.delete(id));
 browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== "object") return void 0;
   try {
-    if (msg.type === "ping") return { ok: true, at: Date.now() };
+    if (msg.type === "compose-job-start") return startComposeJob(msg);
+    if (msg.type === "compose-job-status") return { ok: true, job: composeJobs.get(msg.tabId) ?? null };
+    if (msg.type === "ping") return { ok: true, at: Date.now(), menus: (await browser.storage.local.get("sentinel.menuStatus"))["sentinel.menuStatus"] };
     if (msg.type === "monitor-run") {
       void runAssistant({ reason: "manual", forceBrief: Boolean(msg.brief) });
       return { started: true };
     }
     if (msg.type === "brief-run") {
-      void runAssistant({ reason: "brief-manual", forceBrief: true });
+      void runBriefOnly();
       return { started: true };
     }
     if (msg.type === "brief-seen") {
       await clearBriefBadge();
       return { ok: true };
     }
-    if (msg.type === "draft-create") return manualDraft(msg.messageId, { force: msg.force });
-    if (msg.type === "batch-run") {
-      if (msg.action === "analyze") return batchAnalyze(msg.ids ?? []);
-      if (msg.action === "draft") return batchDraft(msg.ids ?? []);
-      return { ok: false, error: "Unknown batch action." };
-    }
+    if (msg.type === "message-job-start") return await startMessageJob(msg.messageId, msg.action, msg.force);
+    if (msg.type === "message-job-status") return { active: messageJobs.has(msg.messageId) };
+    if (msg.type === "draft-create") return await manualDraft(msg.messageId, { force: msg.force });
+    if (msg.type === "batch-run") return await startBulk(msg.ids ?? [], msg.action);
+    if (msg.type === "bulk-status") return { running: bulkRunning };
     if (msg.type === "tag-message") {
       const header = await browser.messages.get(msg.messageId);
       const analysis = await store.analysis(header);
@@ -3514,8 +3725,8 @@ browser.runtime.onMessage.addListener(async (msg) => {
       if (r?.known) await store.saveTagKeys(r.known);
       return { ok: true, warning: r?.warning ?? null };
     }
-    if (msg.type === "rule-set") return addRule(msg.pattern, msg.kind);
-    if (msg.type === "rule-remove") return removeRule(msg.id);
+    if (msg.type === "rule-set") return await addRule(msg.pattern, msg.kind);
+    if (msg.type === "rule-remove") return await removeRule(msg.id);
     if (msg.type === "calendar-download") {
       const written = await writeCalendarEvents(msg.events ?? [], {
         api: browser.sentinelCalendar,

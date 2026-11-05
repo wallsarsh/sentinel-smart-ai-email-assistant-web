@@ -829,3 +829,8 @@ button.item:hover {
     border: 1px solid ButtonText;
   }
 }
+
+/* Keep action feedback visible when long message analysis is scrolled. */
+.page--popup #status { position: sticky; top: 0; z-index: 5; background: var(--surface, Canvas); padding: 10px; }
+button[aria-busy="true"] { cursor: progress; }
+button[aria-busy="true"]::before { content: '◌ '; }

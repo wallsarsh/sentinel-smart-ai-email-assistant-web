@@ -18,12 +18,32 @@
             "name": "event",
             "type": "object",
             "properties": {
-              "title": { "type": "string" },
-              "start": { "type": "string" },
-              "end": { "type": "string", "optional": true },
-              "allDay": { "type": "boolean", "optional": true },
-              "location": { "type": "string", "optional": true },
-              "description": { "type": "string", "optional": true }
+              "title": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              },
+              "end": {
+                "type": "string",
+                "optional": true
+              },
+              "allDay": {
+                "type": "boolean",
+                "optional": true
+              },
+              "location": {
+                "type": "string",
+                "optional": true
+              },
+              "description": {
+                "type": "string",
+                "optional": true
+              },
+              "uid": {
+                "type": "string",
+                "optional": true
+              }
             }
           }
         ]

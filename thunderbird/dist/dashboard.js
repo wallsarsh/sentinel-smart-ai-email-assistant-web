@@ -1,3 +1,186 @@
+// thunderbird/src/ui.js
+var PRIORITY_LABEL = {
+  p1_do_now: "P1 \xB7 Do now",
+  p2_today: "P2 \xB7 Today",
+  p3_this_week: "P3 \xB7 This week",
+  p4_fyi: "P4 \xB7 FYI"
+};
+var PRIORITY_CLASS = {
+  p1_do_now: "p1",
+  p2_today: "p2",
+  p3_this_week: "p3",
+  p4_fyi: "p4"
+};
+var INTENT_LABEL = {
+  request: "Request",
+  question: "Question",
+  meeting: "Meeting",
+  approval: "Approval",
+  payment: "Payment",
+  informational: "Information",
+  marketing: "Marketing",
+  notification: "Notification",
+  social: "Social",
+  security: "Security",
+  other: "Other"
+};
+var CATEGORY_LABEL = {
+  directPersonal: "Personal",
+  workRequest: "Work request",
+  meetingCalendar: "Meeting",
+  financeBilling: "Finance",
+  notificationAutomated: "Notification",
+  newsletterMarketing: "Newsletter",
+  social: "Social",
+  securityAccount: "Security",
+  other: "Other"
+};
+function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(props ?? {})) {
+    if (value === void 0 || value === null) continue;
+    if (key === "class") node.className = value;
+    else if (key === "text") node.textContent = value;
+    else if (key === "dataset") Object.assign(node.dataset, value);
+    else if (key.startsWith("on") && typeof value === "function")
+      node.addEventListener(key.slice(2).toLowerCase(), value);
+    else if (key in node) node[key] = value;
+    else node.setAttribute(key, value);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === void 0 || kid === false) continue;
+    node.append(typeof kid === "string" || typeof kid === "number" ? String(kid) : kid);
+  }
+  return node;
+}
+var clear = (node) => node.replaceChildren();
+function chip(label, kind = "") {
+  return el("span", { class: `chip ${kind}`.trim(), text: label });
+}
+function priorityChip(priority) {
+  return chip(PRIORITY_LABEL[priority] ?? "P4 \xB7 FYI", `chip--${PRIORITY_CLASS[priority] ?? "p4"}`);
+}
+var intentLabel = (intent) => INTENT_LABEL[intent] ?? "Other";
+var categoryLabel = (category) => CATEGORY_LABEL[category] ?? "Other";
+function relativeTime(value, now = /* @__PURE__ */ new Date()) {
+  const d = value instanceof Date ? value : new Date(value ?? 0);
+  if (!Number.isFinite(d.getTime())) return "";
+  const diff = now.getTime() - d.getTime();
+  if (diff < 6e4) return "just now";
+  if (diff < 36e5) return `${Math.round(diff / 6e4)} min ago`;
+  if (diff < 24 * 36e5) return `${Math.round(diff / 36e5)} h ago`;
+  if (diff < 48 * 36e5) return "yesterday";
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+function formatDateTime(value) {
+  const d = value instanceof Date ? value : new Date(value ?? 0);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+}
+function status(node, message, kind = "") {
+  node.className = `status ${kind}`.trim();
+  node.textContent = message ?? "";
+  node.hidden = !message;
+}
+function empty(message, action = null) {
+  return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
+}
+var openMessage = (id) => id == null ? Promise.resolve() : browser.messageDisplay.open({ messageId: Number(id) }).catch(() => void 0);
+async function send(message, timeoutMs = 15e3) {
+  let timer;
+  try {
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The background service did not respond. Reopen Sentinel to check progress before retrying.")), timeoutMs);
+      })
+    ]);
+    if (response === void 0 || response === null) throw new Error("The background service returned no response. Reload the add-on and try again.");
+    if (response.ok === false) throw new Error(response.error || "The background action failed.");
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function wireTabs(root, onChange) {
+  const tabs2 = [...root.querySelectorAll('[role="tab"]')];
+  const select = (index2) => {
+    const tab = tabs2[index2];
+    if (!tab) return;
+    tabs2.forEach((t, i) => {
+      const selected = i === index2;
+      t.setAttribute("aria-selected", String(selected));
+      t.tabIndex = selected ? 0 : -1;
+      const panel = document.getElementById(t.getAttribute("aria-controls"));
+      if (panel) panel.hidden = !selected;
+    });
+    onChange?.(tab.dataset.tab);
+    tab.focus();
+  };
+  tabs2.forEach((tab, i) => {
+    tab.addEventListener("click", () => select(i));
+    tab.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        select((i + 1) % tabs2.length);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        select((i - 1 + tabs2.length) % tabs2.length);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        select(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        select(tabs2.length - 1);
+      }
+    });
+  });
+  return { select, tabs: tabs2 };
+}
+function actionList(actions = []) {
+  if (!actions.length) return el("p", { class: "muted", text: "No action items." });
+  return el(
+    "ul",
+    { class: "actions" },
+    ...actions.map(
+      (a) => el(
+        "li",
+        {},
+        el("span", { text: a.text }),
+        a.dueText || a.dueDate ? el("span", { class: "meta", text: ` \xB7 ${a.dueText || a.dueDate}` }) : null
+      )
+    )
+  );
+}
+function busyAction(action) {
+  return async function(event) {
+    const button = event.currentTarget;
+    if (button.dataset.busy === "true") return;
+    const label = button.textContent;
+    const disabled = button.disabled;
+    button.dataset.busy = "true";
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = `${label}\u2026`;
+    try {
+      return await action.call(this, event);
+    } catch (error) {
+      const node = document.getElementById("status");
+      if (node) status(node, error.message || "The action failed.", "status--error");
+    } finally {
+      button.textContent = label;
+      button.disabled = disabled;
+      button.removeAttribute("aria-busy");
+      delete button.dataset.busy;
+    }
+  };
+}
+function enhanceActions() {
+  document.querySelectorAll("button").forEach((button) => {
+    if (button.onclick) button.onclick = busyAction(button.onclick);
+  });
+}
+
 // thunderbird/src/providers.js
 var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
 var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
@@ -259,6 +442,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -347,6 +531,13 @@ function createStore(area) {
       await set(KEYS.brief, brief);
       return brief;
     },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
+    },
     async briefStatus() {
       return get(KEYS.briefStatus);
     },
@@ -398,131 +589,6 @@ function createStore(area) {
   };
 }
 
-// thunderbird/src/ui.js
-var PRIORITY_LABEL = {
-  p1_do_now: "P1 \xB7 Do now",
-  p2_today: "P2 \xB7 Today",
-  p3_this_week: "P3 \xB7 This week",
-  p4_fyi: "P4 \xB7 FYI"
-};
-var PRIORITY_CLASS = {
-  p1_do_now: "p1",
-  p2_today: "p2",
-  p3_this_week: "p3",
-  p4_fyi: "p4"
-};
-var INTENT_LABEL = {
-  request: "Request",
-  question: "Question",
-  meeting: "Meeting",
-  approval: "Approval",
-  payment: "Payment",
-  informational: "Information",
-  marketing: "Marketing",
-  notification: "Notification",
-  social: "Social",
-  security: "Security",
-  other: "Other"
-};
-var CATEGORY_LABEL = {
-  directPersonal: "Personal",
-  workRequest: "Work request",
-  meetingCalendar: "Meeting",
-  financeBilling: "Finance",
-  notificationAutomated: "Notification",
-  newsletterMarketing: "Newsletter",
-  social: "Social",
-  securityAccount: "Security",
-  other: "Other"
-};
-function el(tag, props = {}, ...kids) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(props ?? {})) {
-    if (value === void 0 || value === null) continue;
-    if (key === "class") node.className = value;
-    else if (key === "text") node.textContent = value;
-    else if (key === "dataset") Object.assign(node.dataset, value);
-    else if (key.startsWith("on") && typeof value === "function")
-      node.addEventListener(key.slice(2).toLowerCase(), value);
-    else if (key in node) node[key] = value;
-    else node.setAttribute(key, value);
-  }
-  for (const kid of kids.flat()) {
-    if (kid === null || kid === void 0 || kid === false) continue;
-    node.append(typeof kid === "string" || typeof kid === "number" ? String(kid) : kid);
-  }
-  return node;
-}
-var clear = (node) => node.replaceChildren();
-function chip(label, kind = "") {
-  return el("span", { class: `chip ${kind}`.trim(), text: label });
-}
-function priorityChip(priority) {
-  return chip(PRIORITY_LABEL[priority] ?? "P4 \xB7 FYI", `chip--${PRIORITY_CLASS[priority] ?? "p4"}`);
-}
-var intentLabel = (intent) => INTENT_LABEL[intent] ?? "Other";
-var categoryLabel = (category) => CATEGORY_LABEL[category] ?? "Other";
-function relativeTime(value, now = /* @__PURE__ */ new Date()) {
-  const d = value instanceof Date ? value : new Date(value ?? 0);
-  if (!Number.isFinite(d.getTime())) return "";
-  const diff = now.getTime() - d.getTime();
-  if (diff < 6e4) return "just now";
-  if (diff < 36e5) return `${Math.round(diff / 6e4)} min ago`;
-  if (diff < 24 * 36e5) return `${Math.round(diff / 36e5)} h ago`;
-  if (diff < 48 * 36e5) return "yesterday";
-  return d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-function formatDateTime(value) {
-  const d = value instanceof Date ? value : new Date(value ?? 0);
-  if (!Number.isFinite(d.getTime())) return "";
-  return d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
-}
-function status(node, message, kind = "") {
-  node.className = `status ${kind}`.trim();
-  node.textContent = message ?? "";
-  node.hidden = !message;
-}
-function empty(message, action = null) {
-  return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
-}
-var openMessage = (id) => id == null ? Promise.resolve() : browser.messageDisplay.open({ messageId: Number(id) }).catch(() => void 0);
-var send = (message) => browser.runtime.sendMessage(message);
-function wireTabs(root, onChange) {
-  const tabs2 = [...root.querySelectorAll('[role="tab"]')];
-  const select = (index2) => {
-    const tab = tabs2[index2];
-    if (!tab) return;
-    tabs2.forEach((t, i) => {
-      const selected = i === index2;
-      t.setAttribute("aria-selected", String(selected));
-      t.tabIndex = selected ? 0 : -1;
-      const panel = document.getElementById(t.getAttribute("aria-controls"));
-      if (panel) panel.hidden = !selected;
-    });
-    onChange?.(tab.dataset.tab);
-    tab.focus();
-  };
-  tabs2.forEach((tab, i) => {
-    tab.addEventListener("click", () => select(i));
-    tab.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-        e.preventDefault();
-        select((i + 1) % tabs2.length);
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        e.preventDefault();
-        select((i - 1 + tabs2.length) % tabs2.length);
-      } else if (e.key === "Home") {
-        e.preventDefault();
-        select(0);
-      } else if (e.key === "End") {
-        e.preventDefault();
-        select(tabs2.length - 1);
-      }
-    });
-  });
-  return { select, tabs: tabs2 };
-}
-
 // thunderbird/src/dashboard.js
 var $ = (id) => document.getElementById(id);
 var store = createStore(browser.storage.local);
@@ -568,7 +634,8 @@ function pill(message, kind = "") {
 function renderStatus({ settings, monitor, briefStatus }) {
   if (!settings.providers?.some(providerUsable))
     return pill("Setup needed", "pill--warn");
-  if (monitor?.state === "running") return pill("Checking\u2026", "pill--warn");
+  if (monitor?.state === "running" || briefStatus?.state === "running") return pill("Checking\u2026", "pill--warn");
+  if (briefStatus?.state === "partial") return pill("Brief paused", "pill--warn");
   if (monitor?.state === "error" || briefStatus?.state === "error")
     return pill("Needs attention", "pill--error");
   if (monitor?.at) return pill(`Updated ${relativeTime(monitor.at)}`, "pill--ok");
@@ -585,6 +652,8 @@ function renderBrief({ brief, briefStatus, monitor }) {
   }
   if (briefStatus?.state === "error") {
     root.append(el("div", { class: "warning", text: briefStatus.message ?? "The brief could not be updated." }));
+  } else if (briefStatus?.state === "partial") {
+    root.append(el("div", { class: "warning", text: briefStatus.message ?? "The brief is paused; press Refresh brief to resume." }));
   }
   if (!brief?.createdAt) {
     root.append(
@@ -607,7 +676,11 @@ function renderBrief({ brief, briefStatus, monitor }) {
       el("span", { class: "brief-generated", text: `Generated ${formatDateTime(brief.createdAt)}` })
     ),
     el("p", { class: "meta", text: checkText }),
-    el("p", { class: "brief-headline", text: brief.headline || "Nothing needs your attention right now." }),
+    brief.partial && brief.progress ? el("p", { class: "meta", text: `Brief progress: ${brief.progress.processed}/${brief.progress.total} processed \xB7 ${brief.progress.failed} failed` }) : null,
+    el("p", {
+      class: "brief-headline",
+      text: brief.headline || (brief.partial ? "Building today\u2019s brief\u2026" : "Nothing needs your attention right now.")
+    }),
     el(
       "div",
       { class: "grid grid--stats" },
@@ -635,7 +708,13 @@ function renderBrief({ brief, briefStatus, monitor }) {
   };
   const sections = brief.sections ?? [];
   if (!sections.length) {
-    root.append(el("p", { class: "muted", text: "No items need attention. New mail will appear after the next check." }));
+    const progress = brief.progress;
+    root.append(
+      el("p", {
+        class: "muted",
+        text: brief.partial && progress ? `Still building the brief \u2014 ${progress.processed}/${progress.total} messages processed${progress.failed ? `, ${progress.failed} failed` : ""}. Press Refresh brief to resume.` : "No items need attention. New mail will appear after the next check."
+      })
+    );
     return;
   }
   for (const section of sections) {
@@ -763,14 +842,10 @@ async function runBatch(action) {
     ok: false,
     error: e.message
   }));
-  state.selected.clear();
-  if (!res) state.batchMessage = "Batch failed.";
-  else if (res.ok === false) state.batchMessage = res.error ?? "Batch failed.";
-  else if (action === "analyze")
-    state.batchMessage = `Analysed ${res.analyzed ?? 0}${res.local ? `, ${res.local} local` : ""}${res.failed ? `, ${res.failed} failed` : ""}.`;
-  else state.batchMessage = `Created ${res.created ?? 0} drafts${res.failed ? `, ${res.failed} failed` : ""}.`;
+  if (res?.ok) state.selected.clear();
+  state.batchMessage = res?.ok ? "Started in the background. Progress appears above." : res?.error || "Could not start action.";
   await reload();
-  $("inbox-meta").textContent = `${state.data?.analyses.length ?? 0} analysed \xB7 ${state.batchMessage}`;
+  await renderBulk();
 }
 function renderDrafts({ drafts }) {
   const root = $("drafts");
@@ -878,8 +953,14 @@ function render() {
 async function refresh(what = "all") {
   $("refresh").disabled = true;
   status($("settings-status"), "Working\u2026");
-  await send({ type: what === "brief" ? "brief-run" : "monitor-run", brief: true }).catch(() => void 0);
-  $("refresh").disabled = false;
+  try {
+    await send({ type: what === "brief" ? "brief-run" : "monitor-run", brief: true });
+    status($("settings-status"), "Started in the background.");
+  } catch (e) {
+    status($("settings-status"), e.message, "status--error");
+  } finally {
+    $("refresh").disabled = false;
+  }
 }
 async function removeRule(id) {
   const res = await send({ type: "rule-remove", id }).catch((e) => ({ ok: false, error: e.message }));
@@ -972,3 +1053,23 @@ void reload().catch((e) => {
   $("status").className = "pill pill--error";
   $("status").textContent = e?.message ?? "Could not load the dashboard.";
 });
+enhanceActions();
+async function renderBulk() {
+  const job = (await browser.storage.local.get("sentinel.bulkJob"))["sentinel.bulkJob"];
+  if (!job) return;
+  const live = job.state === "running" && (await send({ type: "bulk-status" })).running;
+  $("bulk-progress").textContent = job.error || `${job.action}: ${job.processed}/${job.total} processed \xB7 ${job.failed} failed. ${live ? "Working in the background; you can close this page." : job.state === "running" ? "Interrupted. Unfinished messages will retry automatically." : job.failed ? `Failed messages retry after ${new Date(job.nextRetry).toLocaleTimeString()}.` : "Finished. Review results below."}`;
+  $("bulk-results").replaceChildren(...(job.results || []).map((result) => el(
+    "details",
+    { class: "card card--flat" },
+    el("summary", { text: `${result.subject || `Message ${result.id}`}${result.error ? " \u2014 failed" : ""}` }),
+    el("p", { text: result.error || result.summary || "Completed." }),
+    result.category ? el("p", { text: `Category: ${categoryLabel(result.category)}` }) : null,
+    actionList(result.actionItems || [])
+  )));
+}
+for (const action of ["summary", "actions", "categorize"]) $("batch-" + action).onclick = () => runBatch(action);
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes["sentinel.bulkJob"]) void renderBulk().catch(() => void 0);
+});
+void renderBulk().catch(() => void 0);

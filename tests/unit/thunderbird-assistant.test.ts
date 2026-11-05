@@ -1041,6 +1041,121 @@ describe('Thunderbird surfaces and safety', () => {
   })
 })
 
+describe('Iterative daily brief job', () => {
+  const now = new Date(2026, 10, 5, 10, 0, 0)
+  const settings = normalizeSettings({
+    baseUrl: 'https://api.example/v1',
+    apiKey: 'k',
+    model: 'm',
+    monitor: { maxMessagesPerRun: 20 },
+  })
+  const ctx = {
+    selfAddresses: new Set(['me@corp.example']),
+    name: 'Priya',
+    timezoneName: 'UTC',
+    offsetAt: () => 0,
+    now,
+  }
+  const h = (id: number) => ({
+    id,
+    headerMessageId: `m${id}@x`,
+    author: `Sender ${id} <s${id}@acme.example>`,
+    recipients: ['Priya <me@corp.example>'],
+    ccList: [],
+    subject: `Message ${id}`,
+    date: new Date(now.getTime() - id * 60_000),
+    read: false,
+  })
+  const headers = [h(1), h(2), h(3)]
+  const api = {
+    recent: async () => headers,
+    full: async (id: number) => ({ contentType: 'text/plain', body: `Please reply to ${id}.` }),
+  }
+  const result = {
+    category: 'workRequest',
+    importance: 'medium',
+    urgency: 'notUrgent',
+    needsReply: true,
+    summary: 'Needs a reply.',
+    reason: 'ask',
+    actionItems: [],
+    confidence: 0.8,
+    intent: 'request',
+    replyIntent: 'acknowledge',
+    replyInstruction: '',
+    calendarEvents: [],
+  }
+  const summarize = async () => ({ ok: true, value: { headline: 'Today', sections: [] } })
+
+  it('saves progress after each message and marks each processed analysis', async () => {
+    const store = createStore(memoryArea())
+    const snapshots: { partial?: boolean; progress?: { processed: number } }[] = []
+    const saveBrief = store.saveBrief
+    store.saveBrief = async (brief: { partial?: boolean; progress?: { processed: number } }) => {
+      snapshots.push(brief)
+      return saveBrief(brief)
+    }
+    const calls: string[] = []
+    const r = await refreshBrief({
+      store,
+      api,
+      settings,
+      ctx,
+      now,
+      analyzeOne: async (_s: unknown, message: { providerMessageId: string }) => {
+        calls.push(message.providerMessageId)
+        return result
+      },
+      summarize,
+    })
+    expect(calls).toEqual(['1', '2', '3'])
+    expect(r.status.state).toBe('done')
+    expect(r.brief.progress).toMatchObject({ total: 3, processed: 3, analyzed: 3, failed: 0 })
+    expect(snapshots.some((b) => b.partial && (b.progress?.processed ?? 0) >= 1)).toBe(true)
+    expect((await store.analysis(headers[0]!)).briefWindow).toBe(r.brief.windowStart)
+  })
+
+  it('resumes from a partial job without re-processing successful messages', async () => {
+    const store = createStore(memoryArea())
+    let fail = true
+    const calls: string[] = []
+    const analyzeOne = async (_s: unknown, message: { providerMessageId: string }) => {
+      calls.push(message.providerMessageId)
+      if (fail && message.providerMessageId === '2') throw new Error('LM Studio unavailable')
+      return result
+    }
+    const first = await refreshBrief({ store, api, settings, ctx, now, analyzeOne, summarize })
+    expect(first.status.state).toBe('partial')
+    expect(first.brief.progress).toMatchObject({ total: 3, processed: 2, failed: 1 })
+    fail = false
+    const second = await refreshBrief({ store, api, settings, ctx, now, analyzeOne, summarize })
+    expect(second.status.state).toBe('done')
+    expect(second.brief.progress).toMatchObject({ total: 3, processed: 3, failed: 0 })
+    expect(calls.filter((id) => id === '1')).toHaveLength(1)
+    expect(calls.filter((id) => id === '2')).toHaveLength(2)
+  })
+
+  it('uses cached analyses without another model call', async () => {
+    const store = createStore(memoryArea())
+    await store.saveAnalysis(headers[0]!, { ...result, sender: 'cached', at: now.getTime() })
+    let calls = 0
+    const r = await refreshBrief({
+      store,
+      api,
+      settings,
+      ctx,
+      now,
+      analyzeOne: async () => {
+        calls++
+        return result
+      },
+      summarize,
+    })
+    expect(calls).toBe(2)
+    expect(r.brief.progress).toMatchObject({ total: 3, processed: 3, cached: 1, analyzed: 2 })
+  })
+})
+
 describe('Thunderbird storage', () => {  it('saves normalised settings and removes the legacy key', async () => {
     const area = memoryArea({ briefSettings: { enabled: false, hour: 9 } })
     const store = createStore(area)
