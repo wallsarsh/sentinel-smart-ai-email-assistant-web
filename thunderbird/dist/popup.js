@@ -658,7 +658,22 @@ function empty(message, action = null) {
   return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
 }
 var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
-var send = (message) => browser.runtime.sendMessage(message);
+async function send(message, timeoutMs = 15e3) {
+  let timer;
+  try {
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The background service did not respond. Reopen Sentinel to check progress before retrying.")), timeoutMs);
+      })
+    ]);
+    if (response === void 0 || response === null) throw new Error("The background service returned no response. Reload the add-on and try again.");
+    if (response.ok === false) throw new Error(response.error || "The background action failed.");
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function actionList(actions = []) {
   if (!actions.length) return el("p", { class: "muted", text: "No action items." });
   return el(
@@ -674,6 +689,29 @@ function actionList(actions = []) {
     )
   );
 }
+function busyAction(action) {
+  return async function(event) {
+    const button = event.currentTarget;
+    if (button.dataset.busy === "true") return;
+    const label = button.textContent;
+    const disabled = button.disabled;
+    button.dataset.busy = "true";
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    button.textContent = `${label}\u2026`;
+    try {
+      return await action.call(this, event);
+    } catch (error) {
+      const node = document.getElementById("status");
+      if (node) status(node, error.message || "The action failed.", "status--error");
+    } finally {
+      button.textContent = label;
+      button.disabled = disabled;
+      button.removeAttribute("aria-busy");
+      delete button.dataset.busy;
+    }
+  };
+}
 
 // thunderbird/src/popup.js
 var $ = (id) => document.getElementById(id);
@@ -682,6 +720,17 @@ var current = null;
 var rules = [];
 var analysis = null;
 var drafts = [];
+var starting = false;
+var refreshing = false;
+var lastJob = null;
+function busy(action) {
+  document.querySelectorAll("[data-job-action]").forEach((button) => {
+    button.dataset.label ||= button.textContent;
+    button.disabled = Boolean(action);
+    button.setAttribute("aria-busy", String(button.dataset.jobAction === action));
+    button.textContent = button.dataset.jobAction === action ? action === "draft" ? "Saving AI draft\u2026" : "Analysing\u2026" : button.dataset.label;
+  });
+}
 var say = (message, kind = "") => status($("status"), message, kind);
 var senderAddress = (author) => {
   const m = /<([^>\s]+)>$/.exec(String(author ?? ""));
@@ -714,12 +763,14 @@ async function init() {
     $("view").replaceChildren(
       empty(
         "This message has not been analysed yet.",
-        el("button", { class: "btn btn--primary", type: "button", onclick: () => runAnalyze(false), text: "Analyze now" })
+        el("button", { class: "btn btn--primary", type: "button", dataset: { jobAction: "analyze" }, onclick: () => runAnalyze(false), text: "Analyze now" })
       )
     );
     $("actions").replaceChildren();
   }
   await showJob();
+  const health = await send({ type: "ping" });
+  if (health.menus?.state === "error") say(`Context menu setup failed: ${health.menus.error}`, "status--error");
 }
 async function showJob() {
   if (!current) return;
@@ -727,31 +778,30 @@ async function showJob() {
   const job = (await browser.storage.local.get(key))[key];
   if (!job) return;
   const live = job.state === "running" && (await send({ type: "message-job-status", messageId: current.header.id })).active;
-  document.querySelectorAll("#view button, #actions button").forEach((button) => {
-    button.disabled = live;
-  });
-  if (live) say(job.action === "draft" ? "Saving AI draft\u2026 You can close this popup." : "Analysing\u2026 You can close this popup.");
+  busy(live ? job.action : null);
+  if (live) say(`${job.stage || (job.action === "draft" ? "Saving AI draft\u2026" : "Analysing\u2026")} You can close this popup.`);
   else if (job.state === "running") say("The action was interrupted. Please try again.", "status--error");
   else if (job.state === "error") {
     say(job.error || "The action failed.", "status--error");
-    if (job.action === "draft" && /already|exists|draft/i.test(job.error ?? ""))
-      $("actions").append(el("button", { class: "btn btn--small btn--danger", type: "button", onclick: () => saveDraft(true), text: "Create another anyway" }));
+    $("force-draft")?.remove();
+    if (job.action === "draft" && /already|exists/i.test(job.error ?? ""))
+      $("actions").append(el("button", { id: "force-draft", class: "btn btn--small btn--danger", type: "button", dataset: { jobAction: "draft" }, onclick: () => saveDraft(true), text: "Create another anyway" }));
   } else say(job.action === "draft" ? "Draft saved to your Drafts folder. Nothing was sent." : "Analysis saved.", "status--ok");
 }
 async function startJob(action, force) {
-  document.querySelectorAll("#view button, #actions button").forEach((button) => {
-    button.disabled = true;
-  });
+  if (starting) return;
+  starting = true;
+  busy(action);
   say(action === "draft" ? "Saving AI draft\u2026" : "Analysing\u2026");
   try {
     const res = await send({ type: "message-job-start", messageId: current.header.id, action, force });
     if (!res?.ok) throw new Error(res?.error || "Could not start the action.");
     await showJob();
   } catch (e) {
-    document.querySelectorAll("#view button, #actions button").forEach((button) => {
-      button.disabled = false;
-    });
+    busy(null);
     say(e.message, "status--error");
+  } finally {
+    starting = false;
   }
 }
 var runAnalyze = (force) => startJob("analyze", force);
@@ -776,17 +826,18 @@ function renderCalendar(events) {
         el("button", {
           class: "btn btn--small",
           type: "button",
-          onclick: () => addCalendar([event]),
+          onclick: busyAction(() => addCalendar([event])),
           text: "Add"
         })
       )
     );
   }
   if (events.length > 1)
-    card.append(el("button", { class: "btn btn--small", type: "button", onclick: () => addCalendar(events), text: "Add all" }));
+    card.append(el("button", { class: "btn btn--small", type: "button", onclick: busyAction(() => addCalendar(events)), text: "Add all" }));
   return card;
 }
 async function addCalendar(events) {
+  say("Adding calendar event\u2026");
   const res = await send({ type: "calendar-download", events }).catch((e) => ({ ok: false, error: e.message }));
   if (res?.ok === false) say(res.error ?? "Could not save the calendar item.", "status--error");
   else if (res?.mode === "direct") say("Added to your calendar.", "status--ok");
@@ -797,6 +848,7 @@ function renderSenderRule() {
   $("sender-rule").textContent = rule ? `${rule.kind} rule` : "No rule yet";
 }
 async function setRule(kind) {
+  say("Saving sender rule\u2026");
   const address = senderAddress(current?.header?.author);
   if (!address) return;
   const res = await send({ type: "rule-set", pattern: address, kind }).catch((e) => ({ ok: false, error: e.message }));
@@ -835,27 +887,47 @@ function render() {
   const actions = $("actions");
   clear(actions);
   actions.append(
-    a.needsReply && !a.skipped ? el("button", { class: "btn btn--primary", type: "button", onclick: () => saveDraft(false), text: "Save AI draft" }) : null,
-    el("button", { class: "btn", type: "button", onclick: () => runAnalyze(true), text: "Analyze again" }),
+    a.needsReply && !a.skipped ? el("button", { class: "btn btn--primary", type: "button", dataset: { jobAction: "draft" }, onclick: () => saveDraft(false), text: "Save AI draft" }) : null,
+    el("button", { class: "btn", type: "button", dataset: { jobAction: "analyze" }, onclick: () => runAnalyze(true), text: "Analyze again" }),
     el("button", { class: "btn", type: "button", onclick: openDashboard, text: "Open dashboard" })
   );
 }
 var saveDraft = (force) => startJob("draft", force);
-browser.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !current || !changes[`sentinel.messageJob:${current.header.id}`]) return;
-  void (async () => {
-    analysis = await store.analysis(current.header);
-    if (analysis) {
-      analysis = { ...analysis, ...normalizeAnalysis(analysis) };
-      drafts = await store.drafts();
-      render();
+async function refreshJob() {
+  if (!current || starting || refreshing) return;
+  refreshing = true;
+  try {
+    const key = `sentinel.messageJob:${current.header.id}`;
+    const job = (await browser.storage.local.get(key))[key];
+    if (!job) return;
+    const signature = JSON.stringify(job);
+    if (job.state !== "running" && signature === lastJob) return;
+    lastJob = signature;
+    if (job.state === "done") {
+      analysis = await store.analysis(current.header);
+      if (analysis) {
+        analysis = { ...analysis, ...normalizeAnalysis(analysis) };
+        drafts = await store.drafts();
+        render();
+      }
     }
     await showJob();
-  })().catch((e) => say(e.message, "status--error"));
+  } catch (e) {
+    busy(null);
+    say(e.message, "status--error");
+  } finally {
+    refreshing = false;
+  }
+}
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && current && changes[`sentinel.messageJob:${current.header.id}`]) void refreshJob();
 });
+var poll = setInterval(() => {
+  void refreshJob();
+}, 2e3);
+window.addEventListener("unload", () => clearInterval(poll));
 $("dashboard").onclick = openDashboard;
-$("senders").addEventListener("click", (e) => {
-  const kind = e.target?.dataset?.kind;
-  if (kind) void setRule(kind);
+document.querySelectorAll("[data-kind]").forEach((button) => {
+  button.onclick = busyAction(() => setRule(button.dataset.kind));
 });
 void init().catch((e) => say(e?.message ?? "Could not read this message.", "status--error"));

@@ -1,3 +1,4 @@
+import { menuRegistrar } from './menus.js'
 import { runBulk, selectedHeaders } from './bulk.js'
 // Background event page: alarms, monitor, drafts, brief, calendar exports and message handlers.
 // Nothing here can send mail; the add-on does not request send permissions.
@@ -180,34 +181,7 @@ async function tagger({ header, analysis, known }) {
 
 // ---- native context menus --------------------------------------------------------------------------------------
 
-async function createMenus() {
-  try {
-    if (!browser.menus?.create) return
-    await browser.menus.removeAll?.()
-    const contexts = ['message_list', 'message_display']
-    browser.menus.create({ id: 'sentinel', title: 'Sentinel AI', contexts })
-    for (const [id, title] of [
-      ['sentinel-analyze', 'Analyze selected'],
-      ['sentinel-draft', 'Create draft replies (never send)'],
-      ['sentinel-summary', 'Summarize selected messages'],
-      ['sentinel-actions', 'Extract action items'],
-      ['sentinel-categorize', 'Categorize and apply priority tags'],
-      ['sentinel-dashboard', 'Open dashboard'],
-      ['sentinel-calendar', 'Add to calendar'],
-    ])
-      browser.menus.create({ id, parentId: 'sentinel', title, contexts })
-    browser.menus.create({ id: 'sentinel-sender', parentId: 'sentinel', title: 'Sender rule', contexts })
-    for (const [id, title] of [
-      ['sentinel-important', 'Important'],
-      ['sentinel-marketing', 'Marketing'],
-      ['sentinel-ignore', 'Ignore'],
-      ['sentinel-normal', 'Normal'],
-    ])
-      browser.menus.create({ id, parentId: 'sentinel-sender', title, contexts })
-  } catch {
-    // A missing menu API or an unsupported context must not stop the background page.
-  }
-}
+const createMenus = menuRegistrar(browser, (state) => browser.storage.local.set({ 'sentinel.menuStatus': state }))
 
 browser.menus?.onClicked.addListener(async (info, tab) => {
   if (!String(info.menuItemId).startsWith('sentinel-')) return
@@ -541,7 +515,8 @@ browser.messages.onNewMailReceived?.addListener?.((folder) => {
 
 // ---- message handlers ------------------------------------------------------------------------------------------
 
-async function manualDraft(messageId, { force = false } = {}) {
+async function manualDraft(messageId, { force = false, progress = async () => {} } = {}) {
+  await progress('Reading message and checking draft eligibility…')
   const header = await browser.messages.get(messageId)
   if (!header) return { ok: false, error: 'Open a message first.' }
   const { settings } = await load()
@@ -571,12 +546,14 @@ async function manualDraft(messageId, { force = false } = {}) {
     })
     if (!eligible.ok) return { ok: false, error: eligible.reason }
   }
+  await progress('Generating reply with your AI provider…')
   const body = await draftReply(
     settings,
     [toMailMessage(header, await browser.messages.getFull(header.id))],
     ctx,
     draftRequest(analysis, settings),
   )
+  await progress('Saving reply to Thunderbird Drafts…')
   const saved = await saveDraftFor(header, body)
   const entry = {
     messageId: header.id,
@@ -678,6 +655,7 @@ async function removeRule(id) {
 const messageJobs = new Set()
 const jobKey = (id) => `sentinel.messageJob:${id}`
 async function startMessageJob(id, action, force) {
+  if (!Number.isInteger(id) || !['draft', 'analyze'].includes(action)) throw new Error('Invalid message action.')
   if (messageJobs.has(id)) return { ok: false, error: 'An action is already running for this message.' }
   messageJobs.add(id)
   const key = jobKey(id)
@@ -690,7 +668,7 @@ async function startMessageJob(id, action, force) {
   void (async () => {
     try {
       let result
-      if (action === 'draft') result = await manualDraft(id, { force })
+      if (action === 'draft') result = await manualDraft(id, { force, progress: (stage) => browser.storage.local.set({ [key]: { state: 'running', action, stage, at: Date.now() } }) })
       else {
         const header = await browser.messages.get(id)
         const { settings, rules } = await load()
@@ -742,8 +720,8 @@ browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== 'object') return undefined
   try {
     if (msg.type === 'compose-job-start') return startComposeJob(msg)
-    if (msg.type === 'compose-job-status') return composeJobs.get(msg.tabId) ?? null
-    if (msg.type === 'ping') return { ok: true, at: Date.now() }
+    if (msg.type === 'compose-job-status') return { ok: true, job: composeJobs.get(msg.tabId) ?? null }
+    if (msg.type === 'ping') return { ok: true, at: Date.now(), menus: (await browser.storage.local.get('sentinel.menuStatus'))['sentinel.menuStatus'] }
     if (msg.type === 'monitor-run') {
       void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief) })
       return { started: true }
@@ -756,10 +734,10 @@ browser.runtime.onMessage.addListener(async (msg) => {
       await clearBriefBadge()
       return { ok: true }
     }
-    if (msg.type === 'message-job-start') return startMessageJob(msg.messageId, msg.action, msg.force)
+    if (msg.type === 'message-job-start') return await startMessageJob(msg.messageId, msg.action, msg.force)
     if (msg.type === 'message-job-status') return { active: messageJobs.has(msg.messageId) }
-    if (msg.type === 'draft-create') return manualDraft(msg.messageId, { force: msg.force })
-    if (msg.type === 'batch-run') return startBulk(msg.ids ?? [], msg.action)
+    if (msg.type === 'draft-create') return await manualDraft(msg.messageId, { force: msg.force })
+    if (msg.type === 'batch-run') return await startBulk(msg.ids ?? [], msg.action)
     if (msg.type === 'bulk-status') return { running: bulkRunning }
     if (msg.type === 'tag-message') {
       const header = await browser.messages.get(msg.messageId)
@@ -769,8 +747,8 @@ browser.runtime.onMessage.addListener(async (msg) => {
       if (r?.known) await store.saveTagKeys(r.known)
       return { ok: true, warning: r?.warning ?? null }
     }
-    if (msg.type === 'rule-set') return addRule(msg.pattern, msg.kind)
-    if (msg.type === 'rule-remove') return removeRule(msg.id)
+    if (msg.type === 'rule-set') return await addRule(msg.pattern, msg.kind)
+    if (msg.type === 'rule-remove') return await removeRule(msg.id)
     if (msg.type === 'calendar-download') {
       const written = await writeCalendarEvents(msg.events ?? [], {
         api: browser.sentinelCalendar,

@@ -31,8 +31,13 @@ async function show() {
 $('refresh').onclick = async () => {
   $('refresh').disabled = true
   status($('status'), 'Updating…')
-  await send({ type: 'brief-run' }).catch((e) => status($('status'), e.message, 'status--error'))
-  await show()
+  try {
+    await send({ type: 'brief-run' })
+    await show()
+  } catch (e) {
+    $('refresh').disabled = false
+    status($('status'), e.message, 'status--error')
+  }
 }
 $('dashboard').onclick = openDashboard
 browser.storage.onChanged.addListener((c, area) => {

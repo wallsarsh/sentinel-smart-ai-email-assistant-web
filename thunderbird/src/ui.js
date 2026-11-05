@@ -104,7 +104,18 @@ export const openMessage = (id) =>
 export const openDashboard = () =>
   browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 
-export const send = (message) => browser.runtime.sendMessage(message)
+export async function send(message, timeoutMs = 15000) {
+  let timer
+  try {
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('The background service did not respond. Reopen Sentinel to check progress before retrying.')), timeoutMs) }),
+    ])
+    if (response === undefined || response === null) throw new Error('The background service returned no response. Reload the add-on and try again.')
+    if (response.ok === false) throw new Error(response.error || 'The background action failed.')
+    return response
+  } finally { clearTimeout(timer) }
+}
 
 /** Keyboard behaviour for a tablist: arrows move, Home/End jump, each tab selects on focus. */
 export function wireTabs(root, onChange) {
@@ -174,6 +185,10 @@ export function busyAction(action) {
     button.setAttribute('aria-busy', 'true')
     button.textContent = `${label}…`
     try { return await action.call(this, event) }
+    catch (error) {
+      const node = document.getElementById('status')
+      if (node) status(node, error.message || 'The action failed.', 'status--error')
+    }
     finally {
       button.textContent = label
       button.disabled = disabled

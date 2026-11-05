@@ -86,7 +86,22 @@ function empty(message, action = null) {
   return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
 }
 var openMessage = (id) => id == null ? Promise.resolve() : browser.messageDisplay.open({ messageId: Number(id) }).catch(() => void 0);
-var send = (message) => browser.runtime.sendMessage(message);
+async function send(message, timeoutMs = 15e3) {
+  let timer;
+  try {
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The background service did not respond. Reopen Sentinel to check progress before retrying.")), timeoutMs);
+      })
+    ]);
+    if (response === void 0 || response === null) throw new Error("The background service returned no response. Reload the add-on and try again.");
+    if (response.ok === false) throw new Error(response.error || "The background action failed.");
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function wireTabs(root, onChange) {
   const tabs2 = [...root.querySelectorAll('[role="tab"]')];
   const select = (index2) => {
@@ -149,6 +164,9 @@ function busyAction(action) {
     button.textContent = `${label}\u2026`;
     try {
       return await action.call(this, event);
+    } catch (error) {
+      const node = document.getElementById("status");
+      if (node) status(node, error.message || "The action failed.", "status--error");
     } finally {
       button.textContent = label;
       button.disabled = disabled;
@@ -935,8 +953,14 @@ function render() {
 async function refresh(what = "all") {
   $("refresh").disabled = true;
   status($("settings-status"), "Working\u2026");
-  await send({ type: what === "brief" ? "brief-run" : "monitor-run", brief: true }).catch(() => void 0);
-  $("refresh").disabled = false;
+  try {
+    await send({ type: what === "brief" ? "brief-run" : "monitor-run", brief: true });
+    status($("settings-status"), "Started in the background.");
+  } catch (e) {
+    status($("settings-status"), e.message, "status--error");
+  } finally {
+    $("refresh").disabled = false;
+  }
 }
 async function removeRule(id) {
   const res = await send({ type: "rule-remove", id }).catch((e) => ({ ok: false, error: e.message }));

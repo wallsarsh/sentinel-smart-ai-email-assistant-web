@@ -36,6 +36,9 @@ function busyAction(action) {
     button.textContent = `${label}\u2026`;
     try {
       return await action.call(this, event);
+    } catch (error) {
+      const node = document.getElementById("status");
+      if (node) status(node, error.message || "The action failed.", "status--error");
     } finally {
       button.textContent = label;
       button.disabled = disabled;

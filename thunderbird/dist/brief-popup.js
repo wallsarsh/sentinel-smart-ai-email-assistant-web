@@ -40,7 +40,22 @@ function empty(message, action = null) {
   return el("div", { class: "empty" }, el("p", { class: "muted", text: message }), action);
 }
 var openDashboard = () => browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
-var send = (message) => browser.runtime.sendMessage(message);
+async function send(message, timeoutMs = 15e3) {
+  let timer;
+  try {
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The background service did not respond. Reopen Sentinel to check progress before retrying.")), timeoutMs);
+      })
+    ]);
+    if (response === void 0 || response === null) throw new Error("The background service returned no response. Reload the add-on and try again.");
+    if (response.ok === false) throw new Error(response.error || "The background action failed.");
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // thunderbird/src/brief-view.js
 var TITLES = {
@@ -541,8 +556,13 @@ async function show() {
 $("refresh").onclick = async () => {
   $("refresh").disabled = true;
   status($("status"), "Updating\u2026");
-  await send({ type: "brief-run" }).catch((e) => status($("status"), e.message, "status--error"));
-  await show();
+  try {
+    await send({ type: "brief-run" });
+    await show();
+  } catch (e) {
+    $("refresh").disabled = false;
+    status($("status"), e.message, "status--error");
+  }
 };
 $("dashboard").onclick = openDashboard;
 browser.storage.onChanged.addListener((c, area) => {

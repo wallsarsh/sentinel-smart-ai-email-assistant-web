@@ -67,6 +67,22 @@ function status(node, message, kind = "") {
   node.textContent = message ?? "";
   node.hidden = !message;
 }
+async function send(message, timeoutMs = 15e3) {
+  let timer;
+  try {
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The background service did not respond. Reopen Sentinel to check progress before retrying.")), timeoutMs);
+      })
+    ]);
+    if (response === void 0 || response === null) throw new Error("The background service returned no response. Reload the add-on and try again.");
+    if (response.ok === false) throw new Error(response.error || "The background action failed.");
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function actionList(actions = []) {
   if (!actions.length) return el("p", { class: "muted", text: "No action items." });
   return el(
@@ -94,6 +110,9 @@ function busyAction(action) {
     button.textContent = `${label}\u2026`;
     try {
       return await action.call(this, event);
+    } catch (error) {
+      const node = document.getElementById("status");
+      if (node) status(node, error.message || "The action failed.", "status--error");
     } finally {
       button.textContent = label;
       button.disabled = disabled;
@@ -1081,7 +1100,7 @@ async function init() {
 }
 async function waitComposeJob() {
   for (; ; ) {
-    const job = await browser.runtime.sendMessage({ type: "compose-job-status", tabId: state.tab.id });
+    const job = (await send({ type: "compose-job-status", tabId: state.tab.id })).job;
     if (!job) throw new Error("The background action was interrupted. Please try again.");
     if (job.state === "error") throw new Error(job.error);
     if (job.state === "done") return job;
@@ -1090,12 +1109,12 @@ async function waitComposeJob() {
   }
 }
 async function composeJob(request) {
-  const response = await browser.runtime.sendMessage({ type: "compose-job-start", tabId: state.tab.id, ...request });
+  const response = await send({ type: "compose-job-start", tabId: state.tab.id, ...request });
   if (!response?.ok) throw new Error(response?.error || "Could not start compose action.");
   return (await waitComposeJob()).result;
 }
 async function restoreComposeJob() {
-  const existing = await browser.runtime.sendMessage({ type: "compose-job-status", tabId: state.tab.id });
+  const existing = (await send({ type: "compose-job-status", tabId: state.tab.id })).job;
   if (!existing) return;
   const job = await waitComposeJob();
   if (job.kind === "draft") showPreview(job.result);

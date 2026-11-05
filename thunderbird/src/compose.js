@@ -1,4 +1,4 @@
-import { enhanceActions,
+import { enhanceActions, send,
   actionList,
   categoryLabel,
   chip,
@@ -212,7 +212,7 @@ async function init() {
 
 async function waitComposeJob() {
   for (;;) {
-    const job = await browser.runtime.sendMessage({ type: 'compose-job-status', tabId: state.tab.id })
+    const job = (await send({ type: 'compose-job-status', tabId: state.tab.id })).job
     if (!job) throw new Error('The background action was interrupted. Please try again.')
     if (job.state === 'error') throw new Error(job.error)
     if (job.state === 'done') return job
@@ -221,12 +221,12 @@ async function waitComposeJob() {
   }
 }
 async function composeJob(request) {
-  const response = await browser.runtime.sendMessage({ type: 'compose-job-start', tabId: state.tab.id, ...request })
+  const response = await send({ type: 'compose-job-start', tabId: state.tab.id, ...request })
   if (!response?.ok) throw new Error(response?.error || 'Could not start compose action.')
   return (await waitComposeJob()).result
 }
 async function restoreComposeJob() {
-  const existing = await browser.runtime.sendMessage({ type: 'compose-job-status', tabId: state.tab.id })
+  const existing = (await send({ type: 'compose-job-status', tabId: state.tab.id })).job
   if (!existing) return
   const job = await waitComposeJob()
   if (job.kind === 'draft') showPreview(job.result)

@@ -374,8 +374,11 @@ function render() {
 async function refresh(what = 'all') {
   $('refresh').disabled = true
   status($('settings-status'), 'Working…')
-  await send({ type: what === 'brief' ? 'brief-run' : 'monitor-run', brief: true }).catch(() => undefined)
-  $('refresh').disabled = false
+  try {
+    await send({ type: what === 'brief' ? 'brief-run' : 'monitor-run', brief: true })
+    status($('settings-status'), 'Started in the background.')
+  } catch (e) { status($('settings-status'), e.message, 'status--error') }
+  finally { $('refresh').disabled = false }
 }
 
 async function removeRule(id) {
