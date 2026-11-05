@@ -11,7 +11,7 @@ A quiet AI assistant inside Thunderbird. It watches your inboxes, explains what 
 | Monitoring | Checks every inbox on a schedule (default hourly) and shortly after new mail arrives. Only new mail is analysed; results are cached for 14 days. |
 | Analysis | Category, **intent**, importance, urgency, P1–P4 priority, needs-reply, summary, reason, action items and calendar candidates. Priority is computed in code. |
 | Tags | Best-effort Thunderbird tags: `Sentinel P1…P4`, `Sentinel Reply`, `Sentinel Ignored`. If the tag API is unavailable, analysis still works. |
-| Daily brief | One brief for the current local day, refreshed when the monitor finds new mail (hourly at most). A count badge appears on the brief toolbar icon and a content-free native notification announces the update when enabled. You can refresh it at any time. |
+| Daily brief | One brief for the current local day, built one email at a time with durable progress. A provider failure pauses it and the next refresh resumes from the unprocessed mail. A count badge appears on the brief toolbar icon and a content-free native notification announces the update when enabled. |
 | Drafts | For messages that need a reply, at most a few reviewable drafts per run are saved in the account's own Drafts folder, threaded as a reply. Already-replied threads and existing drafts are skipped. |
 | Compose assistant | In any reply compose window, the **Sentinel** toolbar button shows the original analysis, a tone picker (Standard…Persuasive), reply intent, length and an optional instruction. Draft text streams into an editable preview, then inserts above the quote; you review and send. Select text and use **Proofread** or **Rewrite** to review word-level changes and accept or reject each one. |
 | Sender rules | Mark a sender/domain **Important**, **Marketing** or **Ignore**. Ignore never reaches the AI; Marketing is classified locally unless you opt in; Important is analysed first and raised to high importance. |
@@ -77,7 +77,7 @@ Exact addresses beat domains. On equal specificity: Ignore > Important > Marketi
 
 ## Daily brief and manual refresh
 
-The brief covers from local midnight to now. A monitor run refreshes it only when new mail was analysed (or at the start of a new day); pressing **Refresh brief** regenerates it on demand. Notifications say only how many new messages are in the brief — never mail text. Thunderbird does not expose a separate system-tray icon API, so Sentinel uses the count badge on its brief toolbar icon plus a native OS notification, and clears the badge when you open the brief or dashboard.
+The brief covers from local midnight to now. It processes messages individually, marks each analysis with its brief window, and saves progress after every message. Provider failures pause the job instead of restarting from scratch; pressing **Refresh brief** resumes the unprocessed mail. A monitor run refreshes it only when new mail was analysed (or at the start of a new day). Notifications say only how many new messages are in the brief — never mail text. Thunderbird does not expose a separate system-tray icon API, so Sentinel uses the count badge on its brief toolbar icon plus a native OS notification, and clears the badge when you open the brief or dashboard.
 
 ## Calendar export
 

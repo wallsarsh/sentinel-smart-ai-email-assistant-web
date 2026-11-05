@@ -366,6 +366,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -454,6 +455,13 @@ function createStore(area) {
       await set(KEYS.brief, brief);
       return brief;
     },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
+    },
     async briefStatus() {
       return get(KEYS.briefStatus);
     },
@@ -525,6 +533,7 @@ async function show() {
   $("refresh").disabled = running;
   if (running) status($("status"), "Updating\u2026");
   else if (briefStatus?.state === "error") status($("status"), briefStatus.message, "status--error");
+  else if (briefStatus?.state === "partial") status($("status"), briefStatus.message ?? "Paused; press Refresh brief to resume.", "status--error");
   else if (!settings.baseUrl) status($("status"), "Add a provider in settings first.", "status--error");
   else if (briefStatus?.at) status($("status"), `Updated ${new Date(briefStatus.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
   else status($("status"), "");

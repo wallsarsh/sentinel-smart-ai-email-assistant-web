@@ -348,6 +348,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -435,6 +436,13 @@ function createStore(area) {
     async saveBrief(brief) {
       await set(KEYS.brief, brief);
       return brief;
+    },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
     },
     async briefStatus() {
       return get(KEYS.briefStatus);

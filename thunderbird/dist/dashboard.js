@@ -259,6 +259,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -346,6 +347,13 @@ function createStore(area) {
     async saveBrief(brief) {
       await set(KEYS.brief, brief);
       return brief;
+    },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
     },
     async briefStatus() {
       return get(KEYS.briefStatus);
@@ -568,7 +576,8 @@ function pill(message, kind = "") {
 function renderStatus({ settings, monitor, briefStatus }) {
   if (!settings.providers?.some(providerUsable))
     return pill("Setup needed", "pill--warn");
-  if (monitor?.state === "running") return pill("Checking\u2026", "pill--warn");
+  if (monitor?.state === "running" || briefStatus?.state === "running") return pill("Checking\u2026", "pill--warn");
+  if (briefStatus?.state === "partial") return pill("Brief paused", "pill--warn");
   if (monitor?.state === "error" || briefStatus?.state === "error")
     return pill("Needs attention", "pill--error");
   if (monitor?.at) return pill(`Updated ${relativeTime(monitor.at)}`, "pill--ok");
@@ -585,6 +594,8 @@ function renderBrief({ brief, briefStatus, monitor }) {
   }
   if (briefStatus?.state === "error") {
     root.append(el("div", { class: "warning", text: briefStatus.message ?? "The brief could not be updated." }));
+  } else if (briefStatus?.state === "partial") {
+    root.append(el("div", { class: "warning", text: briefStatus.message ?? "The brief is paused; press Refresh brief to resume." }));
   }
   if (!brief?.createdAt) {
     root.append(
@@ -607,7 +618,11 @@ function renderBrief({ brief, briefStatus, monitor }) {
       el("span", { class: "brief-generated", text: `Generated ${formatDateTime(brief.createdAt)}` })
     ),
     el("p", { class: "meta", text: checkText }),
-    el("p", { class: "brief-headline", text: brief.headline || "Nothing needs your attention right now." }),
+    brief.partial && brief.progress ? el("p", { class: "meta", text: `Brief progress: ${brief.progress.processed}/${brief.progress.total} processed \xB7 ${brief.progress.failed} failed` }) : null,
+    el("p", {
+      class: "brief-headline",
+      text: brief.headline || (brief.partial ? "Building today\u2019s brief\u2026" : "Nothing needs your attention right now.")
+    }),
     el(
       "div",
       { class: "grid grid--stats" },
@@ -635,7 +650,13 @@ function renderBrief({ brief, briefStatus, monitor }) {
   };
   const sections = brief.sections ?? [];
   if (!sections.length) {
-    root.append(el("p", { class: "muted", text: "No items need attention. New mail will appear after the next check." }));
+    const progress = brief.progress;
+    root.append(
+      el("p", {
+        class: "muted",
+        text: brief.partial && progress ? `Still building the brief \u2014 ${progress.processed}/${progress.total} messages processed${progress.failed ? `, ${progress.failed} failed` : ""}. Press Refresh brief to resume.` : "No items need attention. New mail will appear after the next check."
+      })
+    );
     return;
   }
   for (const section of sections) {

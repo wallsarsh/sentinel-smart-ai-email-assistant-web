@@ -1999,15 +1999,8 @@ function monitorBlockedReason(settings) {
 // thunderbird/src/brief.js
 init_brief();
 init_rules();
-
-// thunderbird/src/cache.js
-var TRIAGE_PREFIX = "sentinel.triage:";
-var triageKey = (header) => `${TRIAGE_PREFIX}${header.headerMessageId ?? header.id}`;
-
-// thunderbird/src/brief.js
 var DAY = 24 * 36e5;
 var KEEP_MS = 14 * DAY;
-var BATCH = 8;
 function briefWindow(now = /* @__PURE__ */ new Date()) {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
@@ -2049,84 +2042,6 @@ function selectForBrief(rows, { max = 60 } = {}) {
   }));
   return { stats, emails };
 }
-async function generateBrief({
-  api: api2,
-  settings,
-  rules = [],
-  ctx,
-  now = /* @__PURE__ */ new Date(),
-  hours = 24,
-  windowStart = null,
-  maxMessages = 60,
-  fetchImpl
-}) {
-  const since = windowStart ? new Date(windowStart) : new Date(now.getTime() - hours * 36e5);
-  const self = ctx.selfAddresses;
-  const headers = (await api2.recent(since, maxMessages, settings)).filter((h) => !self.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, maxMessages);
-  const rows = [];
-  const todo = [];
-  for (const h of headers) {
-    const key = triageKey(h);
-    const hit = await api2.cache.get(key);
-    if (hit)
-      rows.push({ id: h.id, at: new Date(h.date), t: { ...hit, sender: hit.sender || h.author } });
-    else todo.push({ h, key });
-  }
-  const pending = [];
-  for (const { h, key } of todo) {
-    const m = toMailMessage(h, await api2.full(h.id));
-    const plan = preFilter(m, rules, settings, now);
-    if (plan.action === "local") {
-      const t = withSender(applyAnalysisPolicy(plan.analysis, plan), h, now.getTime());
-      await api2.cache.set(key, t);
-      rows.push({ id: h.id, at: new Date(h.date), t });
-    } else pending.push({ h, key, m });
-  }
-  for (let i = 0; i < pending.length; i += BATCH) {
-    const chunk = pending.slice(i, i + BATCH);
-    const out = await analyzeBatch(
-      settings,
-      chunk.map((c) => c.m),
-      ctx,
-      fetchImpl
-    );
-    for (const c of chunk) {
-      const r = out.get(String(c.m.providerMessageId));
-      if (!r) continue;
-      const t = withSender(applyAnalysisPolicy(r, { rule: null }), c.h, now.getTime());
-      await api2.cache.set(c.key, t);
-      rows.push({ id: c.h.id, at: new Date(c.h.date), t });
-    }
-  }
-  await api2.cache.prune(TRIAGE_PREFIX, Date.now() - KEEP_MS);
-  const { stats, emails } = selectForBrief(rows);
-  const heads = Object.fromEntries(
-    headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }])
-  );
-  const base2 = {
-    createdAt: now.toISOString(),
-    windowStart: since.toISOString(),
-    windowEnd: now.toISOString(),
-    stats,
-    heads
-  };
-  if (!emails.length) return { ...base2, headline: "", sections: [], model: null };
-  const res = await runBrief({
-    emails,
-    ctx,
-    window: { start: since, end: now },
-    stats,
-    builder: new PromptBuilder({ compact: true }),
-    ask: briefAsk(settings, fetchImpl)
-  });
-  if (!res.ok) throw new Error(describe(res.error));
-  return {
-    ...base2,
-    headline: res.value.headline,
-    sections: res.value.sections,
-    model: settings.model
-  };
-}
 function nextRun(now, hour) {
   const d = new Date(now);
   d.setHours(hour, 0, 0, 0);
@@ -2147,39 +2062,221 @@ async function refreshBrief({
   rules = [],
   ctx,
   now = /* @__PURE__ */ new Date(),
-  fetchImpl
+  fetchImpl,
+  analyzeOne = analyze,
+  summarize = runBrief
 }) {
-  const started = now.toISOString();
-  await store2.saveBriefStatus({ state: "running", at: started });
-  try {
-    const brief = await generateBrief({
-      api: api2,
-      settings,
-      rules,
-      ctx,
-      now,
-      windowStart: briefWindow(now),
-      maxMessages: Math.max(60, settings.monitor.maxMessagesPerRun),
-      fetchImpl
+  const startedAt = now.toISOString();
+  const windowStart = briefWindow(now);
+  const windowKey = windowStart.toISOString();
+  const windowEnd = now;
+  const previousJob = await store2.briefJob();
+  const resume = previousJob && previousJob.windowStart === windowKey && ["running", "partial", "error"].includes(previousJob.state);
+  const job = {
+    id: resume ? previousJob.id : `${windowKey}-${now.getTime()}`,
+    state: "running",
+    windowStart: windowKey,
+    windowEnd: windowEnd.toISOString(),
+    startedAt: resume ? previousJob.startedAt : startedAt,
+    updatedAt: startedAt,
+    total: 0,
+    processed: 0,
+    analyzed: 0,
+    cached: 0,
+    local: 0,
+    failed: 0,
+    currentId: null,
+    error: previousJob?.error ?? null
+  };
+  await store2.saveBriefJob(job);
+  const saveFailure = async (message) => {
+    job.state = "error";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    job.error = message;
+    await store2.saveBriefJob(job);
+    await store2.saveBriefStatus({
+      state: "error",
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message,
+      progress: progressOf(job)
     });
+    return { brief: await store2.brief(), status: await store2.briefStatus(), job };
+  };
+  let headers;
+  try {
+    headers = (await api2.recent(windowStart, Math.max(60, settings.monitor.maxMessagesPerRun), settings)).filter((h) => !ctx.selfAddresses.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, Math.max(60, settings.monitor.maxMessagesPerRun));
+  } catch (e) {
+    return saveFailure(String(e?.message ?? e).slice(0, 180));
+  }
+  job.total = headers.length;
+  const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]));
+  const rows = [];
+  const base2 = () => ({
+    createdAt: startedAt,
+    windowStart: windowKey,
+    windowEnd: windowEnd.toISOString(),
+    stats: selectForBrief(rows).stats,
+    heads,
+    headline: "",
+    sections: [],
+    model: null,
+    partial: job.failed > 0 || job.processed < job.total,
+    progress: progressOf(job)
+  });
+  const savePartial = async () => {
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
+    await store2.saveBrief(base2());
+    await store2.saveBriefStatus({
+      state: "running",
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      progress: progressOf(job)
+    });
+  };
+  await savePartial();
+  const mark = (analysis) => ({
+    ...analysis,
+    briefAt: Date.now(),
+    briefWindow: windowKey
+  });
+  let consecutiveFailures = 0;
+  for (const header of headers) {
+    job.currentId = String(header.id);
+    try {
+      let analysis = await store2.analysis(header);
+      if (analysis?.briefWindow === windowKey) {
+        job.cached++;
+      } else if (analysis) {
+        analysis = mark(analysis);
+        await store2.saveAnalysis(header, analysis);
+        job.cached++;
+      } else {
+        const message = toMailMessage(header, await api2.full(header.id));
+        const plan = preFilter(message, rules, settings, now);
+        if (plan.action === "local") {
+          analysis = mark(withSender(applyAnalysisPolicy(plan.analysis, plan), header, now.getTime()));
+          analysis.promptVersion = null;
+          await store2.saveAnalysis(header, analysis);
+          job.local++;
+        } else {
+          analysis = mark(
+            withSender(await analyzeOne(settings, message, ctx, fetchImpl), header, now.getTime())
+          );
+          analysis.promptVersion = "assistant.v1";
+          await store2.saveAnalysis(header, analysis);
+          job.analyzed++;
+        }
+      }
+      rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } });
+      job.processed++;
+      consecutiveFailures = 0;
+      job.error = null;
+    } catch (e) {
+      job.failed++;
+      consecutiveFailures++;
+      job.error = String(e?.message ?? e).slice(0, 180);
+      if (consecutiveFailures >= 3) {
+        job.error = `${job.error} \xB7 paused after 3 consecutive failures`;
+        break;
+      }
+    }
+    await savePartial();
+  }
+  if (job.failed > 0) {
+    const brief = base2();
+    job.state = "partial";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
+    await store2.saveBrief(brief);
+    const status = {
+      state: "partial",
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message: job.error,
+      progress: progressOf(job)
+    };
+    await store2.saveBriefStatus(status);
+    return { brief, status, job };
+  }
+  const { stats, emails } = selectForBrief(rows);
+  const baseBrief = { ...base2(), stats };
+  if (!emails.length) {
+    const brief = { ...baseBrief, partial: false, progress: progressOf(job) };
+    job.state = "done";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
+    await store2.saveBrief(brief);
+    const status = { state: "done", at: job.updatedAt, windowStart: windowKey, progress: progressOf(job) };
+    await store2.saveBriefStatus(status);
+    return { brief, status, job };
+  }
+  try {
+    const res = await summarize({
+      emails,
+      ctx,
+      window: { start: windowStart, end: windowEnd },
+      stats,
+      builder: new PromptBuilder({ compact: true }),
+      ask: briefAsk(settings, fetchImpl)
+    });
+    if (!res.ok) throw new Error(describe(res.error));
+    const brief = {
+      ...baseBrief,
+      headline: res.value.headline,
+      sections: res.value.sections,
+      model: settings.routes?.brief?.model || settings.model || null,
+      partial: false,
+      progress: progressOf(job)
+    };
+    job.state = "done";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    await store2.saveBriefJob(job);
     await store2.saveBrief(brief);
     const status = {
       state: "done",
-      at: now.toISOString(),
-      windowStart: brief.windowStart,
-      model: brief.model
+      at: job.updatedAt,
+      windowStart: windowKey,
+      model: brief.model,
+      progress: progressOf(job)
     };
     await store2.saveBriefStatus(status);
-    return { brief, status };
+    return { brief, status, job };
   } catch (e) {
+    const message = String(e?.message ?? e).slice(0, 180);
+    job.state = "error";
+    job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    job.error = message;
+    await store2.saveBriefJob(job);
+    const brief = { ...baseBrief, partial: true, progress: progressOf(job) };
+    await store2.saveBrief(brief);
     const status = {
       state: "error",
-      at: now.toISOString(),
-      message: String(e?.message ?? e).slice(0, 180)
+      at: job.updatedAt,
+      windowStart: windowKey,
+      windowEnd: windowEnd.toISOString(),
+      message,
+      progress: progressOf(job)
     };
     await store2.saveBriefStatus(status);
-    return { brief: await store2.brief(), status };
+    return { brief, status, job };
   }
+}
+function progressOf(job) {
+  return {
+    total: job.total,
+    processed: job.processed,
+    analyzed: job.analyzed,
+    cached: job.cached,
+    local: job.local,
+    failed: job.failed,
+    currentId: job.currentId,
+    state: job.state
+  };
 }
 
 // thunderbird/src/calendar.js
@@ -2538,7 +2635,7 @@ async function notifyBriefUpdated(brief, { notifications = globalThis.browser?.n
 // thunderbird/src/monitor.js
 init_rules();
 var DAY4 = 24 * 36e5;
-var BATCH2 = 8;
+var BATCH = 8;
 var safeError2 = (e) => {
   const text = String(e?.message ?? e ?? "Unknown error").replace(/\s+/g, " ").trim();
   return text.length <= 180 ? text : `${text.slice(0, 179)}\u2026`;
@@ -2671,8 +2768,8 @@ async function runMonitor({
       tagWarning = "The message could not be tagged.";
     }
   };
-  for (let i = 0; i < runnable.length; i += BATCH2) {
-    const chunk = runnable.slice(i, i + BATCH2);
+  for (let i = 0; i < runnable.length; i += BATCH) {
+    const chunk = runnable.slice(i, i + BATCH);
     let result;
     try {
       result = await analyze2(
@@ -2740,6 +2837,7 @@ var KEYS = {
   rules: "senderRules",
   brief: "brief",
   briefStatus: "briefStatus",
+  briefJob: "sentinel.briefJob",
   monitor: "sentinel.monitor",
   drafts: "sentinel.drafts",
   tagKeys: "sentinel.tagKeys",
@@ -2827,6 +2925,13 @@ function createStore(area) {
     async saveBrief(brief) {
       await set(KEYS.brief, brief);
       return brief;
+    },
+    async briefJob() {
+      return get(KEYS.briefJob);
+    },
+    async saveBriefJob(job) {
+      await set(KEYS.briefJob, job);
+      return job;
     },
     async briefStatus() {
       return get(KEYS.briefStatus);
@@ -3208,6 +3313,36 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
   });
   return briefRunning;
 }
+async function runBriefOnly() {
+  const { settings, rules } = await load();
+  const blocked = monitorBlockedReason(settings);
+  if (blocked) {
+    const at = (/* @__PURE__ */ new Date()).toISOString();
+    await store.saveBriefStatus({ state: "error", at, message: blocked, progress: null });
+    return { ok: false, error: blocked };
+  }
+  if (briefRunning) return briefRunning;
+  const ctx = await context(settings, rules);
+  briefRunning = refreshBrief({
+    store,
+    api,
+    settings,
+    rules,
+    ctx,
+    now: /* @__PURE__ */ new Date(),
+    fetchImpl: void 0
+  }).then(async (result) => {
+    if (result.status?.state === "done") await updateBriefBadge(result.brief);
+    return result;
+  }).catch(async (e) => {
+    const message = safeError(e);
+    await store.saveBriefStatus({ state: "error", at: (/* @__PURE__ */ new Date()).toISOString(), message });
+    return { brief: await store.brief(), status: { state: "error", message } };
+  }).finally(() => {
+    briefRunning = null;
+  });
+  return briefRunning;
+}
 function runAssistant({ reason = "alarm", force = false, forceBrief = false } = {}) {
   if (monitorRunning) return monitorRunning;
   monitorRunning = (async () => {
@@ -3493,7 +3628,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
       return { started: true };
     }
     if (msg.type === "brief-run") {
-      void runAssistant({ reason: "brief-manual", forceBrief: true });
+      void runBriefOnly();
       return { started: true };
     }
     if (msg.type === "brief-seen") {

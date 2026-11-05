@@ -344,6 +344,41 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
   return briefRunning
 }
 
+/** Brief-only path: no monitor batch in front, so a stopped provider cannot block the brief. */
+async function runBriefOnly() {
+  const { settings, rules } = await load()
+  const blocked = monitorBlockedReason(settings)
+  if (blocked) {
+    const at = new Date().toISOString()
+    await store.saveBriefStatus({ state: 'error', at, message: blocked, progress: null })
+    return { ok: false, error: blocked }
+  }
+  if (briefRunning) return briefRunning
+  const ctx = await context(settings, rules)
+  briefRunning = refreshBrief({
+    store,
+    api,
+    settings,
+    rules,
+    ctx,
+    now: new Date(),
+    fetchImpl: undefined,
+  })
+    .then(async (result) => {
+      if (result.status?.state === 'done') await updateBriefBadge(result.brief)
+      return result
+    })
+    .catch(async (e) => {
+      const message = safeError(e)
+      await store.saveBriefStatus({ state: 'error', at: new Date().toISOString(), message })
+      return { brief: await store.brief(), status: { state: 'error', message } }
+    })
+    .finally(() => {
+      briefRunning = null
+    })
+  return briefRunning
+}
+
 /** One monitor → drafts → brief pass. Concurrent requests share the same run. */
 function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = {}) {
   if (monitorRunning) return monitorRunning
@@ -652,7 +687,7 @@ browser.runtime.onMessage.addListener(async (msg) => {
       return { started: true }
     }
     if (msg.type === 'brief-run') {
-      void runAssistant({ reason: 'brief-manual', forceBrief: true })
+      void runBriefOnly()
       return { started: true }
     }
     if (msg.type === 'brief-seen') {

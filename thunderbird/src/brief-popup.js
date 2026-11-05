@@ -22,6 +22,7 @@ async function show() {
   $('refresh').disabled = running
   if (running) status($('status'), 'Updating…')
   else if (briefStatus?.state === 'error') status($('status'), briefStatus.message, 'status--error')
+  else if (briefStatus?.state === 'partial') status($('status'), briefStatus.message ?? 'Paused; press Refresh brief to resume.', 'status--error')
   else if (!settings.baseUrl) status($('status'), 'Add a provider in settings first.', 'status--error')
   else if (briefStatus?.at) status($('status'), `Updated ${new Date(briefStatus.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
   else status($('status'), '')
