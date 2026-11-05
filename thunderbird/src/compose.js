@@ -1,4 +1,12 @@
-import { draftReplyStream, runTextTask, userContext } from './ai.js'
+import { enhanceActions,
+  actionList,
+  categoryLabel,
+  chip,
+  clear,
+  el,
+  intentLabel,
+  priorityChip,
+  status } from './ui.js'
 import { normalizeAnalysis } from './analysis.js'
 import { monitorBlockedReason } from './config.js'
 import { diffWords, renderDecisions } from './diff.js'
@@ -7,16 +15,6 @@ import { proofreadPrompt, rewritePrompt, selectionEnvelope } from './prompts.js'
 import { getSelection, replaceSelection } from './selection.js'
 import { createStore } from './store.js'
 import { LENGTHS, TONES, composeRequest } from './tones.js'
-import {
-  actionList,
-  categoryLabel,
-  chip,
-  clear,
-  el,
-  intentLabel,
-  priorityChip,
-  status,
-} from './ui.js'
 
 const $ = (id) => document.getElementById(id)
 const store = createStore(browser.storage.local)
@@ -144,7 +142,7 @@ async function reviewSelection(kind) {
         : ''
     const system = kind === 'proofread' ? proofreadPrompt.system : rewritePrompt.system
     const user = `${instruction ? `${instruction}\n\n` : ''}${selectionEnvelope(selected)}`
-    const result = await runTextTask(state.settings, kind, system, user)
+    const result = await composeJob({ kind, system, user, selected })
     const diff = diffWords(selected, result)
     state.diff = { ...diff, accepted: new Set(diff.hunks.map((h) => h.id)) }
     if (!state.diff.hunks.length) {
@@ -212,34 +210,54 @@ async function init() {
   renderAnalysis()
 }
 
+async function waitComposeJob() {
+  for (;;) {
+    const job = await browser.runtime.sendMessage({ type: 'compose-job-status', tabId: state.tab.id })
+    if (!job) throw new Error('The background action was interrupted. Please try again.')
+    if (job.state === 'error') throw new Error(job.error)
+    if (job.state === 'done') return job
+    say('Processing… You can close this popup and return later.')
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+}
+async function composeJob(request) {
+  const response = await browser.runtime.sendMessage({ type: 'compose-job-start', tabId: state.tab.id, ...request })
+  if (!response?.ok) throw new Error(response?.error || 'Could not start compose action.')
+  return (await waitComposeJob()).result
+}
+async function restoreComposeJob() {
+  const existing = await browser.runtime.sendMessage({ type: 'compose-job-status', tabId: state.tab.id })
+  if (!existing) return
+  const job = await waitComposeJob()
+  if (job.kind === 'draft') showPreview(job.result)
+  else {
+    const diff = diffWords(job.selected, job.result)
+    state.diff = { ...diff, accepted: new Set(diff.hunks.map((h) => h.id)) }
+    renderDiff()
+  }
+  say('Result ready for review.', 'status--ok')
+}
+
 async function generate() {
+  $('generate').disabled = true
+  $('regenerate').disabled = true
   try {
     if (monitorBlockedReason(state.settings)) throw new Error(monitorBlockedReason(state.settings))
     const intent = $('intent').value
     if (intent === 'custom' && !$('instruction').value.trim())
       throw new Error('Add an instruction for the custom reply.')
     say('Drafting…')
-    const accounts = await browser.accounts.list()
-    const ctx = userContext(accounts, new Date(), state.settings.profile, state.rules)
     startPreview()
-    const body = await draftReplyStream(
-      state.settings,
-      [state.message],
-      ctx,
-      composeRequest({
-        tone: state.tone,
-        intent,
-        length: $('length').value,
-        instruction: $('instruction').value,
-      }),
-      (_delta, full) => {
-        $('preview').value = full
-      },
-    )
+    const body = await composeJob({ kind: 'draft', message: state.message, request: composeRequest({
+      tone: state.tone, intent, length: $('length').value, instruction: $('instruction').value,
+    }) })
     showPreview(body)
     say('Preview ready. Edit it if needed, then insert it.', 'status--ok')
   } catch (e) {
     say(e?.message ?? 'The draft could not be generated.', 'status--error')
+  } finally {
+    $('generate').disabled = false
+    $('regenerate').disabled = false
   }
 }
 
@@ -288,4 +306,6 @@ $('discard-diff').onclick = () => {
 $('length').onchange = () => {
   state.length = $('length').value
 }
-void init().catch((e) => say(e?.message ?? 'Could not read the compose window.', 'status--error'))
+void init().then(restoreComposeJob).catch((e) => say(e?.message ?? 'Could not read the compose window.', 'status--error'))
+
+enhanceActions()

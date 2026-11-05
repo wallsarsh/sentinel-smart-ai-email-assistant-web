@@ -1,3 +1,4 @@
+import { enhanceActions, clear, el, openDashboard, status  } from './ui.js'
 import { checkBaseUrl } from './mail.js'
 import {
   PROVIDER_PRESETS,
@@ -7,7 +8,6 @@ import {
   providerUsable,
 } from './providers.js'
 import { createStore } from './store.js'
-import { clear, el, openDashboard, status } from './ui.js'
 
 const $ = (id) => document.getElementById(id)
 const store = createStore(browser.storage.local)
@@ -206,3 +206,5 @@ $('cancel-edit').addEventListener('click', resetForm)
 $('save-routes').addEventListener('click', saveRoutes)
 $('dashboard').onclick = openDashboard
 void init().catch((e) => say($('provider-status'), e?.message ?? 'Could not load settings.', 'status--error'))
+
+enhanceActions()

@@ -1,8 +1,4 @@
-import { mergeSettings, normalizeSettings } from './config.js'
-import { providerUsable } from './providers.js'
-import { normalizeRule } from './rules.js'
-import { createStore } from './store.js'
-import {
+import { enhanceActions, actionList,
   categoryLabel,
   chip,
   clear,
@@ -15,8 +11,11 @@ import {
   relativeTime,
   send,
   status,
-  wireTabs,
-} from './ui.js'
+  wireTabs } from './ui.js'
+import { mergeSettings, normalizeSettings } from './config.js'
+import { providerUsable } from './providers.js'
+import { normalizeRule } from './rules.js'
+import { createStore } from './store.js'
 
 const $ = (id) => document.getElementById(id)
 const store = createStore(browser.storage.local)
@@ -270,14 +269,11 @@ async function runBatch(action) {
     ok: false,
     error: e.message,
   }))
-  state.selected.clear()
-  if (!res) state.batchMessage = 'Batch failed.'
-  else if (res.ok === false) state.batchMessage = res.error ?? 'Batch failed.'
-  else if (action === 'analyze')
-    state.batchMessage = `Analysed ${res.analyzed ?? 0}${res.local ? `, ${res.local} local` : ''}${res.failed ? `, ${res.failed} failed` : ''}.`
-  else state.batchMessage = `Created ${res.created ?? 0} drafts${res.failed ? `, ${res.failed} failed` : ''}.`
+  if (res?.ok) state.selected.clear()
+  state.batchMessage = res?.ok ? 'Started in the background. Progress appears above.' : res?.error || 'Could not start action.'
   await reload()
-  $('inbox-meta').textContent = `${state.data?.analyses.length ?? 0} analysed · ${state.batchMessage}`
+  await renderBulk()
+
 }
 
 function renderDrafts({ drafts }) {
@@ -481,3 +477,23 @@ void reload().catch((e) => {
   $('status').className = 'pill pill--error'
   $('status').textContent = e?.message ?? 'Could not load the dashboard.'
 })
+
+enhanceActions()
+
+async function renderBulk() {
+  const job = (await browser.storage.local.get('sentinel.bulkJob'))['sentinel.bulkJob']
+  if (!job) return
+  const live = job.state === 'running' && (await send({ type: 'bulk-status' })).running
+  $('bulk-progress').textContent = job.error || `${job.action}: ${job.processed}/${job.total} processed · ${job.failed} failed. ${live ? 'Working in the background; you can close this page.' : job.state === 'running' ? 'Interrupted. Unfinished messages will retry automatically.' : job.failed ? `Failed messages retry after ${new Date(job.nextRetry).toLocaleTimeString()}.` : 'Finished. Review results below.'}`
+  $('bulk-results').replaceChildren(...(job.results || []).map((result) => el('details', { class: 'card card--flat' },
+    el('summary', { text: `${result.subject || `Message ${result.id}`}${result.error ? ' — failed' : ''}` }),
+    el('p', { text: result.error || result.summary || 'Completed.' }),
+    result.category ? el('p', { text: `Category: ${categoryLabel(result.category)}` }) : null,
+    actionList(result.actionItems || []),
+  )))
+}
+for (const action of ['summary', 'actions', 'categorize']) $('batch-' + action).onclick = () => runBatch(action)
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes['sentinel.bulkJob']) void renderBulk().catch(() => undefined)
+})
+void renderBulk().catch(() => undefined)

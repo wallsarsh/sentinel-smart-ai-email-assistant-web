@@ -1,9 +1,6 @@
-import { analyze, userContext } from './ai.js'
 import { normalizeAnalysis } from './analysis.js'
-import { monitorBlockedReason } from './config.js'
 import { eventsFromAnalysis } from './calendar.js'
-import { toMailMessage } from './mail.js'
-import { matchRule, applyAnalysisPolicy, preFilter, withSender } from './rules.js'
+import { matchRule } from './rules.js'
 import { createStore } from './store.js'
 import {
   actionList,
@@ -23,7 +20,6 @@ import {
 const $ = (id) => document.getElementById(id)
 const store = createStore(browser.storage.local)
 let current = null
-let settings = null
 let rules = []
 let analysis = null
 let drafts = []
@@ -44,7 +40,6 @@ async function activeMessage() {
 }
 
 async function init() {
-  settings = await store.settings()
   rules = await store.rules()
   drafts = await store.drafts()
   const header = await activeMessage()
@@ -70,58 +65,43 @@ async function init() {
     )
     $('actions').replaceChildren()
   }
+  await showJob()
 }
 
-async function message() {
-  if (current?.message) return current.message
-  const full = await browser.messages.getFull(current.header.id)
-  current.message = toMailMessage(current.header, full)
-  return current.message
+async function showJob() {
+  if (!current) return
+  const key = `sentinel.messageJob:${current.header.id}`
+  const job = (await browser.storage.local.get(key))[key]
+  if (!job) return
+  const live = job.state === 'running' && (await send({ type: 'message-job-status', messageId: current.header.id })).active
+  document.querySelectorAll('#view button, #actions button').forEach((button) => { button.disabled = live })
+  if (live) say(job.action === 'draft' ? 'Saving AI draft… You can close this popup.' : 'Analysing… You can close this popup.')
+  else if (job.state === 'running') say('The action was interrupted. Please try again.', 'status--error')
+  else if (job.state === 'error') {
+    say(job.error || 'The action failed.', 'status--error')
+    if (job.action === 'draft' && /already|exists|draft/i.test(job.error ?? ''))
+      $('actions').append(el('button', { class: 'btn btn--small btn--danger', type: 'button', onclick: () => saveDraft(true), text: 'Create another anyway' }))
+  } else say(job.action === 'draft' ? 'Draft saved to your Drafts folder. Nothing was sent.' : 'Analysis saved.', 'status--ok')
 }
 
-async function context() {
-  const accounts = await browser.accounts.list()
-  return userContext(accounts, new Date(), settings.profile, rules)
-}
-
-async function runAnalyze(force) {
-  if (!settings || monitorBlockedReason(settings)) {
-    say(monitorBlockedReason(settings ?? {}), 'status--error')
-    return
-  }
+async function startJob(action, force) {
+  document.querySelectorAll('#view button, #actions button').forEach((button) => { button.disabled = true })
+  say(action === 'draft' ? 'Saving AI draft…' : 'Analysing…')
   try {
-    say('Analysing…')
-    const m = await message()
-    const plan = preFilter(m, rules, settings, new Date())
-    const result = plan.action === 'local' ? plan.analysis : await analyze(settings, m, await context())
-    const stored = withSender(
-      applyAnalysisPolicy(result, plan),
-      current.header,
-      Date.now(),
-    )
-    stored.by = plan.action === 'local' ? 'rule' : 'ai'
-    stored.promptVersion = plan.action === 'local' ? null : 'assistant.v1'
-    await store.saveAnalysis(current.header, stored)
-    analysis = stored
-    render()
-    void send({ type: 'tag-message', messageId: current.header.id }).catch(() => undefined)
-    say(
-      plan.action === 'local'
-        ? 'Classified locally — no AI call was made.'
-        : force
-          ? 'Analysed again.'
-          : 'Analysis saved.',
-      'status--ok',
-    )
+    const res = await send({ type: 'message-job-start', messageId: current.header.id, action, force })
+    if (!res?.ok) throw new Error(res?.error || 'Could not start the action.')
+    await showJob()
   } catch (e) {
-    say(e.message ?? 'The analysis failed.', 'status--error')
+    document.querySelectorAll('#view button, #actions button').forEach((button) => { button.disabled = false })
+    say(e.message, 'status--error')
   }
 }
+const runAnalyze = (force) => startJob('analyze', force)
 
 function renderCalendar(events) {
   if (!events.length) return null
   const card = el('section', { class: 'card card--flat stack' },
-    el('div', { class: 'section-title' }, el('h3', { text: 'Calendar' }), el('span', { class: 'meta', text: 'Export first, then open or import.' })),
+    el('div', { class: 'section-title' }, el('h3', { text: 'Calendar' }), el('span', { class: 'meta', text: 'Add to your default writable Thunderbird calendar.' })),
   )
   for (const event of events) {
     card.append(
@@ -203,25 +183,16 @@ function render() {
   )
 }
 
-async function saveDraft(force) {
-  say('Drafting…')
-  const res = await send({ type: 'draft-create', messageId: current.header.id, force }).catch((e) => ({
-    ok: false,
-    error: e.message,
-  }))
-  if (res?.ok === false) {
-    say(res.error ?? 'The draft could not be saved.', 'status--error')
-    if (/already|exists|draft/i.test(res.error ?? '')) {
-      $('actions').append(
-        el('button', { class: 'btn btn--small btn--danger', type: 'button', onclick: () => saveDraft(true), text: 'Create another anyway' }),
-      )
-    }
-    return
-  }
-  say('Draft saved to your Drafts folder. Nothing was sent.', 'status--ok')
-  if (res.draft) drafts = [res.draft, ...drafts]
-  render()
-}
+const saveDraft = (force) => startJob('draft', force)
+
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !current || !changes[`sentinel.messageJob:${current.header.id}`]) return
+  void (async () => {
+    analysis = await store.analysis(current.header)
+    if (analysis) { analysis = { ...analysis, ...normalizeAnalysis(analysis) }; drafts = await store.drafts(); render() }
+    await showJob()
+  })().catch((e) => say(e.message, 'status--error'))
+})
 
 $('dashboard').onclick = openDashboard
 $('senders').addEventListener('click', (e) => {

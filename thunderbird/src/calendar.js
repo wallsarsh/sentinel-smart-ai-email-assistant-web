@@ -1,5 +1,4 @@
-// Calendar candidates and ICS export. Thunderbird's calendar API is still an experiment, so the safe path is
-// a standards-compliant .ics file the user opens or imports explicitly.
+// Calendar candidates, explicit ICS export, and direct writes through the bundled experiment.
 const DAY = 24 * 3600_000
 
 const clip = (s, n) => {
@@ -161,21 +160,20 @@ export async function downloadIcs(events, { downloads, now = new Date(), filenam
 }
 
 /**
- * Writes events directly when the bundled calendar experiment is available; otherwise downloads
- * the same events as an ICS. The caller always gets an explicit mode back.
+ * Writes directly through the bundled calendar experiment. Schema and provider failures
+ * are reported to the caller rather than silently replaced by a download.
  */
-export async function writeCalendarEvents(events, { api, downloads, now = new Date(), filename } = {}) {
+export async function writeCalendarEvents(events, { api } = {}) {
   if (!events?.length) throw new Error('There is no calendar item to add.')
-  if (api?.createEvent) {
-    const created = []
-    try {
-      for (const event of events) created.push(await api.createEvent(event))
-      return { mode: 'direct', count: created.length, created }
-    } catch (e) {
-      // Do not silently duplicate events that were already written; fall back only before any write.
-      if (created.length) throw e
-    }
+  if (!api?.createEvent) throw new Error('Direct calendar access is unavailable. Reload the add-on and enable its calendar experiment.')
+  const created = []
+  for (const raw of events) {
+    const event = normalizeEvent(raw)
+    if (!event) throw new Error('Invalid calendar event.')
+    // Experiment schemas reject null optional strings and undeclared properties.
+    const details = { title: event.title, start: event.start, allDay: event.allDay, uid: uidFor(event) }
+    for (const key of ['end', 'location', 'description']) if (event[key]) details[key] = event[key]
+    created.push(await api.createEvent(details))
   }
-  await downloadIcs(events, { downloads, now, filename })
-  return { mode: 'ics', count: events.length }
+  return { mode: 'direct', count: created.length, created }
 }

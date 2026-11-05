@@ -118,3 +118,41 @@ The automated suite uses fakes. Real Thunderbird/IMAP/OAuth/provider validation 
 - Calendar files are exported, not written directly to a calendar.
 - No attachment analysis, no sending, no auto-reply, no server-side Sentinel account.
 - UI copy is English; the extension is a Thunderbird desktop add-on only.
+
+## Selected-message actions
+
+Select one or several messages in Thunderbird’s list and right-click **Sentinel AI**.
+The same menu is available on a displayed message. Choose Analyze, Create draft replies,
+Summarize, Extract action items, Categorize and apply priority tags, or Add to calendar.
+Sender rules apply to every selected sender and affect future analysis. Categorize uses
+AI/rule classification and applies Sentinel priority tags; it does not move messages.
+
+The dashboard opens with a progress panel. Work continues if it is closed; reopen the
+dashboard to see counts, failures, summaries, categories and action items. Inbox selections
+also offer Analyze, Create drafts, Summarize, Action items and Categorize. Summary results
+are per message, not a combined narrative. Cached analyses are reused for summaries and
+action items; Analyze and Categorize request fresh analysis. Local filtering rules still apply.
+
+Messages are processed sequentially without the former 10-analysis/5-draft truncation.
+Only one bulk action runs at a time. Each completed result is saved. After a background
+restart unfinished and failed messages are retried by the periodic background task.
+Drafts are never sent automatically. Calendar export can create one file per selected
+message with dated events.
+
+### Automatic retries and direct calendar writes
+
+Failed or interrupted selected-message jobs are persisted separately from the dashboard's
+latest result. A background alarm checks every five minutes and retries pending jobs,
+with delays increasing from five to sixty minutes. Completed messages are skipped.
+Retry processing continues while Thunderbird runs, even with every Sentinel dialog closed.
+
+Add to calendar now writes directly through the bundled `sentinelCalendar` experiment,
+choosing the default writable, enabled event calendar (or the first eligible calendar).
+Configure a writable calendar in Thunderbird first. Errors are shown rather than silently
+replaced by an ICS download. Stable event IDs allow repeat attempts to recognize an existing
+event in the target calendar. No event editor is opened by this implementation.
+
+Research: Thunderbird documents calendar items as `calIEvent` and `calICalendar` objects
+(https://source-docs.thunderbird.net/en/latest/calendar/item_model.html); calendar extensions
+remain an experiment integration (https://github.com/thunderbird/webext-experiments).
+The existing bundled experiment is used rather than assuming a stable browser.calendar API.

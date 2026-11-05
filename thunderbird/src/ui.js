@@ -161,3 +161,29 @@ export function actionList(actions = []) {
     ),
   )
 }
+
+// Preserve labels and disabled state while asynchronous button actions settle.
+export function busyAction(action) {
+  return async function (event) {
+    const button = event.currentTarget
+    if (button.dataset.busy === 'true') return
+    const label = button.textContent
+    const disabled = button.disabled
+    button.dataset.busy = 'true'
+    button.disabled = true
+    button.setAttribute('aria-busy', 'true')
+    button.textContent = `${label}…`
+    try { return await action.call(this, event) }
+    finally {
+      button.textContent = label
+      button.disabled = disabled
+      button.removeAttribute('aria-busy')
+      delete button.dataset.busy
+    }
+  }
+}
+export function enhanceActions() {
+  document.querySelectorAll('button').forEach((button) => {
+    if (button.onclick) button.onclick = busyAction(button.onclick)
+  })
+}
