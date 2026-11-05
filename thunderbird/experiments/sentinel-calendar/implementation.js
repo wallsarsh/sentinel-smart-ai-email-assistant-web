@@ -17,7 +17,7 @@ this.sentinelCalendar = class extends ExtensionCommon.ExtensionAPI {
             }))
         },
         async createEvent(details) {
-          const calendars = cal.manager.getCalendars().filter((calendar) => !calendar.readOnly)
+          const calendars = cal.manager.getCalendars().filter((calendar) => !calendar.readOnly && !calendar.getProperty('disabled') && calendar.getProperty('capabilities.events.supported') !== false)
           const target =
             calendars.find((calendar) => calendar.getProperty('calendar-main-default') === true || calendar.getProperty('calendar-main-default') === 'true') ??
             calendars[0]
@@ -36,13 +36,23 @@ this.sentinelCalendar = class extends ExtensionCommon.ExtensionAPI {
           }
           if (details.allDay) {
             start.setHours(12, 0, 0, 0)
-            end = new Date(start)
-            end.setDate(end.getDate() + 1)
+            if (details.end && /^\d{4}-\d{2}-\d{2}$/.test(details.end)) {
+              const [y, m, d] = details.end.split('-').map(Number)
+              end = new Date(y, m - 1, d, 12)
+            } else {
+              end = new Date(start)
+              end.setDate(end.getDate() + 1)
+            }
           }
 
+          if (details.uid) {
+            const existing = await target.getItem(details.uid)
+            if (existing) return { id: existing.id, calendarId: target.id, calendarName: target.name, existing: true }
+          }
+          if (end <= start) throw new Error('Event end must be after its start.')
           const item = cal.createEvent()
           item.calendar = target
-          item.id = cal.getUUID()
+          item.id = details.uid || cal.getUUID()
           item.title = details.title || 'Sentinel event'
           item.startDate = cal.dtz.jsDateToDateTime(start, cal.dtz.defaultTimezone)
           item.endDate = cal.dtz.jsDateToDateTime(end, cal.dtz.defaultTimezone)

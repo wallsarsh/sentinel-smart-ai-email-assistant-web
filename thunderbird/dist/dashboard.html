@@ -31,6 +31,11 @@
         <button class="tab" role="tab" id="tab-settings" data-tab="settings" aria-controls="panel-settings" aria-selected="false" tabindex="-1">Settings</button>
       </nav>
 
+      <section class="card stack" aria-label="Bulk action progress and results">
+        <h2>Selected-message actions</h2>
+        <p id="bulk-progress" role="status" aria-live="polite">Select messages in Thunderbird and right-click → Sentinel AI, or select rows in Inbox.</p>
+        <div id="bulk-results" class="stack"></div>
+      </section>
       <main>
         <section id="panel-brief" class="view" role="tabpanel" aria-labelledby="tab-brief">
           <div id="brief"></div>
@@ -48,6 +53,9 @@
               <div class="actions">
                 <button id="batch-analyze" class="btn btn--small" type="button">Analyze selected</button>
                 <button id="batch-draft" class="btn btn--small" type="button">Create drafts</button>
+                <button id="batch-summary" class="btn btn--small" type="button">Summarize</button>
+                <button id="batch-actions" class="btn btn--small" type="button">Action items</button>
+                <button id="batch-categorize" class="btn btn--small" type="button">Categorize</button>
                 <button id="batch-clear" class="btn btn--small btn--ghost" type="button">Clear</button>
               </div>
             </div>

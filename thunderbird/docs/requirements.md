@@ -59,6 +59,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-BRF-05 | M | Counts are computed from stored analyses, not from the model. | Stats match the analysed rows. |
 | TB-BRF-06 | S | A native notification says only how many new messages are in the brief, never mail text. | Notification body contains no subject/sender. |
 | TB-BRF-07 | M | A brief update sets a count badge on the brief toolbar action; opening the brief or dashboard clears it. | Badge appears after an update and clears on view. |
+| TB-BRF-08 | M | The brief is built one email at a time with durable progress; a provider failure pauses it and a later refresh resumes from the unprocessed emails. | Per-message markers, `briefJob` counters and partial dashboard counts survive failure/restart. |
 
 ### 4.3 Draft replies (TB-DRF)
 

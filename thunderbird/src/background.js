@@ -1,6 +1,8 @@
+import { menuRegistrar } from './menus.js'
+import { runBulk, selectedHeaders } from './bulk.js'
 // Background event page: alarms, monitor, drafts, brief, calendar exports and message handlers.
 // Nothing here can send mail; the add-on does not request send permissions.
-import { userContext, analyze, analyzeBatch, draftReply } from './ai.js'
+import { userContext, analyze, analyzeBatch, draftReply, runTextTask } from './ai.js'
 import { normalizeAnalysis } from './analysis.js'
 import { monitorBlockedReason } from './config.js'
 import { nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
@@ -179,100 +181,83 @@ async function tagger({ header, analysis, known }) {
 
 // ---- native context menus --------------------------------------------------------------------------------------
 
-function createMenus() {
-  try {
-    if (!browser.menus?.create) return
-    browser.menus.removeAll?.()
-    const contexts = ['message_list', 'message_display']
-    browser.menus.create({ id: 'sentinel', title: 'Sentinel AI', contexts })
-    for (const [id, title] of [
-      ['sentinel-analyze', 'Analyze selected'],
-      ['sentinel-draft', 'Create draft reply'],
-      ['sentinel-calendar', 'Add to calendar'],
-    ])
-      browser.menus.create({ id, parentId: 'sentinel', title, contexts })
-    browser.menus.create({ id: 'sentinel-sender', parentId: 'sentinel', title: 'Sender rule', contexts })
-    for (const [id, title] of [
-      ['sentinel-important', 'Important'],
-      ['sentinel-marketing', 'Marketing'],
-      ['sentinel-ignore', 'Ignore'],
-      ['sentinel-normal', 'Normal'],
-    ])
-      browser.menus.create({ id, parentId: 'sentinel-sender', title, contexts })
-  } catch {
-    // A missing menu API or an unsupported context must not stop the background page.
-  }
-}
+const createMenus = menuRegistrar(browser, (state) => browser.storage.local.set({ 'sentinel.menuStatus': state }))
 
-async function targetHeaders(info) {
-  if (info?.selectedMessages?.messages?.length) return info.selectedMessages.messages
-  if (info?.messageId != null) {
-    const header = await browser.messages.get(info.messageId)
-    return header ? [header] : []
-  }
-  if (info?.tab?.id != null) {
-    const header = await browser.messageDisplay.getDisplayedMessage(info.tab.id)
-    return header ? [header] : []
-  }
-  return []
-}
-
-browser.menus?.onClicked.addListener(async (info) => {
+browser.menus?.onClicked.addListener(async (info, tab) => {
+  if (!String(info.menuItemId).startsWith('sentinel-')) return
   try {
-    const headers = await targetHeaders(info)
-    if (!headers.length) return
-    if (info.menuItemId === 'sentinel-important') {
-      await addRule(headers[0].author, 'important')
+    if (info.menuItemId === 'sentinel-dashboard') {
+      await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') })
       return
     }
-    if (info.menuItemId === 'sentinel-marketing') {
-      await addRule(headers[0].author, 'marketing')
-      return
-    }
-    if (info.menuItemId === 'sentinel-ignore') {
-      await addRule(headers[0].author, 'ignore')
-      return
-    }
-    if (info.menuItemId === 'sentinel-normal') {
-      await addRule(headers[0].author, 'normal')
-      return
-    }
-    if (info.menuItemId === 'sentinel-analyze') {
-      await batchAnalyze(headers.map((h) => h.id))
-      await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
-      return
-    }
-    if (info.menuItemId === 'sentinel-draft') {
-      await batchDraft(headers.map((h) => h.id))
-      return
-    }
-    if (info.menuItemId === 'sentinel-calendar') {
-      const analysis = await store.analysis(headers[0])
-      if (!analysis) throw new Error('Analyze the message first.')
-      const events = eventsFromAnalysis(analysis, { header: headers[0] })
-      if (!events.length) throw new Error('No dated action or event found.')
-      const written = await writeCalendarEvents(events, {
-        api: browser.sentinelCalendar,
-        downloads: browser.downloads,
-      })
-      await browser.notifications
-        .create('sentinel-calendar', {
-          type: 'basic',
-          title: 'Sentinel AI',
-          message: written.mode === 'direct' ? 'Added to your calendar.' : 'Calendar file downloaded.',
-        })
-        .catch(() => undefined)
-    }
+    const headers = await selectedHeaders(info, tab, browser)
+    if (!headers.length) throw new Error('Select one or more messages first.')
+    const action = info.menuItemId.replace('sentinel-', '')
+    const result = await startBulk(headers.map((h) => h.id), action)
+    if (!result.ok) throw new Error(result.error)
+    await browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html#inbox') })
   } catch (e) {
-    await browser.notifications
-      .create('sentinel-context-error', {
-        type: 'basic',
-        title: 'Sentinel AI',
-        message: safeError(e),
-      })
-      .catch(() => undefined)
+    await browser.notifications.create('sentinel-context-error', {
+      type: 'basic', title: 'Sentinel AI', message: safeError(e),
+    }).catch(() => undefined)
   }
 })
+
+let bulkRunning = false
+async function startBulk(ids, action, previous = null, queueKey = null) {
+  const allowed = ['analyze', 'draft', 'summary', 'actions', 'categorize', 'calendar', 'important', 'marketing', 'ignore', 'normal']
+  if (!allowed.includes(action) || !ids.length) return { ok: false, error: 'Choose messages and an action.' }
+  if (bulkRunning) return { ok: false, error: 'A bulk action is already running. See its progress in the dashboard.' }
+  bulkRunning = true
+  const key = queueKey || `sentinel.retryJob:${crypto.randomUUID()}`
+  const attempt = (previous?.attempt || 0) + 1
+  const save = async (job) => {
+    const record = { ...job, attempt, nextRetry: Date.now() + Math.min(60, 5 * 2 ** Math.min(attempt - 1, 4)) * 60_000 }
+    await browser.storage.local.set({ [key]: record, 'sentinel.bulkJob': record })
+    if (job.state === 'done') await browser.storage.local.remove(key)
+  }
+  void runBulk(ids, async (id) => {
+    const header = await browser.messages.get(id)
+    if (['important', 'marketing', 'ignore', 'normal'].includes(action)) {
+      await addRule(header.author, action)
+      return { subject: header.subject, summary: `Sender rule saved: ${action}` }
+    }
+    if (action === 'draft') {
+      const result = await manualDraft(id)
+      return { ...result, subject: header.subject, summary: result.ok ? 'Draft saved. Nothing sent.' : '' }
+    }
+    let analysis = await store.analysis(header)
+    if (!analysis || action === 'analyze' || action === 'categorize') {
+      const result = await batchAnalyze([id])
+      if (!result.ok || result.failed) throw new Error(result.error || 'Analysis failed')
+      analysis = await store.analysis(header)
+    }
+    if (!analysis) throw new Error('No analysis available')
+    if (action === 'categorize') {
+      const result = await tagger({ header, analysis, known: await store.tagKeys() })
+      if (result.warning) throw new Error(result.warning)
+      await store.saveTagKeys(result.known)
+    }
+    if (action === 'calendar') {
+      const events = eventsFromAnalysis(analysis, { header })
+      if (!events.length) throw new Error('No dated action or event found')
+      await writeCalendarEvents(events, { api: browser.sentinelCalendar, downloads: browser.downloads })
+    }
+    return { subject: header.subject, summary: analysis.summary, category: analysis.category, actionItems: analysis.actionItems }
+  }, save, action, previous)
+    .catch((e) => browser.storage.local.set({ 'sentinel.bulkJob': { state: 'error', error: safeError(e) } }))
+    .finally(() => { bulkRunning = false })
+  return { ok: true, started: true }
+}
+
+async function retryFailedMessages() {
+  if (bulkRunning) return
+  const entries = Object.entries(await browser.storage.local.get(null))
+    .filter(([key, job]) => key.startsWith('sentinel.retryJob:') && job.nextRetry <= Date.now())
+    .sort((a, b) => a[1].nextRetry - b[1].nextRetry)
+  const next = entries[0]
+  if (next) await startBulk(next[1].ids, next[1].action, next[1], next[0])
+}
 
 // ---- orchestration ---------------------------------------------------------------------------------------------
 
@@ -338,6 +323,41 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     fetchImpl: undefined,
   })
     .then((result) => ({ ...result, updated: true }))
+    .finally(() => {
+      briefRunning = null
+    })
+  return briefRunning
+}
+
+/** Brief-only path: no monitor batch in front, so a stopped provider cannot block the brief. */
+async function runBriefOnly() {
+  const { settings, rules } = await load()
+  const blocked = monitorBlockedReason(settings)
+  if (blocked) {
+    const at = new Date().toISOString()
+    await store.saveBriefStatus({ state: 'error', at, message: blocked, progress: null })
+    return { ok: false, error: blocked }
+  }
+  if (briefRunning) return briefRunning
+  const ctx = await context(settings, rules)
+  briefRunning = refreshBrief({
+    store,
+    api,
+    settings,
+    rules,
+    ctx,
+    now: new Date(),
+    fetchImpl: undefined,
+  })
+    .then(async (result) => {
+      if (result.status?.state === 'done') await updateBriefBadge(result.brief)
+      return result
+    })
+    .catch(async (e) => {
+      const message = safeError(e)
+      await store.saveBriefStatus({ state: 'error', at: new Date().toISOString(), message })
+      return { brief: await store.brief(), status: { state: 'error', message } }
+    })
     .finally(() => {
       briefRunning = null
     })
@@ -426,6 +446,7 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
 // ---- alarms ----------------------------------------------------------------------------------------------------
 
 async function schedule() {
+  browser.alarms.create('sentinel-retry', { periodInMinutes: 5 })
   const { settings } = await load()
   await browser.alarms.clear(MONITOR_ALARM)
   await browser.alarms.clear(BRIEF_ALARM)
@@ -442,7 +463,8 @@ async function schedule() {
 }
 
 browser.alarms.onAlarm.addListener((a) => {
-  if (a.name === MONITOR_ALARM) void runAssistant({ reason: 'alarm' })
+  if (a.name === 'sentinel-retry') void retryFailedMessages().catch(() => undefined)
+  else if (a.name === MONITOR_ALARM) void runAssistant({ reason: 'alarm' })
   else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief' })
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM)
@@ -493,7 +515,8 @@ browser.messages.onNewMailReceived?.addListener?.((folder) => {
 
 // ---- message handlers ------------------------------------------------------------------------------------------
 
-async function manualDraft(messageId, { force = false } = {}) {
+async function manualDraft(messageId, { force = false, progress = async () => {} } = {}) {
+  await progress('Reading message and checking draft eligibility…')
   const header = await browser.messages.get(messageId)
   if (!header) return { ok: false, error: 'Open a message first.' }
   const { settings } = await load()
@@ -523,12 +546,14 @@ async function manualDraft(messageId, { force = false } = {}) {
     })
     if (!eligible.ok) return { ok: false, error: eligible.reason }
   }
+  await progress('Generating reply with your AI provider…')
   const body = await draftReply(
     settings,
     [toMailMessage(header, await browser.messages.getFull(header.id))],
     ctx,
     draftRequest(analysis, settings),
   )
+  await progress('Saving reply to Thunderbird Drafts…')
   const saved = await saveDraftFor(header, body)
   const entry = {
     messageId: header.id,
@@ -611,23 +636,6 @@ async function batchAnalyze(ids) {
   return { ok: true, analyzed, local, failed: failed.length, error: failed[0] ?? null }
 }
 
-async function batchDraft(ids) {
-  const results = []
-  for (const id of ids.slice(0, 5)) {
-    try {
-      results.push(await manualDraft(id))
-    } catch (e) {
-      results.push({ ok: false, error: safeError(e) })
-    }
-  }
-  return {
-    ok: true,
-    created: results.filter((r) => r.ok).length,
-    failed: results.filter((r) => !r.ok).length,
-    error: results.find((r) => !r.ok)?.error ?? null,
-  }
-}
-
 async function addRule(pattern, kind) {
   const { normalizeRule } = await import('./rules.js')
   const rule = normalizeRule({ pattern, kind })
@@ -643,28 +651,94 @@ async function removeRule(id) {
   return { ok: true }
 }
 
+// Jobs are owned by the background page, not the transient message popup.
+const messageJobs = new Set()
+const jobKey = (id) => `sentinel.messageJob:${id}`
+async function startMessageJob(id, action, force) {
+  if (!Number.isInteger(id) || !['draft', 'analyze'].includes(action)) throw new Error('Invalid message action.')
+  if (messageJobs.has(id)) return { ok: false, error: 'An action is already running for this message.' }
+  messageJobs.add(id)
+  const key = jobKey(id)
+  try {
+    await browser.storage.local.set({ [key]: { state: 'running', action, at: Date.now() } })
+  } catch (e) {
+    messageJobs.delete(id)
+    throw e
+  }
+  void (async () => {
+    try {
+      let result
+      if (action === 'draft') result = await manualDraft(id, { force, progress: (stage) => browser.storage.local.set({ [key]: { state: 'running', action, stage, at: Date.now() } }) })
+      else {
+        const header = await browser.messages.get(id)
+        const { settings, rules } = await load()
+        const blocked = monitorBlockedReason(settings)
+        if (blocked) throw new Error(blocked)
+        const message = toMailMessage(header, await browser.messages.getFull(id))
+        const plan = preFilter(message, rules, settings, new Date())
+        const output = plan.action === 'local' ? plan.analysis : await analyze(settings, message, await context(settings, rules))
+        const stored = withSender(applyAnalysisPolicy(output, plan), header, Date.now())
+        stored.by = plan.action === 'local' ? 'rule' : 'ai'
+        stored.promptVersion = plan.action === 'local' ? null : 'assistant.v1'
+        await store.saveAnalysis(header, stored)
+        try {
+          const tagged = await tagger({ header, analysis: stored, known: await store.tagKeys() })
+          if (tagged?.known) await store.saveTagKeys(tagged.known)
+        } catch { /* Analysis remains available if tagging fails. */ }
+        result = { ok: true }
+      }
+      if (result?.ok === false) throw new Error(result.error)
+      await browser.storage.local.set({ [key]: { state: 'done', action, at: Date.now() } })
+    } catch (e) {
+      await browser.storage.local.set({ [key]: { state: 'error', action, error: safeError(e), at: Date.now() } })
+    } finally { messageJobs.delete(id) }
+  })()
+  return { ok: true }
+}
+
+const composeJobs = new Map()
+function startComposeJob(msg) {
+  if (composeJobs.get(msg.tabId)?.state === 'running') return { ok: false, error: 'A compose action is already running.' }
+  const job = { state: 'running', kind: msg.kind, selected: msg.selected }
+  composeJobs.set(msg.tabId, job)
+  void (async () => {
+    try {
+      const { settings, rules } = await load()
+      const blocked = monitorBlockedReason(settings)
+      if (blocked) throw new Error(blocked)
+      job.result = msg.kind === 'draft'
+        ? await draftReply(settings, [msg.message], await context(settings, rules), msg.request)
+        : await runTextTask(settings, msg.kind, msg.system, msg.user)
+      job.state = 'done'
+    } catch (e) { job.state = 'error'; job.error = safeError(e) }
+  })()
+  return { ok: true }
+}
+browser.tabs.onRemoved?.addListener((id) => composeJobs.delete(id))
+
 browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== 'object') return undefined
   try {
-    if (msg.type === 'ping') return { ok: true, at: Date.now() }
+    if (msg.type === 'compose-job-start') return startComposeJob(msg)
+    if (msg.type === 'compose-job-status') return { ok: true, job: composeJobs.get(msg.tabId) ?? null }
+    if (msg.type === 'ping') return { ok: true, at: Date.now(), menus: (await browser.storage.local.get('sentinel.menuStatus'))['sentinel.menuStatus'] }
     if (msg.type === 'monitor-run') {
       void runAssistant({ reason: 'manual', forceBrief: Boolean(msg.brief) })
       return { started: true }
     }
     if (msg.type === 'brief-run') {
-      void runAssistant({ reason: 'brief-manual', forceBrief: true })
+      void runBriefOnly()
       return { started: true }
     }
     if (msg.type === 'brief-seen') {
       await clearBriefBadge()
       return { ok: true }
     }
-    if (msg.type === 'draft-create') return manualDraft(msg.messageId, { force: msg.force })
-    if (msg.type === 'batch-run') {
-      if (msg.action === 'analyze') return batchAnalyze(msg.ids ?? [])
-      if (msg.action === 'draft') return batchDraft(msg.ids ?? [])
-      return { ok: false, error: 'Unknown batch action.' }
-    }
+    if (msg.type === 'message-job-start') return await startMessageJob(msg.messageId, msg.action, msg.force)
+    if (msg.type === 'message-job-status') return { active: messageJobs.has(msg.messageId) }
+    if (msg.type === 'draft-create') return await manualDraft(msg.messageId, { force: msg.force })
+    if (msg.type === 'batch-run') return await startBulk(msg.ids ?? [], msg.action)
+    if (msg.type === 'bulk-status') return { running: bulkRunning }
     if (msg.type === 'tag-message') {
       const header = await browser.messages.get(msg.messageId)
       const analysis = await store.analysis(header)
@@ -673,8 +747,8 @@ browser.runtime.onMessage.addListener(async (msg) => {
       if (r?.known) await store.saveTagKeys(r.known)
       return { ok: true, warning: r?.warning ?? null }
     }
-    if (msg.type === 'rule-set') return addRule(msg.pattern, msg.kind)
-    if (msg.type === 'rule-remove') return removeRule(msg.id)
+    if (msg.type === 'rule-set') return await addRule(msg.pattern, msg.kind)
+    if (msg.type === 'rule-remove') return await removeRule(msg.id)
     if (msg.type === 'calendar-download') {
       const written = await writeCalendarEvents(msg.events ?? [], {
         api: browser.sentinelCalendar,

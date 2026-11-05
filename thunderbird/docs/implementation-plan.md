@@ -38,7 +38,7 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | `thunderbird/src/monitor.js` | Incremental collection, batching, cost caps, status, brief trigger, draft trigger. | `thunderbird.monitor` |
 | `thunderbird/src/drafts.js` | Eligibility, reply/draft index matching, draft request, save adapter. | `thunderbird.drafts` |
 | `thunderbird/src/calendar.js` | Candidate normalisation, ICS serialisation, download adapter. | `thunderbird.calendar` |
-| `thunderbird/src/brief.js` | Daily window, hourly refresh policy, cached analysis reuse, brief assembly. | extends existing brief tests |
+| `thunderbird/src/brief.js` | Incremental per-email brief job, durable resume, daily window, cached analysis reuse and summary assembly. | `thunderbird.brief` |
 | `thunderbird/src/tags.js` | Best-effort Thunderbird tag mapping. | `thunderbird.tags` |
 | `thunderbird/src/tones.js` | Compose tone, intent and length presets mapped to core tones/instructions. | `thunderbird.ui` |
 | `thunderbird/src/notify.js` | Brief toolbar badge, title and content-free native notifications. | `thunderbird.notify` |
@@ -82,6 +82,8 @@ Thunderbird APIs are behind small seams in `mail.js`/`background.js`, so pure mo
 | T183 | Direct calendar writes with ICS fallback | T167, T176 | experiment, calendar, background, popup, manifest, tests |
 | T184 | Context menus and message-list actions | T181 | background, manifest, tests |
 | T185 | Demo mail generator and Thunderbird Local Folders import | T173 | `tools/generate-demo-mail.mjs`, tests, docs |
+| T186 | Local Folders monitoring and demo mailbox | T165, T185 | mail, background, brief, config, dashboard |
+| T187 | Incremental resumable daily brief | T168, T186 | brief, store, background, dashboard, popup, tests |
 
 Critical path: T162 → T163 → T164 → T165 → T168 → T169 → T172 → T173 → T174.
 

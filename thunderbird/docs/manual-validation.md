@@ -30,6 +30,7 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 3. Press **Refresh brief** in the brief popup and **Refresh now** in the dashboard.
 4. Confirm every “Open” link opens the referenced message and that counts match the Inbox view.
 5. Confirm the notification text (if enabled) contains no subject, sender or body.
+6. Stop the provider mid-run, refresh, and confirm the brief shows `processed/total` counts, marks successful messages and pauses. Restart the provider and refresh; confirm it resumes from the unprocessed message without re-processing successful ones.
 
 ## 3a. Providers and routing
 
