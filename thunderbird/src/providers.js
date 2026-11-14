@@ -147,6 +147,9 @@ export function normalizeRoutes(saved = {}, providers = []) {
   return out
 }
 
+export const sameRoute = (a, b) =>
+  Boolean(a && b) && a.providerId === b.providerId && a.model === b.model
+
 export function routeSummary(settings, task) {
   const provider = settings?.providers?.find((p) => p.id === settings.routes?.[task]?.providerId)
   const model = settings?.routes?.[task]?.model || provider?.model || 'not set'

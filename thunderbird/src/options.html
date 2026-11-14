@@ -45,10 +45,6 @@
                   <option value="openai_compatible">OpenAI-compatible</option>
                 </select>
               </label>
-              <label class="field">
-                <span>Default model</span>
-                <input id="pmodel" required placeholder="gpt-4o-mini" />
-              </label>
             </div>
             <label class="field">
               <span>Base URL</span>
@@ -58,6 +54,14 @@
               <span>API key</span>
               <input id="pkey" type="password" autocomplete="off" placeholder="Paste a key" />
             </label>
+            <div class="field">
+              <span id="pmodel-label">Model</span>
+              <div id="pmodel-field"></div>
+              <div class="actions">
+                <button id="load-models" class="btn btn--small" type="button">Load models from provider</button>
+                <span id="model-status" class="status" role="status"></span>
+              </div>
+            </div>
             <p id="key-note" class="meta">Keys stay in this Thunderbird profile and go only to the provider.</p>
             <div class="actions">
               <button id="save-provider" class="btn btn--primary" type="submit">Add provider</button>
@@ -70,11 +74,13 @@
         <section class="card stack">
           <div class="section-title">
             <h2>Task routing</h2>
-            <span class="meta">Provider and model per feature</span>
+            <span class="meta">One default for every feature, with optional overrides</span>
           </div>
+          <div id="default-route" class="item stack"></div>
           <div id="routes" class="stack"></div>
           <div class="actions">
             <button id="save-routes" class="btn btn--primary" type="button">Save routing</button>
+            <button id="refresh-models" class="btn" type="button">Refresh model lists</button>
             <span id="route-status" class="status" role="status"></span>
           </div>
         </section>

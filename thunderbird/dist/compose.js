@@ -290,6 +290,7 @@ function normalizeRoutes(saved = {}, providers = []) {
   }
   return out;
 }
+var sameRoute = (a, b) => Boolean(a && b) && a.providerId === b.providerId && a.model === b.model;
 
 // thunderbird/src/config.js
 var DRAFT_PRIORITIES = ["p1_do_now", "p2_today", "p3_this_week"];
@@ -300,6 +301,8 @@ var DEFAULT_SETTINGS = {
   model: "",
   providers: [],
   defaultProviderId: "",
+  defaultRoute: { providerId: "", model: "" },
+  customRoutes: [],
   routes: defaultRoutes([]),
   monitor: {
     enabled: true,
@@ -348,15 +351,25 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
   const profile = pick(saved.profile);
   const oldBrief = pick(legacyBrief);
   const providers = normalizeProviders(saved);
-  const defaultProviderId = providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
+  const savedDefault = pick(saved.defaultRoute);
+  const defaultProviderId = providers.find((p) => p.id === savedDefault.providerId)?.id ?? providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? "";
   const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0];
+  const defaultRoute = {
+    providerId: primary?.id ?? "",
+    model: (savedDefault.providerId === primary?.id ? str2(savedDefault.model) : "") || primary?.model || ""
+  };
+  const routes = normalizeRoutes(pick(saved.routes), providers);
+  const customRoutes = Array.isArray(saved.customRoutes) ? TASKS.filter((t) => saved.customRoutes.includes(t)) : saved.defaultRoute ? [] : TASKS.filter((t) => !sameRoute(routes[t], defaultRoute));
+  for (const task of TASKS) if (!customRoutes.includes(task)) routes[task] = { ...defaultRoute };
   return {
     baseUrl: primary?.baseUrl ?? "",
     apiKey: primary?.apiKey ?? "",
     model: primary?.model ?? "",
     providers,
     defaultProviderId,
-    routes: normalizeRoutes(pick(saved.routes), providers),
+    defaultRoute,
+    customRoutes,
+    routes,
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -415,6 +428,7 @@ function mergeSettings(base, patch = {}) {
     ...p,
     routes,
     providers: Array.isArray(p.providers) ? p.providers : base.providers,
+    defaultRoute: { ...base.defaultRoute, ...pick(p.defaultRoute) },
     monitor: { ...base.monitor, ...pick(p.monitor) },
     brief: { ...base.brief, ...pick(p.brief) },
     profile: { ...base.profile, ...pick(p.profile) }
