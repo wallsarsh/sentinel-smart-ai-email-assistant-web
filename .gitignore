@@ -11,3 +11,4 @@ coverage
 tests/visual/__output__
 tests/perf/last-run.json
 demo-mail/
+installer/sentinel-ai.xpi

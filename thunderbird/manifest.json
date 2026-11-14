@@ -27,7 +27,6 @@
   ],
   "optional_host_permissions": [
     "https://*/*",
-	"http://localhost:1234/v1",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],
