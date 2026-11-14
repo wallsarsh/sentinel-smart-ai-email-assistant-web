@@ -42,6 +42,21 @@ powershell -ExecutionPolicy Bypass -File installer\install.ps1 -DryRun  # show t
 
 Same behaviour as above, per user, no administrator prompt: resolves the latest Thunderbird ESR, verifies Mozilla's SHA-512, runs the silent installer into `%LOCALAPPDATA%\SentinelThunderbird\app`, packages the add-on from the committed `thunderbird\dist`, installs it into a dedicated profile (or your existing one if you agree) and adds a **Thunderbird (Sentinel AI)** Start-menu shortcut. Options: `-Channel`, `-Lang`, `-InstallDir`, `-ProfileDir`, `-UseSystem`, `-XpiPath`, `-NoLaunch`, `-Yes`, `-Uninstall`. Works in Windows PowerShell 5.1 and PowerShell 7.
 
+#### One-liner from GitHub (`irm | iex`)
+
+```powershell
+irm https://raw.githubusercontent.com/wallsarsh/sentinel-smart-ai-email-assistant-web/main/installer/get.ps1 | iex
+```
+
+`installer/get.ps1` downloads the repository zip from GitHub into a temp folder, runs `installer\install.ps1` from it and deletes the folder. Pass options through `SENTINEL_ARGS`, or call it as a script block:
+
+```powershell
+$env:SENTINEL_ARGS = '-DryRun'; irm <url> | iex
+& ([scriptblock]::Create((irm <url>))) -Yes -NoLaunch
+```
+
+`SENTINEL_REF` picks a branch, tag or commit (default `main`). `SENTINEL_ZIP_URL` downloads a different zip, such as an internal mirror. The repository must be **public**, because the script downloads without credentials. Pin `SENTINEL_REF` to a tag or commit if you want a reproducible install, and read the script before piping it to `iex`.
+
 ### Manual (development)
 
 ```sh
