@@ -27,6 +27,8 @@
     "secrets": "node tools/secrets-scan.mjs",
     "kek:rotate": "tsx server/db/rotate-kek.ts",
     "ext:build": "node tools/build-extension.mjs",
+    "ext:xpi": "node installer/package-xpi.mjs",
+    "install:thunderbird": "node installer/install.mjs",
     "demo:mail": "node tools/generate-demo-mail.mjs"
   },
   "dependencies": {

@@ -20,6 +20,30 @@ A quiet AI assistant inside Thunderbird. It watches your inboxes, explains what 
 
 ## Install
 
+### One-step installer (downloads Thunderbird and installs the add-on)
+
+```sh
+npm ci
+npm run install:thunderbird            # or: node installer/install.mjs --help
+```
+
+It resolves the latest Thunderbird **ESR** from Mozilla, verifies the published SHA-512 checksum (and refuses to continue without one), installs it for your user only (no admin rights), builds the add-on package and installs it into a profile with the preferences an unsigned add-on needs. On Linux it also adds a `sentinel-thunderbird` launcher and an applications-menu entry.
+
+- By default a **dedicated profile** is created, so you add your mail account once in it. If an existing Thunderbird profile is found you are asked first; choosing it turns off add-on signature checking *in that profile* (close Thunderbird first). `--profile-dir PATH` targets a profile explicitly.
+- `--use-system` skips the download and uses a Thunderbird you already have; `--dry-run` shows the plan; `--uninstall` removes the app, launcher and add-on but never your profile or mail.
+- Unsigned add-ons load only on the **ESR** channel (the default). Linux x64, macOS and Windows x64 are supported by the downloader; only Linux x64 has been exercised so far. `npm run ext:xpi` writes `installer/sentinel-ai.xpi` if you want the package alone.
+
+### Windows 11 (PowerShell, no Node.js needed)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\install.ps1          # or double-click installer\install.cmd
+powershell -ExecutionPolicy Bypass -File installer\install.ps1 -DryRun  # show the plan only
+```
+
+Same behaviour as above, per user, no administrator prompt: resolves the latest Thunderbird ESR, verifies Mozilla's SHA-512, runs the silent installer into `%LOCALAPPDATA%\SentinelThunderbird\app`, packages the add-on from the committed `thunderbird\dist`, installs it into a dedicated profile (or your existing one if you agree) and adds a **Thunderbird (Sentinel AI)** Start-menu shortcut. Options: `-Channel`, `-Lang`, `-InstallDir`, `-ProfileDir`, `-UseSystem`, `-XpiPath`, `-NoLaunch`, `-Yes`, `-Uninstall`. Works in Windows PowerShell 5.1 and PowerShell 7.
+
+### Manual (development)
+
 ```sh
 npm ci                 # from the repository root
 npm run ext:build      # writes thunderbird/dist (committed so you can load it directly)
@@ -29,8 +53,8 @@ Thunderbird 140+ → **Tools → Developer Tools → Debug Add-ons → Load Temp
 
 Then:
 
-1. Open **Provider settings** and add one or more providers: OpenAI, Anthropic, an OpenAI-compatible endpoint, or a preset for Ollama, LM Studio, Groq, Mistral, OpenRouter or Gemini-compatible. Each key stays in this Thunderbird profile.
-2. Choose the provider and model for each task (analysis, brief, drafts, proofreading, rewrite) in **Task routing**.
+1. Open **Provider settings** and add one or more providers: OpenAI, Anthropic, an OpenAI-compatible endpoint, or a preset for Ollama, LM Studio, Groq, Mistral, OpenRouter or Gemini-compatible. Each key stays in this Thunderbird profile. Press **Load models from provider** to pick the model from a dropdown (fetched from the provider's models endpoint); *Other…* lets you type a name the provider does not list.
+2. In **Task routing** choose one **default provider and model for every feature**. Any feature (analysis, brief, drafts, proofreading, rewrite) can untick *Use default* to have its own model. Changing the default updates all features that still use it.
 3. Grant the provider origin permission when Thunderbird asks.
 4. Open **Dashboard** from the toolbar popup and press **Refresh now** for the first run.
 

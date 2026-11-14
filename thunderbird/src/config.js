@@ -5,6 +5,7 @@ import {
   normalizeProvider,
   normalizeRoutes,
   providerUsable,
+  sameRoute,
 } from './providers'
 
 export const INTERVAL_OPTIONS = [15, 30, 60, 120, 240]
@@ -17,6 +18,8 @@ export const DEFAULT_SETTINGS = {
   model: '',
   providers: [],
   defaultProviderId: '',
+  defaultRoute: { providerId: '', model: '' },
+  customRoutes: [],
   routes: defaultRoutes([]),
   monitor: {
     enabled: true,
@@ -74,16 +77,37 @@ export function normalizeSettings(raw = {}, legacyBrief = {}) {
   const profile = pick(saved.profile)
   const oldBrief = pick(legacyBrief)
   const providers = normalizeProviders(saved)
+  const savedDefault = pick(saved.defaultRoute)
   const defaultProviderId =
-    providers.find((p) => p.id === saved.defaultProviderId)?.id ?? providers[0]?.id ?? ''
+    providers.find((p) => p.id === savedDefault.providerId)?.id ??
+    providers.find((p) => p.id === saved.defaultProviderId)?.id ??
+    providers[0]?.id ??
+    ''
   const primary = providers.find((p) => p.id === defaultProviderId) ?? providers[0]
+  // One default provider+model serves every feature unless a feature is listed in customRoutes.
+  const defaultRoute = {
+    providerId: primary?.id ?? '',
+    model:
+      (savedDefault.providerId === primary?.id ? str(savedDefault.model) : '') ||
+      primary?.model ||
+      '',
+  }
+  const routes = normalizeRoutes(pick(saved.routes), providers)
+  const customRoutes = Array.isArray(saved.customRoutes)
+    ? TASKS.filter((t) => saved.customRoutes.includes(t))
+    : saved.defaultRoute
+      ? []
+      : TASKS.filter((t) => !sameRoute(routes[t], defaultRoute)) // upgrade: keep what the user had chosen
+  for (const task of TASKS) if (!customRoutes.includes(task)) routes[task] = { ...defaultRoute }
   return {
     baseUrl: primary?.baseUrl ?? '',
     apiKey: primary?.apiKey ?? '',
     model: primary?.model ?? '',
     providers,
     defaultProviderId,
-    routes: normalizeRoutes(pick(saved.routes), providers),
+    defaultRoute,
+    customRoutes,
+    routes,
     monitor: {
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
@@ -144,6 +168,7 @@ export function mergeSettings(base, patch = {}) {
     ...p,
     routes,
     providers: Array.isArray(p.providers) ? p.providers : base.providers,
+    defaultRoute: { ...base.defaultRoute, ...pick(p.defaultRoute) },
     monitor: { ...base.monitor, ...pick(p.monitor) },
     brief: { ...base.brief, ...pick(p.brief) },
     profile: { ...base.profile, ...pick(p.profile) },

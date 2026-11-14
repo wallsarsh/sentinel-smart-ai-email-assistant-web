@@ -358,7 +358,7 @@ export async function refreshBrief({
       ...baseBrief,
       headline: res.value.headline,
       sections: res.value.sections,
-      model: settings.routes?.brief?.model || settings.model || null,
+      model: settings.routes?.brief?.model || settings.defaultRoute?.model || settings.model || null,
       partial: false,
       progress: progressOf(job),
     }
