@@ -165,7 +165,7 @@ The automated suite uses fakes. Real Thunderbird/IMAP/OAuth/provider validation 
 
 - Drafts are saved with Thunderbird's compose API (TB 102+). Newer builds with `messages.saveMessage` can be adapted without UI changes.
 - Tags are best-effort and depend on the Thunderbird version and permission grant.
-- Calendar files are exported, not written directly to a calendar.
+- Direct calendar writes need a writable, enabled Thunderbird calendar. Without one (or without the experiment) Sentinel downloads an `.ics` instead.
 - No attachment analysis, no sending, no auto-reply, no server-side Sentinel account.
 - UI copy is English; the extension is a Thunderbird desktop add-on only.
 
@@ -198,9 +198,11 @@ Retry processing continues while Thunderbird runs, even with every Sentinel dial
 
 Add to calendar now writes directly through the bundled `sentinelCalendar` experiment,
 choosing the default writable, enabled event calendar (or the first eligible calendar).
-Configure a writable calendar in Thunderbird first. Errors are shown rather than silently
-replaced by an ICS download. Stable event IDs allow repeat attempts to recognize an existing
-event in the target calendar. No event editor is opened by this implementation.
+Configure a writable calendar in Thunderbird first. If nothing could be written, the popup
+shows the reason and downloads an `.ics` instead; a partial write is reported without a
+download, so retrying cannot duplicate events. Stable event IDs let repeat attempts
+recognise an existing event in the target calendar. No event editor is opened by this
+implementation.
 
 Research: Thunderbird documents calendar items as `calIEvent` and `calICalendar` objects
 (https://source-docs.thunderbird.net/en/latest/calendar/item_model.html); calendar extensions

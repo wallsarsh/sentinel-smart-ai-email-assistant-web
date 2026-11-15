@@ -147,8 +147,12 @@ async function addCalendar(events) {
   say('Adding calendar event…')
   const res = await send({ type: 'calendar-download', events }).catch((e) => ({ ok: false, error: e.message }))
   if (res?.ok === false) say(res.error ?? 'Could not save the calendar item.', 'status--error')
-  else if (res?.mode === 'direct') say('Added to your calendar.', 'status--ok')
-  else say('Calendar file downloaded. Open it with your calendar.', 'status--ok')
+  else if (res?.mode === 'direct') {
+    const name = res.created?.find((c) => c?.calendarName)?.calendarName
+    say(name ? `Added to ${name}.` : 'Added to your calendar.', 'status--ok')
+  } else if (res?.mode === 'download') {
+    say(`Could not write to your calendar (${res.warning ?? 'direct access failed'}). Downloaded ${res.filename} — open it to add the event.`)
+  } else say('Calendar file downloaded. Open it with your calendar.', 'status--ok')
 }
 
 function renderSenderRule() {

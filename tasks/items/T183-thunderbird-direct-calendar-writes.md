@@ -10,7 +10,7 @@ deps: [T167, T176]
 paths: [thunderbird/experiments/sentinel-calendar/, thunderbird/src/calendar.js, thunderbird/src/background.js, thunderbird/src/popup.js, thunderbird/manifest.json, tests/unit/thunderbird-assistant.test.ts]
 refs: [ThunderAI calendar experiment; MOBILE-BRD §6.5]
 reqs: [FR-TRI-06, FR-TRI-09]
-updated: 2026-11-04
+updated: 2026-11-15
 ---
 
 # T183 — Thunderbird direct calendar writes with ICS fallback
@@ -29,3 +29,5 @@ Write a calendar candidate directly when the bundled calendar experiment is avai
 - 2026-11-04 15:29Z claimed by opencode-deepseek-v4.1-flash
 - 2026-11-04 15:29Z status -> done: implemented and covered by automated tests/build; real Thunderbird validation remains T174
 - 2026-11-04 15:32Z status -> review: experimental calendar API needs real Thunderbird load validation; ICS fallback automated
+- 2026-11-15 17:45Z fixed for Thunderbird 140: cal.createEvent() no longer exists; the experiment now builds events with new CalEvent() from resource:///modules/CalEvent.sys.mjs. All-day bounds, error context, and the ICS fallback (only when nothing was written) were also reworked.
+- 2026-11-15 17:45Z automated: 102 tests including a regression guard against cal.createEvent; real-client retest still required.

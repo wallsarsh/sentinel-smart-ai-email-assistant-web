@@ -6,7 +6,7 @@ import { userContext, analyze, analyzeBatch, draftReply, runTextTask } from './a
 import { normalizeAnalysis } from './analysis.js'
 import { monitorBlockedReason } from './config.js'
 import { nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
-import { eventsFromAnalysis, writeCalendarEvents } from './calendar.js'
+import { eventsFromAnalysis, downloadIcs, writeCalendarEvents } from './calendar.js'
 import {
   buildReplyIndex,
   draftEligibility,
@@ -750,11 +750,23 @@ browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === 'rule-set') return await addRule(msg.pattern, msg.kind)
     if (msg.type === 'rule-remove') return await removeRule(msg.id)
     if (msg.type === 'calendar-download') {
-      const written = await writeCalendarEvents(msg.events ?? [], {
-        api: browser.sentinelCalendar,
-        downloads: browser.downloads,
-      })
-      return { ok: true, ...written }
+      const events = msg.events ?? []
+      try {
+        const written = await writeCalendarEvents(events, { api: browser.sentinelCalendar })
+        return { ok: true, ...written }
+      } catch (e) {
+        const reason = safeError(e)
+        // Never leave the user without an event, but do not duplicate a partial write.
+        if (e?.created) {
+          return { ok: false, error: `${reason} (${e.created} of ${events.length} events were already added.)` }
+        }
+        try {
+          const file = await downloadIcs(events, { downloads: browser.downloads })
+          return { ok: true, mode: 'download', filename: file.filename, warning: reason }
+        } catch {
+          return { ok: false, error: reason }
+        }
+      }
     }
     if (msg.type === 'open-dashboard') {
       await clearBriefBadge()
