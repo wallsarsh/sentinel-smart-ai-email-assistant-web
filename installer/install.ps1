@@ -14,6 +14,12 @@
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File installer\install.ps1 -DryRun
+
+.NOTES
+  Safe to run again at any time. If Sentinel is already installed the script compares what is installed
+  with this version and changes only what differs: Thunderbird is upgraded only when Mozilla's ESR is
+  newer, and the add-on is rewritten only when its files differ. Nothing to do means nothing is touched.
+  -DryRun reports what would change. -Force rewrites the add-on regardless.
 #>
 [CmdletBinding()]
 param(
@@ -25,6 +31,7 @@ param(
   [string]$XpiPath,               # use a prebuilt add-on package
   [switch]$NoLaunch,
   [switch]$Yes,                   # answer yes to questions
+  [switch]$Force,                 # rewrite the add-on even when it is already up to date
   [switch]$DryRun,
   [switch]$Uninstall
 )
@@ -40,6 +47,7 @@ $DataDir = if ($InstallDir) { $InstallDir } else { Join-Path $env:LOCALAPPDATA '
 $DataDir = [IO.Path]::GetFullPath($DataDir)
 $AppDir = Join-Path $DataDir 'app'
 $AppExe = Join-Path $AppDir 'thunderbird.exe'
+$StateFile = Join-Path $DataDir 'state.json'
 $ProfilesRoot = Join-Path $env:APPDATA 'Thunderbird'
 $Programs = [Environment]::GetFolderPath('Programs')
 if (-not $Programs) { $Programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs' }
@@ -170,16 +178,127 @@ function Get-Xpi($work) {
   return New-Xpi (Join-Path $work 'sentinel-ai.xpi')
 }
 
+# ---- Upgrade support --------------------------------------------------------------------------
+# What is installed is compared with what would be installed, by content. Zip timestamps differ on
+# every build, so the archives themselves are never compared - only the SHA-256 of each entry.
+
+function Get-XpiMap($path) {
+  Add-Type -AssemblyName System.IO.Compression
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $map = @{}
+  $zip = [IO.Compression.ZipFile]::OpenRead($path)
+  try {
+    foreach ($e in $zip.Entries) {
+      if ($e.FullName.EndsWith('/')) { continue }
+      $stream = $e.Open()
+      $sha = [Security.Cryptography.SHA256]::Create()
+      try { $map[$e.FullName] = ([BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant() }
+      finally { $sha.Dispose(); $stream.Dispose() }
+    }
+  } finally { $zip.Dispose() }
+  return $map
+}
+
+function Get-XpiVersion($path) {
+  try {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [IO.Compression.ZipFile]::OpenRead($path)
+    try {
+      $entry = $zip.GetEntry('manifest.json')
+      $reader = New-Object IO.StreamReader($entry.Open())
+      try { return [string](($reader.ReadToEnd() | ConvertFrom-Json).version) } finally { $reader.Dispose() }
+    } finally { $zip.Dispose() }
+  } catch { return $null }
+}
+
+# Returns Added / Changed / Removed name lists. A missing or unreadable installed package counts as everything added.
+function Compare-Addon($newXpi, $installedXpi) {
+  $new = Get-XpiMap $newXpi
+  $old = @{}
+  if ($installedXpi -and (Test-Path -LiteralPath $installedXpi)) {
+    try { $old = Get-XpiMap $installedXpi } catch { Write-Warning "The installed add-on could not be read and will be replaced: $($_.Exception.Message)" }
+  }
+  $added = @($new.Keys | Where-Object { -not $old.ContainsKey($_) } | Sort-Object)
+  $changed = @($new.Keys | Where-Object { $old.ContainsKey($_) -and $old[$_] -ne $new[$_] } | Sort-Object)
+  $removed = @($old.Keys | Where-Object { -not $new.ContainsKey($_) } | Sort-Object)
+  [pscustomobject]@{ Added = $added; Changed = $changed; Removed = $removed; Same = (($added.Count + $changed.Count + $removed.Count) -eq 0) }
+}
+
+function Write-Diff($diff) {
+  foreach ($group in @(@('added', $diff.Added), @('changed', $diff.Changed), @('removed', $diff.Removed))) {
+    $names = @($group[1])
+    if ($names.Count -eq 0) { continue }
+    $shown = ($names | Select-Object -First 8) -join ', '
+    $more = if ($names.Count -gt 8) { " (+$($names.Count - 8) more)" } else { '' }
+    Say "  $($group[0]) $($names.Count): $shown$more"
+  }
+}
+
+# "153.7.0esr" / "153.7.0" -> [version]; $null when it cannot be read.
+function ConvertTo-TbVersion($text) {
+  if (-not $text) { return $null }
+  $m = [regex]::Match([string]$text, '^\s*(\d+(\.\d+){1,3})')
+  if ($m.Success) { return [version]$m.Groups[1].Value }
+  return $null
+}
+
+# application.ini ships in the app folder and reads the same on every OS; the exe's version info is the fallback.
+function Get-InstalledTbVersion {
+  $ini = Join-Path $AppDir 'application.ini'
+  if (Test-Path -LiteralPath $ini) {
+    $line = Get-Content -LiteralPath $ini | Where-Object { $_ -match '^Version=' } | Select-Object -First 1
+    if ($line) { $v = ConvertTo-TbVersion ($line -replace '^Version=', ''); if ($v) { return $v } }
+  }
+  if (Test-Path -LiteralPath $AppExe) {
+    try { return (ConvertTo-TbVersion ([Diagnostics.FileVersionInfo]::GetVersionInfo($AppExe).ProductVersion)) } catch { }
+  }
+  return $null
+}
+
+function Get-State {
+  if (-not (Test-Path -LiteralPath $StateFile)) { return $null }
+  try { return (Get-Content -Raw -LiteralPath $StateFile | ConvertFrom-Json) } catch { return $null }
+}
+
+function Save-State($profile, $tbVersion, $addonVersion) {
+  New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+  $state = [ordered]@{
+    profile = $profile; thunderbird = "$tbVersion"; addon = "$addonVersion"
+    updated = (Get-Date).ToUniversalTime().ToString('o')
+  }
+  $tmp = "$StateFile.tmp"
+  [IO.File]::WriteAllText($tmp, ($state | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+  Move-Item -Force -LiteralPath $tmp -Destination $StateFile
+}
+
+# Where an earlier run put the add-on, so a re-run updates it instead of asking again.
+function Find-InstalledProfile {
+  $rel = "extensions\$AddonId.xpi"
+  $state = Get-State
+  if ($state -and $state.profile -and (Test-Path -LiteralPath (Join-Path $state.profile $rel))) { return [string]$state.profile }
+  $dedicated = Join-Path $DataDir 'profile'
+  if (Test-Path -LiteralPath (Join-Path $dedicated $rel)) { return $dedicated }
+  $default = Get-DefaultProfile
+  if ($default -and (Test-Path -LiteralPath (Join-Path $default $rel))) { return $default }
+  return $null
+}
+
+function Test-ThunderbirdRunning([bool]$anyCopy) {
+  $procs = @(Get-Process -Name thunderbird -ErrorAction SilentlyContinue)
+  if (-not $anyCopy) { $procs = @($procs | Where-Object { $_.Path -and $_.Path -eq $AppExe }) }
+  return ($procs.Count -gt 0)
+}
+
 # ---- Uninstall --------------------------------------------------------------------------------
 
 function Invoke-Uninstall {
-  $profile = if ($ProfileDir) { $ProfileDir } else { Join-Path $DataDir 'profile' }
+  $profile = if ($ProfileDir) { $ProfileDir } elseif ($found = Find-InstalledProfile) { $found } else { Join-Path $DataDir 'profile' }
   $helper = Join-Path $AppDir 'uninstall\helper.exe'
   if (Test-Path $helper) {
     Say "$(if ($DryRun) { 'Would run' } else { 'Running' }) $helper /S"
     if (-not $DryRun) { Start-Process -FilePath $helper -ArgumentList '/S' -Wait }
   }
-  foreach ($t in @($AppDir, $StartMenu, (Join-Path $profile "extensions\$AddonId.xpi"))) {
+  foreach ($t in @($AppDir, $StartMenu, $StateFile, (Join-Path $profile "extensions\$AddonId.xpi"))) {
     if (Test-Path $t) {
       Say "$(if ($DryRun) { 'Would remove' } else { 'Removing' }) $t"
       if (-not $DryRun) { Remove-Item -Recurse -Force $t }
@@ -204,42 +323,46 @@ if ($Uninstall) { Invoke-Uninstall; return }
 if (-not [Environment]::Is64BitOperatingSystem) { Fail 'A 64-bit Windows is required.' }
 $work = Join-Path ([IO.Path]::GetTempPath()) ("sentinel-install-" + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work | Out-Null
+$changes = 0
 try {
-  # 1. Thunderbird itself
+  # 1. Thunderbird: install when missing, upgrade when Mozilla's build is newer, otherwise leave alone.
+  $tbVersion = $null
+  $tbAction = 'none'          # none | install | upgrade
+  $info = $null
   if ($UseSystem) {
     $AppExe = Find-SystemThunderbird
     if (-not $AppExe) { Fail 'No Thunderbird found. Remove -UseSystem to download it.' }
+    $AppDir = Split-Path -Parent $AppExe
+    $tbVersion = Get-InstalledTbVersion
     Say "Using the Thunderbird at $AppExe"
   } else {
-    $info = Resolve-Download
-    Say "Latest $($Channel.ToUpper()): Thunderbird $($info.Version) ($($info.File))"
-    if ($DryRun) {
-      Say "Would download $($info.Url) and install it to $AppDir"
-    } elseif (Test-Path $AppExe) {
-      Say "Thunderbird is already installed at $AppExe."
-    } else {
-      $expected = Get-ExpectedChecksum $info
-      $file = Join-Path $work $info.File
-      Say 'Downloading...'
-      Invoke-WebRequest -UseBasicParsing -Uri $info.Url -OutFile $file
-      Say "Verifying $($expected.Algorithm) checksum..."
-      if ((Get-FileHash -Algorithm $expected.Algorithm -LiteralPath $file).Hash.ToLowerInvariant() -ne $expected.Hash) {
-        Fail 'Checksum mismatch - the download was discarded.'
-      }
-      Say 'Installing Thunderbird (this takes a minute)...'
-      New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
-      $installerArgs = @('/S', "/InstallDirectoryPath=`"$AppDir`"", '/MaintenanceService=false', '/DesktopShortcut=false', '/TaskbarShortcut=false')
-      $p = Start-Process -FilePath $file -ArgumentList $installerArgs -Wait -PassThru
-      if ($p.ExitCode -ne 0) { Fail "The Thunderbird installer exited with code $($p.ExitCode)." }
-      for ($i = 0; $i -lt 60 -and -not (Test-Path $AppExe); $i++) { Start-Sleep -Seconds 1 }
-      if (-not (Test-Path $AppExe)) { Fail 'Thunderbird was installed but thunderbird.exe was not found.' }
+    $installed = if (Test-Path -LiteralPath $AppExe) { Get-InstalledTbVersion } else { $null }
+    try {
+      $info = Resolve-Download
+    } catch {
+      if (-not (Test-Path -LiteralPath $AppExe)) { throw }
+      Write-Warning "Could not check Mozilla for a newer Thunderbird ($($_.Exception.Message)). Keeping the installed one."
     }
+    if (-not (Test-Path -LiteralPath $AppExe)) {
+      $tbAction = 'install'
+      Say "Thunderbird $($info.Version) will be installed."
+    } elseif ($info) {
+      $latest = ConvertTo-TbVersion $info.Version
+      if ($installed -and $latest -and $installed -lt $latest) {
+        $tbAction = 'upgrade'
+        Say "Thunderbird $installed -> $latest will be upgraded."
+      } else {
+        Say "Thunderbird $installed is up to date (latest $($Channel.ToUpper()): $($info.Version))."
+      }
+    } else { Say "Thunderbird $installed is installed." }
+    $tbVersion = if ($tbAction -eq 'none') { $installed } else { ConvertTo-TbVersion $info.Version }
     if ($Channel -ne 'esr') { Write-Warning 'The release channel refuses unsigned add-ons; Sentinel may stay disabled. Use -Channel esr.' }
   }
 
-  # 2. Profile
+  # 2. Profile: reuse the one an earlier run used; only ask when this is a first install.
   $profile = $null
   if ($ProfileDir) { $profile = [IO.Path]::GetFullPath($ProfileDir) }
+  elseif ($found = Find-InstalledProfile) { $profile = $found; Say "Sentinel is already installed in $profile" }
   else {
     $existing = Get-DefaultProfile
     if ($existing -and (Test-Path $existing) -and
@@ -248,33 +371,101 @@ try {
     } else { $profile = Join-Path $DataDir 'profile' }
   }
   Say "Profile: $profile"
-  if ($DryRun) { Say 'Dry run - nothing was changed.'; return }
-  if (Get-Process -Name thunderbird -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $profile -ne (Join-Path $DataDir 'profile') }) {
+  $dedicatedProfile = ($profile -eq (Join-Path $DataDir 'profile'))
+
+  # 3. Add-on: compare content with what is installed.
+  $xpi = Get-Xpi $work
+  $target = Join-Path $profile "extensions\$AddonId.xpi"
+  $diff = Compare-Addon $xpi $target
+  $newVer = Get-XpiVersion $xpi
+  $oldVer = if (Test-Path -LiteralPath $target) { Get-XpiVersion $target } else { $null }
+  $addonChange = (-not $diff.Same) -or $Force
+  $userJsOk = $false
+  $uj = Join-Path $profile 'user.js'
+  if (Test-Path -LiteralPath $uj) { $userJsOk = ([IO.File]::ReadAllText($uj)).Contains($UserJsBlock) }
+  if (-not (Test-Path -LiteralPath $target)) { Say "Sentinel add-on $newVer will be installed." }
+  elseif ($diff.Same -and -not $Force) { Say "Sentinel add-on $oldVer is up to date." }
+  else {
+    Say "Sentinel add-on $oldVer -> $newVer$(if ($diff.Same) { ' (forced)' } else { '' }):"
+    Write-Diff $diff
+  }
+
+  $needClose = ($tbAction -eq 'upgrade') -or $addonChange
+  if ($DryRun) {
+    $todo = @()
+    if ($tbAction -ne 'none') { $todo += "$tbAction Thunderbird" }
+    if ($addonChange) { $todo += 'update the add-on' }
+    if (-not $userJsOk) { $todo += 'update user.js' }
+    Say $(if ($todo.Count) { "Dry run - would: $($todo -join ', ')." } else { 'Dry run - already up to date, nothing to do.' })
+    return
+  }
+  if ($needClose -and (Test-ThunderbirdRunning (-not $dedicatedProfile))) {
     Fail 'Thunderbird is running. Close it and run the installer again.'
   }
+
+  # 4. Apply only what differs.
+  if ($tbAction -ne 'none') {
+    $expected = Get-ExpectedChecksum $info
+    $file = Join-Path $work $info.File
+    Say 'Downloading Thunderbird...'
+    Invoke-WebRequest -UseBasicParsing -Uri $info.Url -OutFile $file
+    Say "Verifying $($expected.Algorithm) checksum..."
+    if ((Get-FileHash -Algorithm $expected.Algorithm -LiteralPath $file).Hash.ToLowerInvariant() -ne $expected.Hash) {
+      Fail 'Checksum mismatch - the download was discarded.'
+    }
+    Say "$(if ($tbAction -eq 'upgrade') { 'Upgrading' } else { 'Installing' }) Thunderbird (this takes a minute)..."
+    New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+    $installerArgs = @('/S', "/InstallDirectoryPath=`"$AppDir`"", '/MaintenanceService=false', '/DesktopShortcut=false', '/TaskbarShortcut=false')
+    $p = Start-Process -FilePath $file -ArgumentList $installerArgs -Wait -PassThru
+    if ($p.ExitCode -ne 0) { Fail "The Thunderbird installer exited with code $($p.ExitCode)." }
+    for ($i = 0; $i -lt 60 -and -not (Test-Path $AppExe); $i++) { Start-Sleep -Seconds 1 }
+    if (-not (Test-Path $AppExe)) { Fail 'Thunderbird was installed but thunderbird.exe was not found.' }
+    $changes++
+  }
+
   New-Item -ItemType Directory -Force -Path (Join-Path $profile 'extensions') | Out-Null
+  if ($addonChange) {
+    # Write beside the target, then rename, so a crash never leaves a half-written add-on behind.
+    $tmp = "$target.new"
+    Copy-Item -Force -LiteralPath $xpi -Destination $tmp
+    Move-Item -Force -LiteralPath $tmp -Destination $target
+    Say 'Sentinel AI add-on updated.'
+    $changes++
+  }
+  if (-not $userJsOk) { Set-UserJs $profile; Say 'Profile settings (user.js) updated.'; $changes++ }
 
-  # 3. The add-on
-  Copy-Item -Force -LiteralPath (Get-Xpi $work) -Destination (Join-Path $profile "extensions\$AddonId.xpi")
-  Set-UserJs $profile
-  Say 'Sentinel AI add-on installed.'
-
-  # 4. Start menu shortcut
+  # 5. Shortcut and state: rewritten only when they differ.
+  $wantArgs = "--profile `"$profile`""
   try {
-    $sh = (New-Object -ComObject WScript.Shell).CreateShortcut($StartMenu)
-    $sh.TargetPath = $AppExe
-    $sh.Arguments = "--profile `"$profile`""
-    $sh.WorkingDirectory = Split-Path -Parent $AppExe
-    $sh.Description = 'Thunderbird with the Sentinel AI assistant'
-    $sh.Save()
-    Say 'Start menu shortcut: Thunderbird (Sentinel AI)'
+    $sh = New-Object -ComObject WScript.Shell
+    $current = if (Test-Path -LiteralPath $StartMenu) { $sh.CreateShortcut($StartMenu) } else { $null }
+    if (-not $current -or $current.TargetPath -ne $AppExe -or $current.Arguments -ne $wantArgs) {
+      $link = $sh.CreateShortcut($StartMenu)
+      $link.TargetPath = $AppExe
+      $link.Arguments = $wantArgs
+      $link.WorkingDirectory = Split-Path -Parent $AppExe
+      $link.Description = 'Thunderbird with the Sentinel AI assistant'
+      $link.Save()
+      Say 'Start menu shortcut: Thunderbird (Sentinel AI)'
+      $changes++
+    }
   } catch { Write-Warning "Could not create the Start menu shortcut: $($_.Exception.Message)" }
 
+  $state = Get-State
+  if (-not $state -or $state.profile -ne $profile -or $state.addon -ne "$newVer" -or $state.thunderbird -ne "$tbVersion") {
+    Save-State $profile $tbVersion $newVer
+  }
+
   Write-Host ''
-  Write-Host 'Done. Next steps:'
-  Write-Host '  1. In Thunderbird add your mail account (if the profile is new).'
-  Write-Host '  2. Open the Sentinel toolbar button > Provider settings, add your AI provider and choose a model.'
-  if (-not $NoLaunch) {
+  if ($changes -eq 0) { Say 'Already up to date - nothing was changed.' }
+  elseif ($oldVer) { Say "Updated. Restart Thunderbird to load the new add-on." }
+  else {
+    Write-Host 'Done. Next steps:'
+    Write-Host '  1. In Thunderbird add your mail account (if the profile is new).'
+    Write-Host '  2. Open the Sentinel toolbar button > Provider settings, add your AI provider and choose a model.'
+  }
+  # Launch unless asked not to, or unless nothing changed and it is already running.
+  if (-not $NoLaunch -and -not ($changes -eq 0 -and (Test-ThunderbirdRunning $true))) {
     Say 'Starting Thunderbird...'
     Start-Process -FilePath $AppExe -ArgumentList @('--profile', "`"$profile`"")
   }
