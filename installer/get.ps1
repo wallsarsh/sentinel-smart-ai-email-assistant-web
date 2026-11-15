@@ -41,7 +41,7 @@
   # Turn "-Yes -ProfileDir C:\x -Lang de" (from $args and/or $env:SENTINEL_ARGS) into a splattable hashtable.
   # Splatting a plain string array would pass '-Yes' as a positional value, not as a switch.
   $tokens = @($args) + @(if ($env:SENTINEL_ARGS) { $env:SENTINEL_ARGS -split '\s+' | Where-Object { $_ } })
-  $allowed = @('Channel', 'Lang', 'InstallDir', 'ProfileDir', 'UseSystem', 'XpiPath', 'NoLaunch', 'Yes', 'DryRun', 'Uninstall')
+  $allowed = @('Channel', 'Lang', 'InstallDir', 'ProfileDir', 'UseSystem', 'XpiPath', 'NoLaunch', 'Yes', 'Force', 'DryRun', 'Uninstall')
   $opts = @{}
   for ($i = 0; $i -lt $tokens.Count; $i++) {
     $t = [string]$tokens[$i]

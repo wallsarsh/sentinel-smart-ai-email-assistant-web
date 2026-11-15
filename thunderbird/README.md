@@ -57,6 +57,17 @@ $env:SENTINEL_ARGS = '-DryRun'; irm <url> | iex
 
 `SENTINEL_REF` picks a branch, tag or commit (default `main`). `SENTINEL_ZIP_URL` downloads a different zip, such as an internal mirror. The repository must be **public**, because the script downloads without credentials. Pin `SENTINEL_REF` to a tag or commit if you want a reproducible install, and read the script before piping it to `iex`.
 
+#### Upgrading and re-running
+
+Run the same one-liner again at any time; it is idempotent. It finds the earlier install (from `%LOCALAPPDATA%\SentinelThunderbird\state.json`, the dedicated profile, or your default profile), then changes only what differs:
+
+- **Thunderbird** is upgraded only if Mozilla's current ESR is newer than the installed one (checksum-verified, as on a first install). A newer or equal install is left alone, and so is an offline run.
+- **The add-on** is compared file by file (SHA-256) with the one in the profile. The script lists what was added, changed or removed, and rewrites it only if something differs. The write goes to a temp file first and is then renamed.
+- **`user.js` and the Start-menu shortcut** are rewritten only if they are missing or wrong.
+- Nothing to do means nothing is touched, and it will not launch a second Thunderbird.
+
+`-DryRun` shows the plan without changing anything. `-Force` rewrites the add-on even when identical. If something needs changing while Thunderbird is running, the script stops and asks you to close it. After an add-on update, restart Thunderbird.
+
 ### Manual (development)
 
 ```sh
