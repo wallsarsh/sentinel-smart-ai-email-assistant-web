@@ -7,9 +7,13 @@
 
     irm https://raw.githubusercontent.com/wallsarsh/sentinel-smart-ai-email-assistant-web/main/installer/get.ps1 | iex
 
-  It downloads this repository as a zip from GitHub into a temporary folder, then runs
-  installer\install.ps1 from it (which downloads Thunderbird ESR, verifies Mozilla's checksum and
-  installs the add-on). The temporary folder is deleted afterwards.
+  It downloads a small zip from GitHub into a temporary folder, then runs installer\install.ps1
+  from it (which downloads Thunderbird ESR, verifies Mozilla's checksum and installs the add-on).
+  The temporary folder is deleted afterwards.
+
+  The zip is not the whole repository: .gitattributes marks everything except installer\ and
+  thunderbird\{manifest.json,dist,experiments} as export-ignore, so the download is roughly
+  150 KB instead of several MB. Nothing else is needed to install.
 
   Options for install.ps1 (-Yes, -DryRun, -NoLaunch, -Uninstall, -Channel, -Lang, -InstallDir,
   -ProfileDir, -UseSystem) can be given in either of two ways:
@@ -61,6 +65,7 @@
     Write-Host "* Downloading $repo@$ref ..."
     try { Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip }
     catch { throw "Could not download $url ($($_.Exception.Message)). The repository must be public and the branch/tag must exist." }
+    Write-Host "* Downloaded $([math]::Round((Get-Item -LiteralPath $zip).Length / 1KB)) KB."
 
     Write-Host '* Unpacking...'
     $src = Join-Path $work 'src'

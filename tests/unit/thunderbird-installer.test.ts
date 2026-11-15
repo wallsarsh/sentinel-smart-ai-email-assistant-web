@@ -82,3 +82,16 @@ describe('add-on package', () => {
     expect(JSON.parse(new TextDecoder().decode(zip['manifest.json'])).browser_specific_settings.gecko.id).toBe(lib.ADDON_ID)
   })
 })
+
+describe('installer download size', () => {
+  // GitHub archives honour export-ignore, so the one-liner downloads only what install.ps1 reads.
+  it('excludes the web app, tests and sources from the archive', () => {
+    const attrs = readFileSync(join(process.cwd(), '.gitattributes'), 'utf8')
+    const ignored = (p: string) => attrs.includes(`${p} export-ignore`)
+    for (const p of ['app/**', 'server/**', 'public/**', 'tests/**', 'tools/**', 'docs/**', 'thunderbird/src/**', 'package-lock.json'])
+      expect(ignored(p), `${p} should be export-ignore`).toBe(true)
+    for (const p of ['installer/**', 'thunderbird/dist/**', 'thunderbird/manifest.json', 'thunderbird/experiments/**'])
+      expect(ignored(p), `${p} must stay in the archive`).toBe(false)
+  })
+})
+

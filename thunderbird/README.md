@@ -48,7 +48,7 @@ Same behaviour as above, per user, no administrator prompt: resolves the latest 
 irm https://raw.githubusercontent.com/wallsarsh/sentinel-smart-ai-email-assistant-web/main/installer/get.ps1 | iex
 ```
 
-`installer/get.ps1` downloads the repository zip from GitHub into a temp folder, runs `installer\install.ps1` from it and deletes the folder. Pass options through `SENTINEL_ARGS`, or call it as a script block:
+`installer/get.ps1` downloads a trimmed repository zip from GitHub into a temp folder, runs `installer\install.ps1` from it and deletes the folder. The zip carries only what the installer reads — `installer\` and `thunderbird\{manifest.json,dist,experiments}` (about 150 KB); `.gitattributes` marks the rest of the repository `export-ignore`, so the web app, tests and docs are not downloaded. Pass options through `SENTINEL_ARGS`, or call it as a script block:
 
 ```powershell
 $env:SENTINEL_ARGS = '-DryRun'; irm <url> | iex
