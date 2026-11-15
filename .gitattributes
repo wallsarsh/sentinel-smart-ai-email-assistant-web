@@ -1,0 +1,40 @@
+# The Windows one-liner downloads a GitHub archive of this repository. Keep that archive to the
+# files installer/install.ps1 actually reads, instead of shipping the whole web app.
+# GitHub documents that archives honour "export-ignore"; verify with:
+#   git archive --format=zip --worktree-attributes HEAD | wc -c
+app/** export-ignore
+deploy/** export-ignore
+desktop/** export-ignore
+docs/** export-ignore
+i18n/** export-ignore
+packages/** export-ignore
+public/** export-ignore
+server/** export-ignore
+shared/** export-ignore
+tasks/** export-ignore
+tests/** export-ignore
+tools/** export-ignore
+worker/** export-ignore
+.github/** export-ignore
+thunderbird/src/** export-ignore
+thunderbird/docs/** export-ignore
+thunderbird/README.md export-ignore
+thunderbird/package.json export-ignore
+docker-compose.dev.yml export-ignore
+Dockerfile export-ignore
+Dockerfile.dev export-ignore
+.dockerignore export-ignore
+drizzle.config.ts export-ignore
+.env.example export-ignore
+eslint.config.js export-ignore
+.gitignore export-ignore
+nuxt.config.ts export-ignore
+.nvmrc export-ignore
+package.json export-ignore
+package-lock.json export-ignore
+.prettierignore export-ignore
+.prettierrc.json export-ignore
+README.md export-ignore
+tsconfig.json export-ignore
+vitest.config.ts export-ignore
+vitest.e2e.config.ts export-ignore
