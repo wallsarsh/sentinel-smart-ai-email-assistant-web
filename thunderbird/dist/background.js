@@ -2400,6 +2400,10 @@ var clip4 = (s, n) => {
   const t = String(s ?? "").replace(/\s+/g, " ").trim();
   return t.length <= n ? t : `${t.slice(0, n - 1)}\u2026`;
 };
+var pad = (n) => String(n).padStart(2, "0");
+var dateOnly2 = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+var compactDate = (s) => s.replace(/-/g, "");
+var compactUtc = (d) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
 var isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(`${s}T00:00:00Z`));
 function normalizeEvent(raw) {
   if (!raw) return null;
@@ -2451,6 +2455,18 @@ function eventsFromAnalysis(analysis, { header = null } = {}) {
   }
   return out.slice(0, 5);
 }
+var escape = (s) => String(s ?? "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+var fold = (line) => {
+  if (line.length <= 75) return line;
+  let out = line.slice(0, 75);
+  let rest = line.slice(75);
+  while (rest.length) {
+    out += `\r
+ ${rest.slice(0, 74)}`;
+    rest = rest.slice(74);
+  }
+  return out;
+};
 var hash = (s) => {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -2460,6 +2476,58 @@ var hash = (s) => {
   return (h >>> 0).toString(36);
 };
 var uidFor = (event) => `${hash(`${event.title}|${event.start}|${event.sourceMessageId ?? ""}`)}@sentinel.local`;
+function toIcs(events, { now = /* @__PURE__ */ new Date(), prodId = "-//Sentinel//AI Email Assistant//EN" } = {}) {
+  const stamp = compactUtc(now);
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    `PRODID:${prodId}`,
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH"
+  ];
+  for (const event of events) {
+    const start = event.start;
+    let dtstart;
+    let dtend;
+    if (event.allDay) {
+      dtstart = `DTSTART;VALUE=DATE:${compactDate(start)}`;
+      const end = event.end && isDate(event.end) ? event.end : dateOnly2(new Date(Date.parse(`${start}T00:00:00Z`) + DAY2));
+      dtend = `DTEND;VALUE=DATE:${compactDate(end)}`;
+    } else {
+      const s = new Date(start);
+      const e = event.end ? new Date(event.end) : new Date(s.getTime() + 36e5);
+      dtstart = `DTSTART:${compactUtc(s)}`;
+      dtend = `DTEND:${compactUtc(e)}`;
+    }
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${uidFor(event)}`,
+      `DTSTAMP:${stamp}`,
+      dtstart,
+      dtend,
+      `SUMMARY:${escape(event.title)}`,
+      ...event.location ? [`LOCATION:${escape(event.location)}`] : [],
+      ...event.description ? [`DESCRIPTION:${escape(event.description)}`] : [],
+      "END:VEVENT"
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return lines.map(fold).join("\r\n") + "\r\n";
+}
+var icsFilename = (now = /* @__PURE__ */ new Date()) => `sentinel-${dateOnly2(now)}.ics`;
+async function downloadIcs(events, { downloads, now = /* @__PURE__ */ new Date(), filename } = {}) {
+  if (!events?.length) throw new Error("There is no calendar item to add.");
+  if (!downloads?.download || typeof URL?.createObjectURL !== "function")
+    throw new Error("This Thunderbird build cannot save calendar files.");
+  const blob = new Blob([toIcs(events, { now })], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  try {
+    await downloads.download({ url, filename: filename ?? icsFilename(now), saveAs: true });
+    return { filename: filename ?? icsFilename(now) };
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1e4);
+  }
+}
 async function writeCalendarEvents(events, { api: api2 } = {}) {
   if (!events?.length) throw new Error("There is no calendar item to add.");
   if (!api2?.createEvent) throw new Error("Direct calendar access is unavailable. Reload the add-on and enable its calendar experiment.");
@@ -2469,7 +2537,13 @@ async function writeCalendarEvents(events, { api: api2 } = {}) {
     if (!event) throw new Error("Invalid calendar event.");
     const details = { title: event.title, start: event.start, allDay: event.allDay, uid: uidFor(event) };
     for (const key of ["end", "location", "description"]) if (event[key]) details[key] = event[key];
-    created.push(await api2.createEvent(details));
+    try {
+      created.push(await api2.createEvent(details));
+    } catch (e) {
+      const error = new Error(String(e?.message ?? e));
+      error.created = created.length;
+      throw error;
+    }
   }
   return { mode: "direct", count: created.length, created };
 }
@@ -3742,11 +3816,22 @@ browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === "rule-set") return await addRule(msg.pattern, msg.kind);
     if (msg.type === "rule-remove") return await removeRule(msg.id);
     if (msg.type === "calendar-download") {
-      const written = await writeCalendarEvents(msg.events ?? [], {
-        api: browser.sentinelCalendar,
-        downloads: browser.downloads
-      });
-      return { ok: true, ...written };
+      const events = msg.events ?? [];
+      try {
+        const written = await writeCalendarEvents(events, { api: browser.sentinelCalendar });
+        return { ok: true, ...written };
+      } catch (e) {
+        const reason = safeError(e);
+        if (e?.created) {
+          return { ok: false, error: `${reason} (${e.created} of ${events.length} events were already added.)` };
+        }
+        try {
+          const file = await downloadIcs(events, { downloads: browser.downloads });
+          return { ok: true, mode: "download", filename: file.filename, warning: reason };
+        } catch {
+          return { ok: false, error: reason };
+        }
+      }
     }
     if (msg.type === "open-dashboard") {
       await clearBriefBadge();

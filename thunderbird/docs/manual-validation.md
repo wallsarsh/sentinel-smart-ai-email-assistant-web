@@ -71,6 +71,7 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 ## 5a. Direct calendar writes
 
 1. With the bundled calendar experiment loaded, Add a candidate and confirm the event appears in the selected writable Thunderbird calendar.
+2. Disable every writable calendar (or remove the experiment) and Add again: the status names the reason and an `.ics` downloads instead of a generic failure.
 2. Temporarily disable/rename the experiment and confirm Add falls back to a downloaded `.ics`.
 3. Confirm a failed write after the first event is not retried as an ICS duplicate.
 

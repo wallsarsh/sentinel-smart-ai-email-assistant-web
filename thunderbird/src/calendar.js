@@ -173,7 +173,14 @@ export async function writeCalendarEvents(events, { api } = {}) {
     // Experiment schemas reject null optional strings and undeclared properties.
     const details = { title: event.title, start: event.start, allDay: event.allDay, uid: uidFor(event) }
     for (const key of ['end', 'location', 'description']) if (event[key]) details[key] = event[key]
-    created.push(await api.createEvent(details))
+    try {
+      created.push(await api.createEvent(details))
+    } catch (e) {
+      // Keep the count so the caller can tell "nothing was written" from a partial write.
+      const error = new Error(String(e?.message ?? e))
+      error.created = created.length
+      throw error
+    }
   }
   return { mode: 'direct', count: created.length, created }
 }
