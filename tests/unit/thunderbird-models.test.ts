@@ -4,7 +4,9 @@ import { chatModels, listModels, modelsRequest, parseModels } from '../../thunde
 // @ts-expect-error plain JS modules
 import { normalizeSettings, mergeSettings } from '../../thunderbird/src/config.js'
 // @ts-expect-error plain JS modules
-import { resolveRoute } from '../../thunderbird/src/ai.js'
+import { describe as describeFailure, resolveRoute } from '../../thunderbird/src/ai.js'
+// @ts-expect-error plain JS modules
+import { normalizeProvider } from '../../thunderbird/src/providers.js'
 
 const res = (status: number, body: unknown) =>
   ({ status, ok: status >= 200 && status < 300, json: async () => body }) as Response
@@ -17,7 +19,11 @@ describe('model listing', () => {
     })
     const a = modelsRequest({ kind: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: 'k' })
     expect(a.url).toBe('https://api.anthropic.com/v1/models?limit=1000')
-    expect(a.headers).toMatchObject({ 'x-api-key': 'k', 'anthropic-version': '2023-06-01' })
+    expect(a.headers).toMatchObject({
+      'x-api-key': 'k',
+      'anthropic-version': '2026-10-21',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    })
     expect(modelsRequest({ kind: 'openai_compatible', baseUrl: 'http://localhost:11434/v1' }).headers).toEqual({})
   })
 
@@ -34,6 +40,16 @@ describe('model listing', () => {
     const p = { kind: 'openai', baseUrl: 'https://x/v1', apiKey: 'k' }
     expect(await listModels(p, async () => res(200, { data: [{ id: 'm1' }] }))).toEqual({ ok: true, models: ['m1'] })
     expect(await listModels(p, async () => res(401, {}))).toMatchObject({ ok: false, error: /API key/ })
+    const cors = {
+      status: 401,
+      ok: false,
+      json: async () => ({}),
+      text: async () =>
+        '{"type":"error","error":{"type":"authentication_error","message":"CORS requests are not allowed for this Organization because of its settings."}}',
+    }
+    expect(
+      await listModels({ kind: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: 'k' }, async () => cors),
+    ).toMatchObject({ ok: false, error: /browser add-ons/ })
     expect(await listModels(p, async () => res(404, {}))).toMatchObject({ ok: false, error: /manually/ })
     expect(await listModels(p, async () => { throw new Error('down') })).toMatchObject({ ok: false, error: /reach/ })
     expect(await listModels({ kind: 'openai', baseUrl: '' })).toMatchObject({ ok: false })
@@ -82,5 +98,22 @@ describe('default model for every feature', () => {
   it('falls back to the first provider when the default one is removed', () => {
     const s = normalizeSettings({ providers: [providers[1]], defaultRoute: { providerId: 'a', model: 'zzz' } })
     expect(s.defaultRoute).toEqual({ providerId: 'b', model: 'b1' })
+  })
+})
+
+describe('Anthropic browser access', () => {
+  it('explains the CORS 401 instead of blaming the key', () => {
+    expect(describeFailure({ kind: 'auth', problem: 'invalid_credentials', code: 'browser_blocked' })).toMatch(
+      /browser add-ons/,
+    )
+    expect(describeFailure({ kind: 'auth', problem: 'invalid_credentials', code: '401' })).toBe(
+      'The provider rejected the API key.',
+    )
+  })
+  it('cleans quotes and a Bearer prefix from pasted keys', () => {
+    expect(normalizeProvider({ kind: 'anthropic', apiKey: ' "Bearer sk-ant-api03-x" ' }).apiKey).toBe(
+      'sk-ant-api03-x',
+    )
+    expect(normalizeProvider({ kind: 'anthropic', apiKey: 'sk-ant-api03-y' }).apiKey).toBe('sk-ant-api03-y')
   })
 })

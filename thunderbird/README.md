@@ -84,6 +84,8 @@ Then:
 3. Grant the provider origin permission when Thunderbird asks.
 4. Open **Dashboard** from the toolbar popup and press **Refresh now** for the first run.
 
+**Anthropic:** Thunderbird is a browser origin, so Sentinel sends Anthropic's required `anthropic-dangerous-direct-browser-access` header. Organizations that forbid direct browser calls (zero data retention, the Compliance API or a linked Enterprise parent) cannot call Anthropic from any add-on, even with a valid key; Sentinel names that case instead of blaming the key. Use an OpenAI-compatible provider such as OpenRouter for those accounts. Pasted keys are cleaned of quotes and a stray `Bearer ` prefix.
+
 No hosted Sentinel account or server is involved. Mail goes only to the mailbox provider and the AI provider you configured.
 
 ## How processing works

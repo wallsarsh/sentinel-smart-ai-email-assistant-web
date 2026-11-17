@@ -107,6 +107,37 @@ describe('anthropic adapter', () => {
     expect(m).toEqual({ ok: true, value: ['a', 'b'] })
   })
 
+  it('sends the browser-access header only for browser callers', async () => {
+    const browser = fakeAiHttp([{ text: fx('anthropic-ok') }])
+    await anthropicProvider({ apiKey: 'k', browser: true, http: browser.http }).complete(req)
+    expect(browser.seen[0]!.headers['anthropic-dangerous-direct-browser-access']).toBe('true')
+    const server = fakeAiHttp([{ text: fx('anthropic-ok') }])
+    await anthropicProvider({ apiKey: 'k', http: server.http }).complete(req)
+    expect(server.seen[0]!.headers).not.toHaveProperty('anthropic-dangerous-direct-browser-access')
+  })
+
+  it('reports an organization that forbids browser calls separately from a bad key', async () => {
+    const cors = anthropicProvider({
+      apiKey: 'k',
+      browser: true,
+      http: fakeAiHttp([
+        {
+          status: 401,
+          text: '{"type":"error","error":{"type":"authentication_error","message":"CORS requests are not allowed for this Organization because of its settings."}}',
+        },
+      ]).http,
+    })
+    expect(await cors.complete(req)).toEqual({
+      ok: false,
+      error: { kind: 'auth', problem: 'invalid_credentials', code: 'browser_blocked' },
+    })
+    const badKey = anthropicProvider({
+      apiKey: 'k',
+      http: fakeAiHttp([{ status: 401, text: '{"error":{"type":"authentication_error"}}' }]).http,
+    })
+    expect(await badKey.complete(req)).toMatchObject({ ok: false, error: { code: '401' } })
+  })
+
   it('omits temperature unless set', () => {
     expect('temperature' in anthropicBody(req)).toBe(false)
     expect(anthropicBody({ ...req, temperature: 0.2 }).temperature).toBe(0.2)

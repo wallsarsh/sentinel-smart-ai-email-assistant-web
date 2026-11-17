@@ -1,7 +1,7 @@
 // Lists the models a provider offers, so the settings UI can show a dropdown instead of free text.
 // Pure apart from the injected fetch; never throws — failures come back as { ok: false, error }.
 
-const ANTHROPIC_VERSION = '2023-06-01'
+const ANTHROPIC_VERSION = '2026-10-21'
 
 /** URL and headers for the provider's "list models" endpoint. */
 export function modelsRequest(provider) {
@@ -11,7 +11,12 @@ export function modelsRequest(provider) {
     const root = (base || 'https://api.anthropic.com').replace(/\/v1$/, '')
     return {
       url: `${root}/v1/models?limit=1000`,
-      headers: { 'x-api-key': key, 'anthropic-version': ANTHROPIC_VERSION },
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': ANTHROPIC_VERSION,
+        // Thunderbird is a browser origin; Anthropic rejects browser calls without this.
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
     }
   }
   return {
@@ -48,8 +53,16 @@ export async function listModels(provider, fetchImpl = (...a) => fetch(...a), ti
   const timer = setTimeout(() => ctl.abort(), timeoutMs)
   try {
     const res = await fetchImpl(url, { method: 'GET', headers, signal: ctl.signal })
-    if (res.status === 401 || res.status === 403)
+    if (res.status === 401 || res.status === 403) {
+      const body = typeof res.text === 'function' ? await res.text().catch(() => '') : ''
+      if (/CORS requests are not allowed/i.test(body))
+        return {
+          ok: false,
+          error:
+            'Anthropic blocks calls from browser add-ons for this organization, even with a valid key (for example with zero data retention or the Compliance API). Use an OpenAI-compatible provider such as OpenRouter for this account.',
+        }
       return { ok: false, error: 'The provider rejected the API key.' }
+    }
     if (res.status === 404)
       return { ok: false, error: 'This provider does not offer a model list. Enter the model name manually.' }
     if (!res.ok) return { ok: false, error: `The provider answered ${res.status}.` }

@@ -147,6 +147,8 @@ var PROVIDER_PRESETS = [
 var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
 var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var unquote = (v) => v.replace(/^["']+|["']+$/g, "").trim();
+var cleanKey = (v) => unquote(unquote(str(v)).replace(/^Bearer\s+/i, ""));
 var isLocal = (baseUrl) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
 function normalizeProvider(raw = {}) {
   const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
@@ -155,7 +157,7 @@ function normalizeProvider(raw = {}) {
     name: str(raw.name) || "AI provider",
     kind,
     baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
-    apiKey: str(raw.apiKey),
+    apiKey: cleanKey(raw.apiKey),
     model: str(raw.model),
     ...raw.presetId ? { presetId: raw.presetId } : {}
   };
@@ -565,7 +567,7 @@ function createStore(area) {
 }
 
 // thunderbird/src/models.js
-var ANTHROPIC_VERSION = "2023-06-01";
+var ANTHROPIC_VERSION = "2026-10-21";
 function modelsRequest(provider) {
   const base = String(provider?.baseUrl ?? "").trim().replace(/\/+$/, "");
   const key = String(provider?.apiKey ?? "").trim();
@@ -573,7 +575,12 @@ function modelsRequest(provider) {
     const root = (base || "https://api.anthropic.com").replace(/\/v1$/, "");
     return {
       url: `${root}/v1/models?limit=1000`,
-      headers: { "x-api-key": key, "anthropic-version": ANTHROPIC_VERSION }
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": ANTHROPIC_VERSION,
+        // Thunderbird is a browser origin; Anthropic rejects browser calls without this.
+        "anthropic-dangerous-direct-browser-access": "true"
+      }
     };
   }
   return {
@@ -600,8 +607,15 @@ async function listModels(provider, fetchImpl = (...a) => fetch(...a), timeoutMs
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetchImpl(url, { method: "GET", headers, signal: ctl.signal });
-    if (res.status === 401 || res.status === 403)
+    if (res.status === 401 || res.status === 403) {
+      const body = typeof res.text === "function" ? await res.text().catch(() => "") : "";
+      if (/CORS requests are not allowed/i.test(body))
+        return {
+          ok: false,
+          error: "Anthropic blocks calls from browser add-ons for this organization, even with a valid key (for example with zero data retention or the Compliance API). Use an OpenAI-compatible provider such as OpenRouter for this account."
+        };
       return { ok: false, error: "The provider rejected the API key." };
+    }
     if (res.status === 404)
       return { ok: false, error: "This provider does not offer a model list. Enter the model name manually." };
     if (!res.ok) return { ok: false, error: `The provider answered ${res.status}.` };
