@@ -80,7 +80,7 @@ Thunderbird 140+ → **Tools → Developer Tools → Debug Add-ons → Load Temp
 Then:
 
 1. Open **Provider settings** and add one or more providers: OpenAI, Anthropic, an OpenAI-compatible endpoint, or a preset for Ollama, LM Studio, Groq, Mistral, OpenRouter or Gemini-compatible. Each key stays in this Thunderbird profile. Press **Load models from provider** to pick the model from a dropdown (fetched from the provider's models endpoint); *Other…* lets you type a name the provider does not list.
-2. In **Task routing** choose one **default provider and model for every feature**. Any feature (analysis, brief, drafts, proofreading, rewrite) can untick *Use default* to have its own model. Changing the default updates all features that still use it.
+2. In **Task routing** choose one **default provider and model for every feature**. Any feature (analysis, brief, drafts, proofreading, rewrite) can untick *Use default* to have its own model. Changing the default updates all features that still use it, and **Use default for all features** applies the default model everywhere in one click.
 3. Grant the provider origin permission when Thunderbird asks.
 4. Open **Dashboard** from the toolbar popup and press **Refresh now** for the first run.
 

@@ -680,12 +680,9 @@ async function rememberModels(id, models) {
   modelCache = { ...modelCache, [id]: { at: Date.now(), models } };
   await browser.storage.local.set({ [MODELS_KEY]: modelCache });
 }
-async function ensureOrigins(urls) {
+function ensureOrigins(urls) {
   const origins = [...new Set(urls.filter(Boolean).map((u) => `${new URL(u).origin}/*`))];
-  const missing = [];
-  for (const o of origins) if (!await browser.permissions.contains({ origins: [o] })) missing.push(o);
-  if (!missing.length) return true;
-  return browser.permissions.request({ origins: missing });
+  return browser.permissions.request({ origins });
 }
 var say = (node, message, kind = "") => status(node, message, kind);
 function fillPresetOptions() {
@@ -778,6 +775,16 @@ function renderRoutes() {
   }
   const def = settings.defaultRoute;
   const d = routeControls("Default", def);
+  const syncDefaultRows = () => {
+    for (const task of TASKS) {
+      const r = rowControls[task];
+      if (!r?.toggle.checked) continue;
+      r.providerSelect.value = d.providerSelect.value;
+      r.picker.set(cachedModels(d.providerSelect.value), d.picker.get());
+    }
+  };
+  d.providerSelect.addEventListener("change", syncDefaultRows);
+  d.picker.onChange(syncDefaultRows);
   rowControls.default = d;
   defaultRoot.append(
     el("div", { class: "item__top" }, el("span", { class: "item__title", text: "Default for all features" })),
@@ -831,6 +838,7 @@ function editProvider(id) {
   const p = settings.providers.find((x) => x.id === id);
   if (!p) return;
   editingId = id;
+  if (p.presetId && [...$("preset").options].some((o) => o.value === p.presetId)) $("preset").value = p.presetId;
   $("pname").value = p.name;
   $("pkind").value = p.kind;
   $("pbase").value = p.baseUrl;
@@ -881,10 +889,10 @@ async function saveProvider(event) {
     const defaultProviderId = settings.defaultProviderId || provider.id;
     settings = await store.saveSettings({ providers, defaultProviderId });
     if (formModels.length) await rememberModels(provider.id, formModels);
-    resetForm();
     renderProviders();
     renderRoutes();
-    say($("provider-status"), "Provider saved.", "status--ok");
+    editProvider(provider.id);
+    say($("provider-status"), existing ? "Provider saved." : "Provider added.", "status--ok");
   } catch (err2) {
     say($("provider-status"), err2?.message ?? "Could not save the provider.", "status--error");
   }
@@ -916,6 +924,22 @@ async function saveRoutes() {
     say($("route-status"), err2?.message ?? "Could not save routing.", "status--error");
   }
 }
+function applyDefaultToAll() {
+  const d = rowControls.default;
+  if (!d) return;
+  const providerId = d.providerSelect.value;
+  const model = d.picker.get();
+  if (!model) return say($("route-status"), "Choose a default model first.", "status--error");
+  for (const task of TASKS) {
+    const r = rowControls[task];
+    r.toggle.checked = true;
+    r.providerSelect.value = providerId;
+    r.picker.set(cachedModels(providerId), model);
+    r.providerSelect.disabled = true;
+    r.picker.setDisabled(true);
+  }
+  void saveRoutes();
+}
 async function loadFormModels() {
   const baseUrl = $("pbase").value.trim();
   const existing = settings.providers.find((p) => p.id === editingId);
@@ -934,13 +958,20 @@ async function loadFormModels() {
     return say($("model-status"), e.message, "status--error");
   }
   say($("model-status"), "Loading models\u2026");
-  $("load-models").disabled = true;
-  const res = await listModels(provider);
-  $("load-models").disabled = false;
-  if (!res.ok) return say($("model-status"), res.error, "status--error");
-  formModels = res.models;
-  formPicker.set(res.models, formPicker.get());
-  say($("model-status"), `${res.models.length} models loaded.`, "status--ok");
+  const button = $("load-models");
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "Loading\u2026";
+  try {
+    const res = await listModels(provider);
+    if (!res.ok) return say($("model-status"), res.error, "status--error");
+    formModels = res.models;
+    formPicker.set(res.models, formPicker.get());
+    say($("model-status"), `${res.models.length} models loaded.`, "status--ok");
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
 }
 async function refreshAllModels() {
   const usable = settings.providers.filter((p) => p.baseUrl || p.kind === "anthropic");
@@ -978,6 +1009,7 @@ $("preset").addEventListener("change", applyPreset);
 $("provider-form").addEventListener("submit", saveProvider);
 $("cancel-edit").addEventListener("click", resetForm);
 $("save-routes").addEventListener("click", saveRoutes);
+$("apply-default").addEventListener("click", applyDefaultToAll);
 $("load-models").addEventListener("click", () => void loadFormModels());
 $("refresh-models").addEventListener("click", () => void refreshAllModels());
 $("dashboard").onclick = openDashboard;
