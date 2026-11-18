@@ -18,7 +18,7 @@
         </div>
         <div class="topbar__actions">
           <span id="status" class="pill" role="status">Starting…</span>
-          <button id="refresh" class="btn btn--primary" type="button">Refresh now</button>
+          <button id="refresh" class="btn btn--primary" type="button">Check inbox now</button>
           <button id="provider" class="btn" type="button">Provider settings</button>
         </div>
       </header>
@@ -132,6 +132,7 @@
                 </label>
               </div>
               <label class="check"><input id="monitor-tagging" type="checkbox" /> Tag importance in Thunderbird</label>
+              <fieldset id="account-scope"><legend>Accounts to monitor</legend></fieldset>
               <label class="check"><input id="monitor-local" type="checkbox" /> Also scan Local Folders (demo/archive mail)</label>
             </section>
 
@@ -186,7 +187,7 @@
       </main>
 
       <p class="footer">
-        Sentinel analyses mail locally with your provider. It never sends, deletes or moves messages.
+        Sentinel analyses mail using your selected provider. It never sends, deletes or moves messages.
       </p>
     </div>
     <script type="module" src="dashboard.js"></script>

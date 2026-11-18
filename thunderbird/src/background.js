@@ -1,18 +1,19 @@
+import { discover } from './discovery.js'
 import { menuRegistrar } from './menus.js'
 import { runBulk, selectedHeaders } from './bulk.js'
 // Background event page: alarms, monitor, drafts, brief, calendar exports and message handlers.
 // Nothing here can send mail; the add-on does not request send permissions.
-import { userContext, analyze, analyzeBatch, draftReply, runTextTask } from './ai.js'
+import { resolveRoute, userContext, analyze, analyzeBatch, draftReply, runTextTask } from './ai.js'
 import { normalizeAnalysis } from './analysis.js'
 import { monitorBlockedReason } from './config.js'
-import { nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
+import { briefIsCurrent, nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
 import { eventsFromAnalysis, downloadIcs, writeCalendarEvents } from './calendar.js'
 import {
   buildReplyIndex,
+  drainDraftBacklog,
   draftEligibility,
   draftRequest,
   identityForHeader,
-  maybeCreateDrafts,
   saveDraftWithCompose,
 } from './drafts.js'
 import {
@@ -38,6 +39,7 @@ const WAKE_ALARM = 'sentinel-wake'
 const NEW_MAIL_ALARM = 'sentinel-new-mail'
 
 const store = createStore(browser.storage.local)
+let applyingUpdate = false
 let monitorRunning = null
 let briefRunning = null
 const replyIndexes = new Map()
@@ -61,26 +63,43 @@ async function folderMessages(folderId, since, max) {
 }
 
 /** Headers from every inbox folder. The monitor de-duplicates, filters and sorts. */
-async function recentHeaders(since, max, settings = {}) {
-  const out = []
+async function sourceFolders(settings) {
   const folders = [...(await inboxFolders())]
   if (settings?.monitor?.includeLocalFolders !== false) {
     folders.push(...(await localMailFolders()))
   }
-  const seen = new Set()
-  for (const folder of folders) {
-    if (seen.has(folder.id)) continue
-    seen.add(folder.id)
-    try {
-      out.push(...(await folderMessages(folder.id, since, max * 2)))
-    } catch {
-      // One broken folder must not stop the others.
-    }
+  return [...new Map(folders.map((f) => [f.id, f])).values()].filter((f) =>
+    !settings.monitor?.accountIds || settings.monitor.accountIds.includes(f.accountId))
+}
+
+async function recentHeaders(since, max, settings = {}) {
+  const out = []
+  const failures = []
+  for (const folder of await sourceFolders(settings)) {
+    try { out.push(...await folderMessages(folder.id, since, max)) }
+    catch { failures.push(folder.name || folder.id) }
   }
+  out.folderErrors = failures
   return out
 }
 
 const api = {
+  async discover(since, now, settings) {
+    return discover({ area: browser.storage.local, folders: await sourceFolders(settings), since, now,
+      query: (folderId, fromDate, toDate) => browser.messages.query({ folderId, fromDate, toDate, messagesPerPage: 100 }),
+      next: (id) => browser.messages.continueList(id) })
+  },
+  async resolvePending(h) {
+    const live = await resolveSource({ ...h, messageId: h.id, accountId: h.folder.accountId })
+    return live?.folder?.id === h.folder.id ? { ...live, pendingKey: h.pendingKey, attempts: h.attempts || 0 } : null
+  },
+  async defer(header) {
+    if (!header.pendingKey) return
+    const attempts = (header.attempts || 0) + 1
+    const delay = Math.min(60, 5 * 2 ** Math.min(attempts - 1, 4))
+    await browser.storage.local.set({ [header.pendingKey]: { ...header, attempts, retryAt: Date.now() + delay * 60000 } })
+  },
+  acknowledge: (keys) => keys.length ? browser.storage.local.remove(keys) : Promise.resolve(),
   recent: recentHeaders,
   full: (id) => browser.messages.getFull(id),
   accounts: () => browser.accounts.list(true),
@@ -118,46 +137,30 @@ async function foldersForAccount(accountId) {
   return new Set(flattenFolders(selected).map((f) => f.id))
 }
 
-async function scanFolder(folder, since) {
-  const headers = await folderMessages(folder.id, since, 120)
-  const items = []
-  for (const h of headers) {
-    try {
-      items.push({ full: await browser.messages.getFull(h.id) })
-    } catch {
-      // An unreadable sent item must not hide the rest of the index.
-    }
-  }
-  return items
-}
-
-/** Set of Message-IDs that already have a reply or draft, cached per account for 10 minutes. */
-async function replyIndex(accountId, now = new Date()) {
+async function replyIndex(accountId, fresh = false) {
   const key = accountId ?? 'all'
   const hit = replyIndexes.get(key)
-  if (hit && now.getTime() - hit.at < REPLY_TTL) return hit.set
-  const since = new Date(now.getTime() - 90 * 24 * 3600_000)
+  const now = Date.now()
+  if (!fresh && hit && now - hit.at < REPLY_TTL) return hit.set
+  const since = new Date(hit ? hit.at - 300000 : now - 90 * 86400000)
   const allowed = await foldersForAccount(accountId)
-  const folders = [...(await sentFolders()), ...(await draftsFolders())].filter((f) =>
-    allowed?.size ? allowed.has(f.id) : true,
-  )
-  const items = []
+  const folders = [...(await sentFolders()), ...(await draftsFolders())]
+    .filter((f) => !allowed || allowed.has(f.id))
+  const set = new Set(hit?.set)
   for (const folder of folders) {
-    try {
-      items.push(...(await scanFolder(folder, since)))
-    } catch {
-      // Missing special-use folder: the local draft record still prevents duplicates.
+    const headers = await folderMessages(folder.id, since, Infinity)
+    for (const header of headers) {
+      const full = await browser.messages.getFull(header.id)
+      for (const id of buildReplyIndex([{ full }])) set.add(id)
     }
   }
-  const set = new Set()
-  for (const id of buildReplyIndex(items)) set.add(id)
-  replyIndexes.set(key, { at: now.getTime(), set })
+  replyIndexes.set(key, { at: now, set })
   return set
 }
 
-async function isReplied(header) {
+async function isReplied(header, fresh = false) {
   if (!header?.headerMessageId) return false
-  const set = await replyIndex(accountIdOf(header))
+  const set = await replyIndex(accountIdOf(header), fresh)
   return set.has(header.headerMessageId)
 }
 
@@ -207,6 +210,7 @@ let bulkRunning = false
 async function startBulk(ids, action, previous = null, queueKey = null) {
   const allowed = ['analyze', 'draft', 'summary', 'actions', 'categorize', 'calendar', 'important', 'marketing', 'ignore', 'normal']
   if (!allowed.includes(action) || !ids.length) return { ok: false, error: 'Choose messages and an action.' }
+  if (applyingUpdate) return { ok: false, error: 'Sentinel is updating.' }
   if (bulkRunning) return { ok: false, error: 'A bulk action is already running. See its progress in the dashboard.' }
   bulkRunning = true
   const key = queueKey || `sentinel.retryJob:${crypto.randomUUID()}`
@@ -271,36 +275,38 @@ async function saveDraftFor(header, body) {
   return saveDraftWithCompose(header, body, { identityId })
 }
 
-async function createDraftsFor(analyses, settings, ctx) {
-  if (!settings.monitor.autoDraft || !analyses.length) return { created: [], failed: [] }
-  const candidates = []
-  for (const item of analyses) {
-    if (candidates.length >= (settings.monitor.maxDraftsPerRun ?? 0)) break
-    const record = await store.draftRecord(item.header)
-    const eligible = draftEligibility({
-      analysis: item.analysis,
-      header: item.header,
-      settings,
-      replied: await isReplied(item.header),
-      draftRecord: record,
-      now: new Date(),
-    })
-    if (eligible.ok) candidates.push(item)
+const draftLocks = new Set()
+async function resolveSource(row) {
+  const matches = (h) => h && (!row.accountId || h.folder?.accountId === row.accountId) &&
+    (row.headerMessageId ? h.headerMessageId === row.headerMessageId : h.id === row.messageId && h.subject === row.subject &&
+      new Date(h.date).getTime() === new Date(row.date).getTime())
+  const current = await browser.messages.get(row.messageId).catch(() => null)
+  if (matches(current)) return current
+  if (row.accountId && row.headerMessageId) {
+    let page = await browser.messages.query({ headerMessageId: row.headerMessageId })
+    for (;;) {
+      const source = page.messages.find(matches)
+      if (source) return source
+      if (!page.id) break
+      page = await browser.messages.continueList(page.id)
+    }
   }
-  if (!candidates.length) return { created: [], failed: [] }
-  return maybeCreateDrafts({
-    analyses: candidates,
-    settings,
-    ctx,
-    store,
-    isReplied,
-    generate: draftReply,
-    save: saveDraftFor,
-    now: new Date(),
-  })
+  return null
+}
+async function createDraftsFor(settings) {
+  return drainDraftBacklog({ settings, store, folders: new Set((await sourceFolders(settings)).map((f) => f.id)),
+    resolveSource, manualDraft, isLocked: (id) => draftLocks.has(id),
+    reconcileSave: async (header) => {
+      return isReplied(header, true)
+    } })
 }
 
 async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force }) {
+  const current = await store.brief()
+  const prior = await store.briefStatus()
+  if (!force && (prior?.nextRetryAt > now.getTime() || prior?.needsSetup)) return { skipped: true }
+  if (!force && current && !current.partial && briefIsCurrent(current, now) &&
+      (!settings.brief.updateHourly || now - new Date(current.createdAt) < 3600000)) return { skipped: true }
   const meaningful = analyses.filter((a) => !a.analysis.skipped)
   if (
     !shouldRefreshBrief({
@@ -312,6 +318,7 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     })
   )
     return { skipped: true }
+  if (applyingUpdate) return { skipped: true }
   if (briefRunning) return briefRunning
   briefRunning = refreshBrief({
     store,
@@ -331,6 +338,7 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
 
 /** Brief-only path: no monitor batch in front, so a stopped provider cannot block the brief. */
 async function runBriefOnly() {
+  if (applyingUpdate) return { skipped: true }
   const { settings, rules } = await load()
   const blocked = monitorBlockedReason(settings)
   if (blocked) {
@@ -338,8 +346,11 @@ async function runBriefOnly() {
     await store.saveBriefStatus({ state: 'error', at, message: blocked, progress: null })
     return { ok: false, error: blocked }
   }
+  if (applyingUpdate) return { skipped: true }
   if (briefRunning) return briefRunning
   const ctx = await context(settings, rules)
+  if (applyingUpdate) return { skipped: true }
+  if (briefRunning) return briefRunning
   briefRunning = refreshBrief({
     store,
     api,
@@ -350,7 +361,10 @@ async function runBriefOnly() {
     fetchImpl: undefined,
   })
     .then(async (result) => {
-      if (result.status?.state === 'done') await updateBriefBadge(result.brief)
+      if (result.status?.state === 'done') {
+        await updateBriefBadge(result.brief)
+        if (settings.brief.notify) await notifyBriefUpdated(result.brief)
+      }
       return result
     })
     .catch(async (e) => {
@@ -366,6 +380,7 @@ async function runBriefOnly() {
 
 /** One monitor → drafts → brief pass. Concurrent requests share the same run. */
 function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = {}) {
+  if (applyingUpdate) return Promise.resolve({ skipped: true })
   if (monitorRunning) return monitorRunning
   monitorRunning = (async () => {
     const now = new Date()
@@ -397,9 +412,9 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
       reason,
       tag: tagger,
     })
-    const drafts = await createDraftsFor(monitor.analyses, settings, ctx).catch((e) => {
+    const drafts = await createDraftsFor(settings).catch((e) => {
       monitor.errors.push(safeError(e))
-      return { created: [], failed: [] }
+      return { created: [], failed: [safeError(e)] }
     })
     const brief = await maybeRefreshBrief({
       settings,
@@ -411,13 +426,15 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
     }).catch((e) => ({ status: { state: 'error', message: safeError(e) } }))
     const status = {
       ...monitor.status,
+      ...(drafts.failed.length ? { state: 'partial', error: safeError(drafts.failed[0]) } : {}),
+      draftsQueued: drafts.queued,
       draftsCreated: drafts.created.length,
       draftsFailed: drafts.failed.length,
       briefState: brief?.status?.state ?? null,
       briefAt: brief?.status?.at ?? null,
     }
     await store.saveMonitor(status)
-    if (brief?.updated) {
+    if (brief?.updated && brief.status?.state === 'done') {
       await updateBriefBadge(brief.brief)
       if (settings.brief.notify) await notifyBriefUpdated(brief.brief)
     }
@@ -445,8 +462,18 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
 
 // ---- alarms ----------------------------------------------------------------------------------------------------
 
+async function catchUpBrief() {
+  const settings = await store.settings()
+  const now = new Date()
+  if (!settings.brief.enabled || now.getHours() < settings.brief.hour || monitorBlockedReason(settings)) return
+  const brief = await store.brief()
+  const status = await store.briefStatus()
+  if (status?.nextRetryAt > Date.now() || status?.needsSetup) return
+  if (status?.state === 'error' || status?.state === 'partial' || !briefIsCurrent(brief, now) || brief.partial) await runBriefOnly()
+}
+
 async function schedule() {
-  browser.alarms.create('sentinel-retry', { periodInMinutes: 5 })
+  if (!await browser.alarms.get('sentinel-retry')) browser.alarms.create('sentinel-retry', { periodInMinutes: 5 })
   const { settings } = await load()
   await browser.alarms.clear(MONITOR_ALARM)
   await browser.alarms.clear(BRIEF_ALARM)
@@ -458,14 +485,17 @@ async function schedule() {
   if (settings.brief.enabled && !monitorBlockedReason(settings))
     browser.alarms.create(BRIEF_ALARM, {
       when: nextRun(new Date(), settings.brief.hour).getTime(),
-      periodInMinutes: 24 * 60,
+
     })
 }
 
 browser.alarms.onAlarm.addListener((a) => {
-  if (a.name === 'sentinel-retry') void retryFailedMessages().catch(() => undefined)
+  if (a.name === 'sentinel-retry') {
+    void retryFailedMessages().catch(() => undefined)
+    void catchUpBrief()
+  }
   else if (a.name === MONITOR_ALARM) void runAssistant({ reason: 'alarm' })
-  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: 'daily-brief' })
+  else if (a.name === BRIEF_ALARM) void runBriefOnly().finally(schedule)
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM)
     void runAssistant({ reason: 'startup' })
@@ -478,6 +508,7 @@ browser.alarms.onAlarm.addListener((a) => {
 browser.runtime.onStartup.addListener(() => {
   void (async () => {
     await schedule()
+    await catchUpBrief()
     const { settings } = await load()
     if (settings.monitor.enabled && !monitorBlockedReason(settings))
       browser.alarms.create(WAKE_ALARM, { when: Date.now() + 15_000 })
@@ -489,6 +520,9 @@ browser.runtime.onInstalled.addListener(() => {
 })
 
 browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.settings) void store.briefStatus().then((status) => {
+    if (status?.needsSetup) return store.saveBriefStatus({ ...status, needsSetup: false, nextRetryAt: 0 })
+  })
   if (area === 'local' && (changes.settings || changes.senderRules)) void schedule().catch(() => undefined)
 })
 
@@ -515,17 +549,29 @@ browser.messages.onNewMailReceived?.addListener?.((folder) => {
 
 // ---- message handlers ------------------------------------------------------------------------------------------
 
-async function manualDraft(messageId, { force = false, progress = async () => {} } = {}) {
+async function manualDraft(messageId, options = {}) {
+  if (draftLocks.has(messageId)) return { ok: false, busy: true, error: 'Draft creation already running.' }
+  draftLocks.add(messageId)
+  try { return await generateDraft(messageId, options) }
+  finally { draftLocks.delete(messageId) }
+}
+async function generateDraft(messageId, { force = false, auto = false, expected, progress = async () => {} } = {}) {
   await progress('Reading message and checking draft eligibility…')
   const header = await browser.messages.get(messageId)
   if (!header) return { ok: false, error: 'Open a message first.' }
+  if (expected && ((expected.headerMessageId || null) !== (header.headerMessageId || null) || (expected.folder.accountId && expected.folder.accountId !== accountIdOf(header)))) throw new Error('Source message identity changed. Review the message.')
   const { settings } = await load()
   if (monitorBlockedReason(settings)) return { ok: false, error: monitorBlockedReason(settings) }
-  const ctx = await context(settings, await store.rules())
+  const route = resolveRoute(settings, 'draft')
+  const origin = new URL(route.provider.baseUrl).origin + '/*'
+  if (!await browser.permissions.contains({ origins: [origin] })) throw new Error('Provider permission denied. Grant host access in Provider settings.')
+  const rules = await store.rules()
+  const ctx = await context(settings, rules)
+  const message = toMailMessage(header, await browser.messages.getFull(header.id))
+  const policy = preFilter(message, rules, settings)
+  if (policy.action === 'local') return { ok: false, error: 'Message excluded by sender or filtering rules.' }
   let analysis = await store.analysis(header)
   if (!analysis) {
-    const full = await browser.messages.getFull(header.id)
-    const message = toMailMessage(header, full)
     analysis = await analyze(settings, message, ctx)
     analysis = { ...analysis, sender: header.author, by: 'ai', at: Date.now() }
     await store.saveAnalysis(header, analysis)
@@ -534,6 +580,7 @@ async function manualDraft(messageId, { force = false, progress = async () => {}
   }
   const replied = await isReplied(header)
   const record = await store.draftRecord(header)
+  if (!force && ['saving', 'review'].includes(record?.status)) return { ok: false, error: 'Check Drafts for an existing reply before creating another.' }
   if (!force) {
     const eligible = draftEligibility({
       analysis,
@@ -542,18 +589,24 @@ async function manualDraft(messageId, { force = false, progress = async () => {}
       replied,
       draftRecord: record,
       now: new Date(),
-      manual: true,
+      manual: !auto,
     })
     if (!eligible.ok) return { ok: false, error: eligible.reason }
   }
   await progress('Generating reply with your AI provider…')
   const body = await draftReply(
     settings,
-    [toMailMessage(header, await browser.messages.getFull(header.id))],
+    [message],
     ctx,
     draftRequest(analysis, settings),
   )
   await progress('Saving reply to Thunderbird Drafts…')
+  if (auto) {
+    const latest = await store.settings()
+    if (!latest.monitor.enabled || !latest.monitor.autoDraft || preFilter(message, await store.rules(), latest).action === 'local' || !draftEligibility({ analysis, settings: latest, header }).ok) return { ok: false, error: 'Automation paused.' }
+    if (await isReplied(header, true)) return { ok: false, error: 'A reply or draft already exists.' }
+  }
+  await store.saveDraftRecord(header, { status: 'saving', at: Date.now(), messageId, subject: header.subject })
   const saved = await saveDraftFor(header, body)
   const entry = {
     messageId: header.id,
@@ -719,6 +772,32 @@ browser.tabs.onRemoved?.addListener((id) => composeJobs.delete(id))
 browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== 'object') return undefined
   try {
+    if (applyingUpdate) throw new Error('Sentinel is applying an update. Reopen it after it restarts.')
+    if (msg.type === 'retry-auto-draft') {
+      const row = (await store.drafts()).find((r) => r.messageId === msg.messageId && r.accountId === msg.accountId)
+      if (row?.status !== 'failed' || !row.headerMessageId) throw new Error('Open the source message to review this draft.')
+      const source = await resolveSource(row)
+      const settings = await store.settings()
+      if (!source || !(await sourceFolders(settings)).some(f => f.id === source.folder?.id))
+        throw new Error('Source is outside the monitored folders.')
+      return await manualDraft(source.id, { auto: true })
+    }
+    if (msg.type === 'update-check') return { ok: true, ...await browser.sentinelUpdates.check() }
+    if (msg.type === 'update-apply') {
+      applyingUpdate = true
+      try {
+        if (monitorRunning || briefRunning || bulkRunning || draftLocks.size || messageJobs.size ||
+            [...composeJobs.values()].some((j) => j.state === 'running') ||
+            (await browser.tabs.query({ type: 'messageCompose' })).length)
+          throw new Error('Finish the running actions and close compose windows before applying the update.')
+        await browser.storage.local.set({ 'sentinel.expectedVersion': msg.version })
+        await browser.sentinelUpdates.apply(msg.version)
+      } catch (e) {
+        await browser.storage.local.remove('sentinel.expectedVersion')
+        throw e
+      } finally { applyingUpdate = false }
+      return { ok: true }
+    }
     if (msg.type === 'compose-job-start') return startComposeJob(msg)
     if (msg.type === 'compose-job-status') return { ok: true, job: composeJobs.get(msg.tabId) ?? null }
     if (msg.type === 'ping') return { ok: true, at: Date.now(), menus: (await browser.storage.local.get('sentinel.menuStatus'))['sentinel.menuStatus'] }
@@ -785,4 +864,4 @@ browser.notifications.onClicked.addListener(() => {
   void browser.tabs.create({ url: browser.runtime.getURL('dist/dashboard.html') }).catch(() => undefined)
 })
 
-void schedule().catch(() => undefined)
+void browser.alarms.get('sentinel-retry').then((alarm) => { if (!alarm) return schedule() }).catch(() => undefined)

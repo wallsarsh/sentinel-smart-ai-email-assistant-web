@@ -109,6 +109,7 @@ export function normalizeSettings(raw = {}, legacyBrief = {}) {
     customRoutes,
     routes,
     monitor: {
+      accountIds: Array.isArray(monitor.accountIds) ? monitor.accountIds.filter((id) => typeof id === 'string') : null,
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
         monitor.intervalMinutes,

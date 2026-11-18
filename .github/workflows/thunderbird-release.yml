@@ -1,0 +1,38 @@
+name: Release Thunderbird add-on
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New add-on version (major.minor.patch)
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: thunderbird-release
+jobs:
+  publish:
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    env:
+      ADDON_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npx vitest run tests/unit/thunderbird-*.test.ts && npm run send-gate
+      - run: node installer/release-addon.mjs
+      - name: Publish package before advertising its version
+        run: |
+          channel=$(cat out/channel)
+          if gh release view "$channel" >/dev/null 2>&1; then
+            gh release download "$channel" -p updates.json -D previous
+            old=$(jq -r '.addons[].updates[0].version' previous/updates.json)
+            test "$(printf '%s\n' "$old" "$ADDON_VERSION" | sort -V | tail -1)" = "$ADDON_VERSION"
+            test "$old" != "$ADDON_VERSION"
+          fi
+          gh release create "sentinel-v$ADDON_VERSION" out/sentinel.xpi --target "$GITHUB_SHA" --generate-notes
+          gh release view "$channel" >/dev/null 2>&1 || gh release create "$channel" --target "$GITHUB_SHA" --prerelease --notes "Thunderbird update feed"
+          gh release upload "$channel" out/updates.json --clobber

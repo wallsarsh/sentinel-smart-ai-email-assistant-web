@@ -210,3 +210,13 @@ Research: Thunderbird documents calendar items as `calIEvent` and `calICalendar`
 (https://source-docs.thunderbird.net/en/latest/calendar/item_model.html); calendar extensions
 remain an experiment integration (https://github.com/thunderbird/webext-experiments).
 The existing bundled experiment is used rather than assuming a stable browser.calendar API.
+
+### Inbox coverage and draft activity
+
+In Dashboard → Settings, choose the accounts to monitor. **Check inbox now** discovers new mail and drains pending work within the configured limits. The Drafts tab shows saved replies, queued work, eligibility skips and failures. An interrupted save can require checking the account’s Drafts folder before retrying. The last completed brief remains readable during processing. **Rebuild today’s brief** resumes pending analyses and summary generation.
+
+### Repository updates
+
+Open **Provider settings → Add-on updates**, check the displayed repository and branch, then select **Check for updates**. Review the release notes and select **Apply update** after closing compose windows. The same add-on ID preserves settings and local job records. Unknown, pinned, custom archive and temporary installations can move to branch updates by reinstalling from a known repository branch. Installer replacements keep the prior installed XPI in the profile as `sentinel-previous.xpi`. Close Thunderbird before using the installer with that local package for recovery.
+
+Maintainers publish a compatible version with the **Release Thunderbird add-on** workflow on the intended branch. Provide a new numeric major.minor.patch version unique to the repository. The workflow publishes a versioned XPI and then its branch-specific HTTPS Gecko feed. Existing installations without that feed need the installer once. The update check shows an error until the first release for the branch is published.

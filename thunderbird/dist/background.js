@@ -502,6 +502,57 @@ var init_rules = __esm({
   }
 });
 
+// thunderbird/src/discovery.js
+async function discover({ area, folders, query, next, since, now }) {
+  const failures = [];
+  const pending = folders.map((folder) => ({ folder, cursor: null }));
+  while (pending.length) {
+    const scan = pending.shift();
+    const key = "sentinel.scan:" + scan.folder.id;
+    try {
+      let page;
+      if (scan.cursor) {
+        page = await next(scan.cursor);
+      } else {
+        const marker = (await area.get(key))[key];
+        if (!Number.isFinite(marker)) await area.set({ [key]: since.getTime() });
+        const start = Number.isFinite(marker) ? new Date(marker - 3e5) : since;
+        page = await query(scan.folder.id, start, now);
+      }
+      const rows = {};
+      for (const h of page.messages) {
+        const token = "sentinel.pending:" + JSON.stringify([scan.folder.accountId, h.headerMessageId || h.id]);
+        rows[token] = {
+          id: h.id,
+          headerMessageId: h.headerMessageId,
+          subject: h.subject,
+          author: h.author,
+          folder: { id: scan.folder.id, accountId: scan.folder.accountId },
+          date: new Date(h.date).toISOString(),
+          pendingKey: token
+        };
+      }
+      const keys = Object.keys(rows);
+      if (keys.length) {
+        const existing = await area.get(keys);
+        for (const token of keys) if (existing[token]?.retryAt) {
+          rows[token].attempts = existing[token].attempts;
+          rows[token].retryAt = existing[token].retryAt;
+        }
+        await area.set(rows);
+      }
+      if (page.id) pending.push({ folder: scan.folder, cursor: page.id });
+      else await area.set({ [key]: now.getTime() });
+    } catch {
+      failures.push(scan.folder.name || String(scan.folder.id));
+    }
+  }
+  const included = new Set(folders.map((f) => f.id));
+  const data = await area.get(null);
+  const headers = Object.entries(data).filter(([key, h]) => key.startsWith("sentinel.pending:") && included.has(h.folder?.id)).map(([, h]) => h);
+  return { headers, failures };
+}
+
 // thunderbird/src/menus.js
 function menuRegistrar(api2, report) {
   let running = null;
@@ -2047,6 +2098,7 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     customRoutes,
     routes,
     monitor: {
+      accountIds: Array.isArray(monitor.accountIds) ? monitor.accountIds.filter((id) => typeof id === "string") : null,
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
         monitor.intervalMinutes,
@@ -2176,7 +2228,7 @@ function nextRun(now, hour) {
 var briefIsCurrent = (brief, now = /* @__PURE__ */ new Date()) => Boolean(brief?.windowStart) && new Date(brief.windowStart).toDateString() === now.toDateString();
 function shouldRefreshBrief({ brief, analyses = [], now = /* @__PURE__ */ new Date(), force = false, enabled = true }) {
   if (!enabled && !force) return false;
-  if (force) return true;
+  if (force || brief?.partial) return true;
   if (analyses.length) return true;
   return !briefIsCurrent(brief, now);
 }
@@ -2191,6 +2243,12 @@ async function refreshBrief({
   analyzeOne = analyze,
   summarize = runBrief
 }) {
+  const previousStatus = await store2.briefStatus();
+  const retry = (message) => {
+    const attempts = (previousStatus?.attempts || 0) + 1;
+    const delay = Math.min(60, 5 * 2 ** Math.min(attempts - 1, 4));
+    return { attempts, nextRetryAt: Date.now() + delay * 6e4, needsSetup: /rejected the API key|ermission denied|blocks calls from browser/i.test(message || "") };
+  };
   const startedAt = now.toISOString();
   const windowStart = briefWindow(now);
   const windowKey = windowStart.toISOString();
@@ -2221,6 +2279,7 @@ async function refreshBrief({
     await store2.saveBriefJob(job);
     await store2.saveBriefStatus({
       state: "error",
+      ...retry(message),
       at: job.updatedAt,
       windowStart: windowKey,
       windowEnd: windowEnd.toISOString(),
@@ -2231,13 +2290,20 @@ async function refreshBrief({
   };
   let headers;
   try {
-    headers = (await api2.recent(windowStart, Math.max(60, settings.monitor.maxMessagesPerRun), settings)).filter((h) => !ctx.selfAddresses.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, Math.max(60, settings.monitor.maxMessagesPerRun));
+    const found = await api2.recent(windowStart, Infinity, settings);
+    if (found.folderErrors?.length) {
+      job.failed++;
+      job.error = "Could not read folders: " + found.folderErrors.join(", ");
+    }
+    headers = found.filter((h) => !ctx.selfAddresses.has(String(h.author).replace(/^.*<|>$/g, "").toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date));
   } catch (e) {
     return saveFailure(String(e?.message ?? e).slice(0, 180));
   }
   job.total = headers.length;
   const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]));
   const rows = [];
+  const lastComplete = await store2.brief();
+  if (lastComplete && !lastComplete.partial && lastComplete.createdAt) await store2.saveBrief({ ...lastComplete, partial: false });
   const base2 = () => ({
     createdAt: startedAt,
     windowStart: windowKey,
@@ -2245,7 +2311,7 @@ async function refreshBrief({
     stats: selectForBrief(rows).stats,
     heads,
     headline: "",
-    sections: [],
+    sections: [{ type: "topPriorities", items: rows.flatMap(({ id, t }) => (t.actionItems || []).map((a) => ({ text: a.text, messageIds: [String(id)] }))).slice(0, 8) }],
     model: null,
     partial: job.failed > 0 || job.processed < job.total,
     progress: progressOf(job)
@@ -2253,7 +2319,7 @@ async function refreshBrief({
   const savePartial = async () => {
     job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
     await store2.saveBriefJob(job);
-    await store2.saveBrief(base2());
+    await store2.saveBrief({ ...base2(), partial: true });
     await store2.saveBriefStatus({
       state: "running",
       at: job.updatedAt,
@@ -2280,6 +2346,7 @@ async function refreshBrief({
         await store2.saveAnalysis(header, analysis);
         job.cached++;
       } else {
+        if (job.analyzed + job.local >= (settings.monitor.maxMessagesPerRun || 60)) continue;
         const message = toMailMessage(header, await api2.full(header.id));
         const plan = preFilter(message, rules, settings, now);
         if (plan.action === "local") {
@@ -2299,7 +2366,7 @@ async function refreshBrief({
       rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } });
       job.processed++;
       consecutiveFailures = 0;
-      job.error = null;
+      if (!job.failed) job.error = null;
     } catch (e) {
       job.failed++;
       consecutiveFailures++;
@@ -2311,7 +2378,7 @@ async function refreshBrief({
     }
     await savePartial();
   }
-  if (job.failed > 0) {
+  if (job.failed > 0 || job.processed < job.total) {
     const brief = base2();
     job.state = "partial";
     job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
@@ -2319,19 +2386,20 @@ async function refreshBrief({
     await store2.saveBrief(brief);
     const status = {
       state: "partial",
+      ...job.failed ? retry(job.error) : {},
       at: job.updatedAt,
       windowStart: windowKey,
       windowEnd: windowEnd.toISOString(),
-      message: job.error,
+      message: job.error || `Processed ${job.processed}/${job.total}. Remaining messages are queued.`,
       progress: progressOf(job)
     };
     await store2.saveBriefStatus(status);
     return { brief, status, job };
   }
   const { stats, emails } = selectForBrief(rows);
-  const baseBrief = { ...base2(), stats };
+  const baseBrief = { ...base2(), stats, includedInSummary: emails.length };
   if (!emails.length) {
-    const brief = { ...baseBrief, partial: false, progress: progressOf(job) };
+    const brief = { ...baseBrief, sections: [], partial: false, progress: progressOf(job) };
     job.state = "done";
     job.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
     await store2.saveBriefJob(job);
@@ -2381,6 +2449,7 @@ async function refreshBrief({
     await store2.saveBrief(brief);
     const status = {
       state: "error",
+      ...retry(message),
       at: job.updatedAt,
       windowStart: windowKey,
       windowEnd: windowEnd.toISOString(),
@@ -2609,77 +2678,6 @@ function draftRequest(analysis, settings) {
     ...instruction ? { instruction } : {}
   };
 }
-async function maybeCreateDrafts({
-  analyses = [],
-  settings,
-  ctx,
-  store: store2,
-  isReplied: isReplied2 = async () => false,
-  generate = draftReply,
-  save,
-  now = /* @__PURE__ */ new Date(),
-  fetchImpl
-}) {
-  const candidates = [];
-  for (const item2 of analyses) {
-    if (candidates.length >= (settings.monitor.maxDraftsPerRun ?? 0)) break;
-    const record = await store2.draftRecord(item2.header);
-    const replied = await isReplied2(item2.header);
-    const eligible = draftEligibility({
-      analysis: item2.analysis,
-      header: item2.header,
-      settings,
-      replied,
-      draftRecord: record,
-      now
-    });
-    if (eligible.ok) candidates.push(item2);
-  }
-  const created = [];
-  const failed = [];
-  for (const item2 of candidates) {
-    try {
-      const body = await generate(
-        settings,
-        [item2.message],
-        ctx,
-        draftRequest(item2.analysis, settings),
-        fetchImpl
-      );
-      const saved = await save(item2.header, body);
-      const entry = {
-        messageId: item2.header.id,
-        headerMessageId: item2.header.headerMessageId ?? null,
-        subject: item2.header.subject ?? "",
-        sender: item2.header.author ?? "",
-        accountId: item2.header.folder?.accountId ?? null,
-        draftId: saved?.id ?? null,
-        draftHeaderMessageId: saved?.headerMessageId ?? null,
-        draftFolder: saved?.folder?.name ?? null,
-        status: "saved",
-        at: now.getTime()
-      };
-      await store2.saveDraftRecord(item2.header, { status: "saved", at: now.getTime(), ...entry });
-      await store2.appendDraft(entry);
-      created.push(entry);
-    } catch (e) {
-      const entry = {
-        messageId: item2.header.id,
-        headerMessageId: item2.header.headerMessageId ?? null,
-        subject: item2.header.subject ?? "",
-        sender: item2.header.author ?? "",
-        accountId: item2.header.folder?.accountId ?? null,
-        status: "failed",
-        error: String(e?.message ?? e).slice(0, 160),
-        at: now.getTime()
-      };
-      await store2.saveDraftRecord(item2.header, { status: "failed", at: now.getTime(), ...entry });
-      await store2.appendDraft(entry);
-      failed.push(entry);
-    }
-  }
-  return { created, failed };
-}
 var addressOf2 = (sender) => {
   const m = /<([^>\s]+)>$/.exec(String(sender ?? ""));
   return (m ? m[1] : String(sender ?? "")).trim().toLowerCase();
@@ -2719,6 +2717,74 @@ async function saveDraftWithCompose(header, body, { identityId = null } = {}) {
   if (!saved) throw new Error("Thunderbird did not confirm the saved draft.");
   await browser.tabs.remove(tab.id).catch(() => void 0);
   return saved;
+}
+async function drainDraftBacklog({ settings, store: store2, folders, resolveSource: resolveSource2, manualDraft: manualDraft2, reconcileSave, isLocked }) {
+  const created = [], failed = [];
+  let queued = 0;
+  if (!settings.monitor.enabled || !settings.monitor.autoDraft) return { created, failed, queued };
+  const rows = (await store2.allAnalyses()).sort((a, b) => new Date(a.date) - new Date(b.date));
+  for (const analysis of rows) {
+    const header = {
+      id: analysis.messageId,
+      headerMessageId: analysis.headerMessageId,
+      date: analysis.date,
+      subject: analysis.subject,
+      folder: { accountId: analysis.accountId }
+    };
+    const record = await store2.draftRecord(header);
+    if (record?.needsSetup && record.revision === settings.revision) continue;
+    if (["saved", "review"].includes(record?.status) || record?.retryAt > Date.now()) continue;
+    const eligibility = draftEligibility({ analysis, settings, header, draftRecord: record });
+    const entry = {
+      subject: analysis.subject,
+      messageId: header.id,
+      headerMessageId: header.headerMessageId,
+      sender: analysis.sender,
+      accountId: analysis.accountId,
+      at: Date.now()
+    };
+    const disposition = async (status, error, retryAt) => {
+      const needsSetup = /rejected the API key|permission denied|blocks calls from browser/i.test(error || "");
+      const value = { ...entry, status, error, retryAt: needsSetup ? null : retryAt, needsSetup, revision: settings.revision };
+      await store2.saveDraftRecord(header, value);
+      await store2.appendDraft(value);
+    };
+    if (record?.status === "saving") {
+      if (isLocked(header.id)) continue;
+      const source = await resolveSource2(analysis).catch(() => null);
+      if (source && await reconcileSave(source).catch(() => false)) {
+        await disposition("skipped", "A draft or reply exists for this source.");
+        continue;
+      }
+      await disposition("review", "Saving was interrupted. Check the account Drafts folder before retrying.");
+      continue;
+    }
+    if (!eligibility.ok) {
+      if (record?.status !== "skipped" || record.error !== eligibility.reason) await disposition("skipped", eligibility.reason);
+      continue;
+    }
+    if (created.length + failed.length >= settings.monitor.maxDraftsPerRun) {
+      queued++;
+      if (record?.status !== "queued") await disposition("queued");
+      continue;
+    }
+    try {
+      const source = await resolveSource2(analysis);
+      if (!source || !folders.has(source.folder?.id)) {
+        if (record?.error !== "Source moved or outside monitored folders.") await disposition("skipped", "Source moved or outside monitored folders.");
+        continue;
+      }
+      const result = await manualDraft2(source.id, { auto: true, expected: header });
+      if (result.ok) created.push(result.draft);
+      else if (!result.busy) await disposition("skipped", result.error);
+    } catch (error) {
+      failed.push(String(error.message || error).slice(0, 180));
+      const saving = (await store2.draftRecord(header))?.status === "saving";
+      const delay = Math.min(36e5, Math.max(3e5, 2 * ((record?.retryAt || 0) - (record?.at || 0))));
+      await disposition(saving ? "review" : "failed", String(error.message || error).slice(0, 180), saving ? null : Date.now() + delay);
+    }
+  }
+  return { created, failed, queued };
 }
 
 // thunderbird/src/notify.js
@@ -2770,7 +2836,7 @@ var safeError2 = (e) => {
   const text = String(e?.message ?? e ?? "Unknown error").replace(/\s+/g, " ").trim();
   return text.length <= 180 ? text : `${text.slice(0, 179)}\u2026`;
 };
-var headerKey = (h) => String(h?.headerMessageId ?? h?.id ?? "");
+var headerKey = (h) => String(h?.pendingKey ?? h?.headerMessageId ?? h?.id ?? "");
 var headerDate = (h) => new Date(h?.date ?? 0);
 var isSelf = (author, self) => {
   const m = /<([^>\s]+)>$/.exec(String(author ?? ""));
@@ -2806,7 +2872,7 @@ async function runMonitor({
   fetchImpl
 }) {
   const previous = await store2.monitor() ?? {};
-  const since = force ? new Date(now.getTime() - (settings.monitor.lookbackDays ?? 3) * DAY4) : previous.lastScanAt ? new Date(previous.lastScanAt - 5 * 6e4) : new Date(now.getTime() - (settings.monitor.lookbackDays ?? 3) * DAY4);
+  const since = force ? new Date(now.getTime() - (settings.monitor.lookbackDays ?? 3) * DAY4) : Number.isFinite(new Date(previous.lastScanAt ?? NaN).getTime()) ? new Date(new Date(previous.lastScanAt).getTime() - 5 * 6e4) : new Date(now.getTime() - (settings.monitor.lookbackDays ?? 3) * DAY4);
   const nextRunAt = new Date(now.getTime() + settings.monitor.intervalMinutes * 6e4).toISOString();
   await store2.saveMonitor({
     state: "running",
@@ -2821,19 +2887,39 @@ async function runMonitor({
   let cached = 0;
   let local = 0;
   let headers;
+  let deferred = 0;
   let rawHeaders;
   try {
-    rawHeaders = await api2.recent(
+    const discovered = api2.discover && await api2.discover(since, now, settings);
+    if (discovered?.failures.length) errors.push("Could not read folders: " + discovered.failures.join(", "));
+    rawHeaders = discovered?.headers ?? await api2.recent(
       since,
       settings.monitor.maxMessagesPerRun * 2,
       settings
     );
     headers = pickHeaders(rawHeaders, {
       self: ctx?.selfAddresses,
-      since,
-      max: settings.monitor.maxMessagesPerRun,
+      since: discovered ? /* @__PURE__ */ new Date(0) : since,
+      max: discovered ? Infinity : settings.monitor.maxMessagesPerRun,
       now
     });
+    if (discovered) {
+      const keep = new Set(headers.map((h) => h.pendingKey));
+      await api2.acknowledge(rawHeaders.filter((h) => !keep.has(h.pendingKey)).map((h) => h.pendingKey));
+      const fresh = [];
+      const completed = [];
+      for (const h of headers) {
+        if (!force && await store2.analysis(h)) completed.push(h.pendingKey);
+        else if (h.retryAt > now.getTime()) deferred++;
+        else fresh.push(h);
+      }
+      await api2.acknowledge(completed);
+      cached += completed.length;
+      headers = fresh;
+      headers.sort((a, b) => headerDate(a) - headerDate(b));
+      deferred += Math.max(0, headers.length - settings.monitor.maxMessagesPerRun);
+      headers = headers.slice(0, settings.monitor.maxMessagesPerRun);
+    }
   } catch (e) {
     const status2 = {
       state: "error",
@@ -2853,9 +2939,25 @@ async function runMonitor({
     return { status: status2, analyses, errors: [status2.error] };
   }
   const queue = [];
-  for (const header of headers) {
+  for (let header of headers) {
+    if (header.pendingKey && api2.resolvePending) {
+      const key = header.pendingKey;
+      try {
+        header = await api2.resolvePending(header);
+      } catch (e) {
+        await api2.defer?.(header);
+        errors.push(safeError2(e));
+        continue;
+      }
+      if (!header) {
+        await api2.acknowledge([key]);
+        skipped++;
+        continue;
+      }
+    }
     const hit = force ? null : await store2.analysis(header);
     if (hit) {
+      if (header.pendingKey) await api2.acknowledge([header.pendingKey]);
       cached++;
       continue;
     }
@@ -2863,6 +2965,7 @@ async function runMonitor({
     try {
       message = toMailMessage(header, await api2.full(header.id));
     } catch (e) {
+      await api2.defer?.(header);
       errors.push(`Message ${header.id}: ${safeError2(e)}`);
       skipped++;
       continue;
@@ -2877,6 +2980,7 @@ async function runMonitor({
       analysis.promptVersion = null;
       await store2.saveAnalysis(header, analysis);
       analyses.push({ header, message, analysis });
+      if (header.pendingKey) await api2.acknowledge([header.pendingKey]);
       local++;
       continue;
     }
@@ -2885,7 +2989,7 @@ async function runMonitor({
   queue.sort((a, b) => Number(b.plan.boostImportance) - Number(a.plan.boostImportance) || headerDate(b.header) - headerDate(a.header));
   const budget = settings.monitor.maxAiMessagesPerRun ?? 0;
   const runnable = queue.slice(0, budget);
-  const pending = queue.length - runnable.length;
+  const pending = deferred + queue.length - runnable.length;
   let tagWarning = null;
   let knownTags = await store2.tagKeys();
   const maybeTag = async (header, analysis) => {
@@ -2909,12 +3013,14 @@ async function runMonitor({
         fetchImpl
       );
     } catch (e) {
+      for (const item2 of chunk) await api2.defer?.(item2.header);
       errors.push(safeError2(e));
       continue;
     }
     for (const c of chunk) {
       const raw = result.get(String(c.message.providerMessageId));
       if (!raw) {
+        await api2.defer?.(c.header);
         errors.push(`No result for message ${c.header.id}`);
         continue;
       }
@@ -2926,6 +3032,7 @@ async function runMonitor({
       analysis.promptVersion = assistantPrompt.version;
       await store2.saveAnalysis(c.header, analysis);
       analyses.push({ header: c.header, message: c.message, analysis });
+      if (c.header.pendingKey) await api2.acknowledge([c.header.pendingKey]);
       await maybeTag(c.header, analysis);
     }
   }
@@ -2976,8 +3083,9 @@ var KEYS = {
   replyPrefix: "sentinel.replied:"
 };
 var TRIAGE_PREFIX2 = KEYS.triagePrefix;
-var triageKey2 = (header) => `${TRIAGE_PREFIX2}${header?.headerMessageId ?? header?.id}`;
-var draftKey = (header) => `${KEYS.draftPrefix}${header?.headerMessageId ?? header?.id}`;
+var messageKey = (header) => header?.folder?.accountId ? JSON.stringify([header.folder.accountId, header.headerMessageId ?? header.id]) : String(header?.headerMessageId ?? header?.id);
+var triageKey2 = (header) => TRIAGE_PREFIX2 + messageKey(header);
+var draftKey = (header) => KEYS.draftPrefix + messageKey(header);
 var replyKey = (accountId, header) => `${KEYS.replyPrefix}${accountId ?? "account"}:${header?.headerMessageId ?? header?.id}`;
 var DAY5 = 24 * 36e5;
 function createStore(area) {
@@ -2985,6 +3093,16 @@ function createStore(area) {
   const set = (key, value) => area.set({ [key]: value });
   const remove = (key) => area.remove(key);
   const all = async () => await area.get(null) ?? {};
+  const scopedRead = async (header, key, prefix) => {
+    const value = await get(key);
+    if (value || !header?.folder?.accountId) return value;
+    const legacyKey = prefix + (header.headerMessageId ?? header.id);
+    const legacy = await get(legacyKey);
+    if (!legacy || legacy.messageId !== header.id || legacy.accountId && legacy.accountId !== header.folder.accountId) return null;
+    await set(key, { ...legacy, accountId: header.folder.accountId });
+    await remove(legacyKey);
+    return legacy;
+  };
   const drafts = async () => {
     const list = await get(KEYS.drafts);
     return Array.isArray(list) ? list : [];
@@ -3002,7 +3120,7 @@ function createStore(area) {
   const pruneAnalyses = (now = Date.now(), days = 14) => prunePrefix(TRIAGE_PREFIX2, now - days * DAY5);
   const readSettings = async () => {
     const [saved, legacy] = await Promise.all([get(KEYS.settings), get(KEYS.legacyBrief)]);
-    return normalizeSettings(saved ?? {}, legacy ?? {});
+    return { ...normalizeSettings(saved ?? {}, legacy ?? {}), revision: saved?.revision ?? 0 };
   };
   return {
     area,
@@ -3010,6 +3128,7 @@ function createStore(area) {
     async saveSettings(settings) {
       const current = await readSettings();
       const next = normalizeSettings(mergeSettings(current, settings));
+      next.revision = Date.now();
       await set(KEYS.settings, next);
       await remove(KEYS.legacyBrief);
       return next;
@@ -3038,10 +3157,10 @@ function createStore(area) {
       return out;
     },
     async analysis(header) {
-      return get(triageKey2(header));
+      return scopedRead(header, triageKey2(header), TRIAGE_PREFIX2);
     },
     async saveAnalysis(header, analysis) {
-      await set(triageKey2(header), analysis);
+      await set(triageKey2(header), { ...analysis, accountId: header.folder?.accountId, messageId: header.id, headerMessageId: header.headerMessageId, subject: header.subject, date: header.date });
       return analysis;
     },
     async allAnalyses() {
@@ -3052,8 +3171,12 @@ function createStore(area) {
     async brief() {
       return get(KEYS.brief);
     },
+    async displayedBrief() {
+      return await get("sentinel.completedBrief") ?? get(KEYS.brief);
+    },
     async saveBrief(brief) {
-      await set(KEYS.brief, brief);
+      if (brief.partial === false) await area.set({ [KEYS.brief]: brief, "sentinel.completedBrief": brief });
+      else await set(KEYS.brief, brief);
       return brief;
     },
     async briefJob() {
@@ -3085,7 +3208,7 @@ function createStore(area) {
       return next;
     },
     async draftRecord(header) {
-      return get(draftKey(header));
+      return scopedRead(header, draftKey(header), KEYS.draftPrefix);
     },
     async saveDraftRecord(header, record) {
       await set(draftKey(header), record);
@@ -3177,6 +3300,7 @@ var BRIEF_ALARM = "sentinel-brief";
 var WAKE_ALARM = "sentinel-wake";
 var NEW_MAIL_ALARM = "sentinel-new-mail";
 var store = createStore(browser.storage.local);
+var applyingUpdate = false;
 var monitorRunning = null;
 var briefRunning = null;
 var replyIndexes = /* @__PURE__ */ new Map();
@@ -3195,24 +3319,48 @@ async function folderMessages(folderId, since, max) {
   }
   return out.slice(0, max);
 }
-async function recentHeaders(since, max, settings = {}) {
-  const out = [];
+async function sourceFolders(settings) {
   const folders = [...await inboxFolders()];
   if (settings?.monitor?.includeLocalFolders !== false) {
     folders.push(...await localMailFolders());
   }
-  const seen = /* @__PURE__ */ new Set();
-  for (const folder of folders) {
-    if (seen.has(folder.id)) continue;
-    seen.add(folder.id);
+  return [...new Map(folders.map((f) => [f.id, f])).values()].filter((f) => !settings.monitor?.accountIds || settings.monitor.accountIds.includes(f.accountId));
+}
+async function recentHeaders(since, max, settings = {}) {
+  const out = [];
+  const failures = [];
+  for (const folder of await sourceFolders(settings)) {
     try {
-      out.push(...await folderMessages(folder.id, since, max * 2));
+      out.push(...await folderMessages(folder.id, since, max));
     } catch {
+      failures.push(folder.name || folder.id);
     }
   }
+  out.folderErrors = failures;
   return out;
 }
 var api = {
+  async discover(since, now, settings) {
+    return discover({
+      area: browser.storage.local,
+      folders: await sourceFolders(settings),
+      since,
+      now,
+      query: (folderId, fromDate, toDate) => browser.messages.query({ folderId, fromDate, toDate, messagesPerPage: 100 }),
+      next: (id) => browser.messages.continueList(id)
+    });
+  },
+  async resolvePending(h) {
+    const live = await resolveSource({ ...h, messageId: h.id, accountId: h.folder.accountId });
+    return live?.folder?.id === h.folder.id ? { ...live, pendingKey: h.pendingKey, attempts: h.attempts || 0 } : null;
+  },
+  async defer(header) {
+    if (!header.pendingKey) return;
+    const attempts = (header.attempts || 0) + 1;
+    const delay = Math.min(60, 5 * 2 ** Math.min(attempts - 1, 4));
+    await browser.storage.local.set({ [header.pendingKey]: { ...header, attempts, retryAt: Date.now() + delay * 6e4 } });
+  },
+  acknowledge: (keys) => keys.length ? browser.storage.local.remove(keys) : Promise.resolve(),
   recent: recentHeaders,
   full: (id) => browser.messages.getFull(id),
   accounts: () => browser.accounts.list(true),
@@ -3245,41 +3393,28 @@ async function foldersForAccount(accountId) {
   const selected = accounts.filter((a) => String(a.id) === String(accountId));
   return new Set(flattenFolders(selected).map((f) => f.id));
 }
-async function scanFolder(folder, since) {
-  const headers = await folderMessages(folder.id, since, 120);
-  const items = [];
-  for (const h of headers) {
-    try {
-      items.push({ full: await browser.messages.getFull(h.id) });
-    } catch {
-    }
-  }
-  return items;
-}
-async function replyIndex(accountId, now = /* @__PURE__ */ new Date()) {
+async function replyIndex(accountId, fresh = false) {
   const key = accountId ?? "all";
   const hit = replyIndexes.get(key);
-  if (hit && now.getTime() - hit.at < REPLY_TTL) return hit.set;
-  const since = new Date(now.getTime() - 90 * 24 * 36e5);
+  const now = Date.now();
+  if (!fresh && hit && now - hit.at < REPLY_TTL) return hit.set;
+  const since = new Date(hit ? hit.at - 3e5 : now - 90 * 864e5);
   const allowed = await foldersForAccount(accountId);
-  const folders = [...await sentFolders(), ...await draftsFolders()].filter(
-    (f) => allowed?.size ? allowed.has(f.id) : true
-  );
-  const items = [];
+  const folders = [...await sentFolders(), ...await draftsFolders()].filter((f) => !allowed || allowed.has(f.id));
+  const set = new Set(hit?.set);
   for (const folder of folders) {
-    try {
-      items.push(...await scanFolder(folder, since));
-    } catch {
+    const headers = await folderMessages(folder.id, since, Infinity);
+    for (const header of headers) {
+      const full = await browser.messages.getFull(header.id);
+      for (const id of buildReplyIndex([{ full }])) set.add(id);
     }
   }
-  const set = /* @__PURE__ */ new Set();
-  for (const id of buildReplyIndex(items)) set.add(id);
-  replyIndexes.set(key, { at: now.getTime(), set });
+  replyIndexes.set(key, { at: now, set });
   return set;
 }
-async function isReplied(header) {
+async function isReplied(header, fresh = false) {
   if (!header?.headerMessageId) return false;
-  const set = await replyIndex(accountIdOf(header));
+  const set = await replyIndex(accountIdOf(header), fresh);
   return set.has(header.headerMessageId);
 }
 var tagApi = () => {
@@ -3322,6 +3457,7 @@ var bulkRunning = false;
 async function startBulk(ids, action, previous = null, queueKey = null) {
   const allowed = ["analyze", "draft", "summary", "actions", "categorize", "calendar", "important", "marketing", "ignore", "normal"];
   if (!allowed.includes(action) || !ids.length) return { ok: false, error: "Choose messages and an action." };
+  if (applyingUpdate) return { ok: false, error: "Sentinel is updating." };
   if (bulkRunning) return { ok: false, error: "A bulk action is already running. See its progress in the dashboard." };
   bulkRunning = true;
   const key = queueKey || `sentinel.retryJob:${crypto.randomUUID()}`;
@@ -3378,35 +3514,40 @@ async function saveDraftFor(header, body) {
   const identityId = await identityForHeader(header);
   return saveDraftWithCompose(header, body, { identityId });
 }
-async function createDraftsFor(analyses, settings, ctx) {
-  if (!settings.monitor.autoDraft || !analyses.length) return { created: [], failed: [] };
-  const candidates = [];
-  for (const item2 of analyses) {
-    if (candidates.length >= (settings.monitor.maxDraftsPerRun ?? 0)) break;
-    const record = await store.draftRecord(item2.header);
-    const eligible = draftEligibility({
-      analysis: item2.analysis,
-      header: item2.header,
-      settings,
-      replied: await isReplied(item2.header),
-      draftRecord: record,
-      now: /* @__PURE__ */ new Date()
-    });
-    if (eligible.ok) candidates.push(item2);
+var draftLocks = /* @__PURE__ */ new Set();
+async function resolveSource(row) {
+  const matches = (h) => h && (!row.accountId || h.folder?.accountId === row.accountId) && (row.headerMessageId ? h.headerMessageId === row.headerMessageId : h.id === row.messageId && h.subject === row.subject && new Date(h.date).getTime() === new Date(row.date).getTime());
+  const current = await browser.messages.get(row.messageId).catch(() => null);
+  if (matches(current)) return current;
+  if (row.accountId && row.headerMessageId) {
+    let page = await browser.messages.query({ headerMessageId: row.headerMessageId });
+    for (; ; ) {
+      const source = page.messages.find(matches);
+      if (source) return source;
+      if (!page.id) break;
+      page = await browser.messages.continueList(page.id);
+    }
   }
-  if (!candidates.length) return { created: [], failed: [] };
-  return maybeCreateDrafts({
-    analyses: candidates,
+  return null;
+}
+async function createDraftsFor(settings) {
+  return drainDraftBacklog({
     settings,
-    ctx,
     store,
-    isReplied,
-    generate: draftReply,
-    save: saveDraftFor,
-    now: /* @__PURE__ */ new Date()
+    folders: new Set((await sourceFolders(settings)).map((f) => f.id)),
+    resolveSource,
+    manualDraft,
+    isLocked: (id) => draftLocks.has(id),
+    reconcileSave: async (header) => {
+      return isReplied(header, true);
+    }
   });
 }
 async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force }) {
+  const current = await store.brief();
+  const prior = await store.briefStatus();
+  if (!force && (prior?.nextRetryAt > now.getTime() || prior?.needsSetup)) return { skipped: true };
+  if (!force && current && !current.partial && briefIsCurrent(current, now) && (!settings.brief.updateHourly || now - new Date(current.createdAt) < 36e5)) return { skipped: true };
   const meaningful = analyses.filter((a) => !a.analysis.skipped);
   if (!shouldRefreshBrief({
     brief: await store.brief(),
@@ -3416,6 +3557,7 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
     enabled: settings.brief.enabled
   }))
     return { skipped: true };
+  if (applyingUpdate) return { skipped: true };
   if (briefRunning) return briefRunning;
   briefRunning = refreshBrief({
     store,
@@ -3431,6 +3573,7 @@ async function maybeRefreshBrief({ settings, rules, ctx, now, analyses, force })
   return briefRunning;
 }
 async function runBriefOnly() {
+  if (applyingUpdate) return { skipped: true };
   const { settings, rules } = await load();
   const blocked = monitorBlockedReason(settings);
   if (blocked) {
@@ -3438,8 +3581,11 @@ async function runBriefOnly() {
     await store.saveBriefStatus({ state: "error", at, message: blocked, progress: null });
     return { ok: false, error: blocked };
   }
+  if (applyingUpdate) return { skipped: true };
   if (briefRunning) return briefRunning;
   const ctx = await context(settings, rules);
+  if (applyingUpdate) return { skipped: true };
+  if (briefRunning) return briefRunning;
   briefRunning = refreshBrief({
     store,
     api,
@@ -3449,7 +3595,10 @@ async function runBriefOnly() {
     now: /* @__PURE__ */ new Date(),
     fetchImpl: void 0
   }).then(async (result) => {
-    if (result.status?.state === "done") await updateBriefBadge(result.brief);
+    if (result.status?.state === "done") {
+      await updateBriefBadge(result.brief);
+      if (settings.brief.notify) await notifyBriefUpdated(result.brief);
+    }
     return result;
   }).catch(async (e) => {
     const message = safeError(e);
@@ -3461,6 +3610,7 @@ async function runBriefOnly() {
   return briefRunning;
 }
 function runAssistant({ reason = "alarm", force = false, forceBrief = false } = {}) {
+  if (applyingUpdate) return Promise.resolve({ skipped: true });
   if (monitorRunning) return monitorRunning;
   monitorRunning = (async () => {
     const now = /* @__PURE__ */ new Date();
@@ -3492,9 +3642,9 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
       reason,
       tag: tagger
     });
-    const drafts = await createDraftsFor(monitor.analyses, settings, ctx).catch((e) => {
+    const drafts = await createDraftsFor(settings).catch((e) => {
       monitor.errors.push(safeError(e));
-      return { created: [], failed: [] };
+      return { created: [], failed: [safeError(e)] };
     });
     const brief = await maybeRefreshBrief({
       settings,
@@ -3506,13 +3656,15 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
     }).catch((e) => ({ status: { state: "error", message: safeError(e) } }));
     const status = {
       ...monitor.status,
+      ...drafts.failed.length ? { state: "partial", error: safeError(drafts.failed[0]) } : {},
+      draftsQueued: drafts.queued,
       draftsCreated: drafts.created.length,
       draftsFailed: drafts.failed.length,
       briefState: brief?.status?.state ?? null,
       briefAt: brief?.status?.at ?? null
     };
     await store.saveMonitor(status);
-    if (brief?.updated) {
+    if (brief?.updated && brief.status?.state === "done") {
       await updateBriefBadge(brief.brief);
       if (settings.brief.notify) await notifyBriefUpdated(brief.brief);
     }
@@ -3535,8 +3687,17 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
   });
   return monitorRunning;
 }
+async function catchUpBrief() {
+  const settings = await store.settings();
+  const now = /* @__PURE__ */ new Date();
+  if (!settings.brief.enabled || now.getHours() < settings.brief.hour || monitorBlockedReason(settings)) return;
+  const brief = await store.brief();
+  const status = await store.briefStatus();
+  if (status?.nextRetryAt > Date.now() || status?.needsSetup) return;
+  if (status?.state === "error" || status?.state === "partial" || !briefIsCurrent(brief, now) || brief.partial) await runBriefOnly();
+}
 async function schedule() {
-  browser.alarms.create("sentinel-retry", { periodInMinutes: 5 });
+  if (!await browser.alarms.get("sentinel-retry")) browser.alarms.create("sentinel-retry", { periodInMinutes: 5 });
   const { settings } = await load();
   await browser.alarms.clear(MONITOR_ALARM);
   await browser.alarms.clear(BRIEF_ALARM);
@@ -3547,14 +3708,15 @@ async function schedule() {
     });
   if (settings.brief.enabled && !monitorBlockedReason(settings))
     browser.alarms.create(BRIEF_ALARM, {
-      when: nextRun(/* @__PURE__ */ new Date(), settings.brief.hour).getTime(),
-      periodInMinutes: 24 * 60
+      when: nextRun(/* @__PURE__ */ new Date(), settings.brief.hour).getTime()
     });
 }
 browser.alarms.onAlarm.addListener((a) => {
-  if (a.name === "sentinel-retry") void retryFailedMessages().catch(() => void 0);
-  else if (a.name === MONITOR_ALARM) void runAssistant({ reason: "alarm" });
-  else if (a.name === BRIEF_ALARM) void runAssistant({ reason: "daily-brief" });
+  if (a.name === "sentinel-retry") {
+    void retryFailedMessages().catch(() => void 0);
+    void catchUpBrief();
+  } else if (a.name === MONITOR_ALARM) void runAssistant({ reason: "alarm" });
+  else if (a.name === BRIEF_ALARM) void runBriefOnly().finally(schedule);
   else if (a.name === WAKE_ALARM) {
     void browser.alarms.clear(WAKE_ALARM);
     void runAssistant({ reason: "startup" });
@@ -3566,6 +3728,7 @@ browser.alarms.onAlarm.addListener((a) => {
 browser.runtime.onStartup.addListener(() => {
   void (async () => {
     await schedule();
+    await catchUpBrief();
     const { settings } = await load();
     if (settings.monitor.enabled && !monitorBlockedReason(settings))
       browser.alarms.create(WAKE_ALARM, { when: Date.now() + 15e3 });
@@ -3576,6 +3739,9 @@ browser.runtime.onInstalled.addListener(() => {
   void schedule().catch(() => void 0);
 });
 browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.settings) void store.briefStatus().then((status) => {
+    if (status?.needsSetup) return store.saveBriefStatus({ ...status, needsSetup: false, nextRetryAt: 0 });
+  });
   if (area === "local" && (changes.settings || changes.senderRules)) void schedule().catch(() => void 0);
 });
 async function registerComposeScript() {
@@ -3595,18 +3761,33 @@ browser.messages.onNewMailReceived?.addListener?.((folder) => {
       browser.alarms.create(NEW_MAIL_ALARM, { when: Date.now() + 3e4 });
   })();
 });
-async function manualDraft(messageId, { force = false, progress = async () => {
+async function manualDraft(messageId, options = {}) {
+  if (draftLocks.has(messageId)) return { ok: false, busy: true, error: "Draft creation already running." };
+  draftLocks.add(messageId);
+  try {
+    return await generateDraft(messageId, options);
+  } finally {
+    draftLocks.delete(messageId);
+  }
+}
+async function generateDraft(messageId, { force = false, auto = false, expected, progress = async () => {
 } } = {}) {
   await progress("Reading message and checking draft eligibility\u2026");
   const header = await browser.messages.get(messageId);
   if (!header) return { ok: false, error: "Open a message first." };
+  if (expected && ((expected.headerMessageId || null) !== (header.headerMessageId || null) || expected.folder.accountId && expected.folder.accountId !== accountIdOf(header))) throw new Error("Source message identity changed. Review the message.");
   const { settings } = await load();
   if (monitorBlockedReason(settings)) return { ok: false, error: monitorBlockedReason(settings) };
-  const ctx = await context(settings, await store.rules());
+  const route = resolveRoute(settings, "draft");
+  const origin = new URL(route.provider.baseUrl).origin + "/*";
+  if (!await browser.permissions.contains({ origins: [origin] })) throw new Error("Provider permission denied. Grant host access in Provider settings.");
+  const rules = await store.rules();
+  const ctx = await context(settings, rules);
+  const message = toMailMessage(header, await browser.messages.getFull(header.id));
+  const policy = preFilter(message, rules, settings);
+  if (policy.action === "local") return { ok: false, error: "Message excluded by sender or filtering rules." };
   let analysis = await store.analysis(header);
   if (!analysis) {
-    const full = await browser.messages.getFull(header.id);
-    const message = toMailMessage(header, full);
     analysis = await analyze(settings, message, ctx);
     analysis = { ...analysis, sender: header.author, by: "ai", at: Date.now() };
     await store.saveAnalysis(header, analysis);
@@ -3615,6 +3796,7 @@ async function manualDraft(messageId, { force = false, progress = async () => {
   }
   const replied = await isReplied(header);
   const record = await store.draftRecord(header);
+  if (!force && ["saving", "review"].includes(record?.status)) return { ok: false, error: "Check Drafts for an existing reply before creating another." };
   if (!force) {
     const eligible = draftEligibility({
       analysis,
@@ -3623,18 +3805,24 @@ async function manualDraft(messageId, { force = false, progress = async () => {
       replied,
       draftRecord: record,
       now: /* @__PURE__ */ new Date(),
-      manual: true
+      manual: !auto
     });
     if (!eligible.ok) return { ok: false, error: eligible.reason };
   }
   await progress("Generating reply with your AI provider\u2026");
   const body = await draftReply(
     settings,
-    [toMailMessage(header, await browser.messages.getFull(header.id))],
+    [message],
     ctx,
     draftRequest(analysis, settings)
   );
   await progress("Saving reply to Thunderbird Drafts\u2026");
+  if (auto) {
+    const latest = await store.settings();
+    if (!latest.monitor.enabled || !latest.monitor.autoDraft || preFilter(message, await store.rules(), latest).action === "local" || !draftEligibility({ analysis, settings: latest, header }).ok) return { ok: false, error: "Automation paused." };
+    if (await isReplied(header, true)) return { ok: false, error: "A reply or draft already exists." };
+  }
+  await store.saveDraftRecord(header, { status: "saving", at: Date.now(), messageId, subject: header.subject });
   const saved = await saveDraftFor(header, body);
   const entry = {
     messageId: header.id,
@@ -3795,6 +3983,32 @@ browser.tabs.onRemoved?.addListener((id) => composeJobs.delete(id));
 browser.runtime.onMessage.addListener(async (msg) => {
   if (!msg || typeof msg !== "object") return void 0;
   try {
+    if (applyingUpdate) throw new Error("Sentinel is applying an update. Reopen it after it restarts.");
+    if (msg.type === "retry-auto-draft") {
+      const row = (await store.drafts()).find((r) => r.messageId === msg.messageId && r.accountId === msg.accountId);
+      if (row?.status !== "failed" || !row.headerMessageId) throw new Error("Open the source message to review this draft.");
+      const source = await resolveSource(row);
+      const settings = await store.settings();
+      if (!source || !(await sourceFolders(settings)).some((f) => f.id === source.folder?.id))
+        throw new Error("Source is outside the monitored folders.");
+      return await manualDraft(source.id, { auto: true });
+    }
+    if (msg.type === "update-check") return { ok: true, ...await browser.sentinelUpdates.check() };
+    if (msg.type === "update-apply") {
+      applyingUpdate = true;
+      try {
+        if (monitorRunning || briefRunning || bulkRunning || draftLocks.size || messageJobs.size || [...composeJobs.values()].some((j) => j.state === "running") || (await browser.tabs.query({ type: "messageCompose" })).length)
+          throw new Error("Finish the running actions and close compose windows before applying the update.");
+        await browser.storage.local.set({ "sentinel.expectedVersion": msg.version });
+        await browser.sentinelUpdates.apply(msg.version);
+      } catch (e) {
+        await browser.storage.local.remove("sentinel.expectedVersion");
+        throw e;
+      } finally {
+        applyingUpdate = false;
+      }
+      return { ok: true };
+    }
     if (msg.type === "compose-job-start") return startComposeJob(msg);
     if (msg.type === "compose-job-status") return { ok: true, job: composeJobs.get(msg.tabId) ?? null };
     if (msg.type === "ping") return { ok: true, at: Date.now(), menus: (await browser.storage.local.get("sentinel.menuStatus"))["sentinel.menuStatus"] };
@@ -3858,4 +4072,6 @@ browser.notifications.onClicked.addListener(() => {
   void clearBriefBadge();
   void browser.tabs.create({ url: browser.runtime.getURL("dist/dashboard.html") }).catch(() => void 0);
 });
-void schedule().catch(() => void 0);
+void browser.alarms.get("sentinel-retry").then((alarm) => {
+  if (!alarm) return schedule();
+}).catch(() => void 0);

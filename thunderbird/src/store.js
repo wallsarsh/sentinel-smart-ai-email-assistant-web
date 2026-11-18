@@ -18,8 +18,11 @@ export const KEYS = {
 }
 
 export const TRIAGE_PREFIX = KEYS.triagePrefix
-export const triageKey = (header) => `${TRIAGE_PREFIX}${header?.headerMessageId ?? header?.id}`
-export const draftKey = (header) => `${KEYS.draftPrefix}${header?.headerMessageId ?? header?.id}`
+const messageKey = (header) => header?.folder?.accountId
+  ? JSON.stringify([header.folder.accountId, header.headerMessageId ?? header.id])
+  : String(header?.headerMessageId ?? header?.id)
+export const triageKey = (header) => TRIAGE_PREFIX + messageKey(header)
+export const draftKey = (header) => KEYS.draftPrefix + messageKey(header)
 export const replyKey = (accountId, header) =>
   `${KEYS.replyPrefix}${accountId ?? 'account'}:${header?.headerMessageId ?? header?.id}`
 
@@ -50,6 +53,16 @@ export function createStore(area) {
   const remove = (key) => area.remove(key)
   const all = async () => (await area.get(null)) ?? {}
 
+  const scopedRead = async (header, key, prefix) => {
+    const value = await get(key)
+    if (value || !header?.folder?.accountId) return value
+    const legacyKey = prefix + (header.headerMessageId ?? header.id)
+    const legacy = await get(legacyKey)
+    if (!legacy || legacy.messageId !== header.id || (legacy.accountId && legacy.accountId !== header.folder.accountId)) return null
+    await set(key, { ...legacy, accountId: header.folder.accountId })
+    await remove(legacyKey)
+    return legacy
+  }
   const drafts = async () => {
     const list = await get(KEYS.drafts)
     return Array.isArray(list) ? list : []
@@ -71,7 +84,7 @@ export function createStore(area) {
 
   const readSettings = async () => {
     const [saved, legacy] = await Promise.all([get(KEYS.settings), get(KEYS.legacyBrief)])
-    return normalizeSettings(saved ?? {}, legacy ?? {})
+    return { ...normalizeSettings(saved ?? {}, legacy ?? {}), revision: saved?.revision ?? 0 }
   }
 
   return {
@@ -81,6 +94,7 @@ export function createStore(area) {
     async saveSettings(settings) {
       const current = await readSettings()
       const next = normalizeSettings(mergeSettings(current, settings))
+      next.revision = Date.now()
       await set(KEYS.settings, next)
       await remove(KEYS.legacyBrief)
       return next
@@ -113,10 +127,10 @@ export function createStore(area) {
     },
 
     async analysis(header) {
-      return get(triageKey(header))
+      return scopedRead(header, triageKey(header), TRIAGE_PREFIX)
     },
     async saveAnalysis(header, analysis) {
-      await set(triageKey(header), analysis)
+      await set(triageKey(header), { ...analysis, accountId: header.folder?.accountId, messageId: header.id, headerMessageId: header.headerMessageId, subject: header.subject, date: header.date })
       return analysis
     },
     async allAnalyses() {
@@ -130,8 +144,12 @@ export function createStore(area) {
     async brief() {
       return get(KEYS.brief)
     },
+    async displayedBrief() {
+      return (await get('sentinel.completedBrief')) ?? get(KEYS.brief)
+    },
     async saveBrief(brief) {
-      await set(KEYS.brief, brief)
+      if (brief.partial === false) await area.set({ [KEYS.brief]: brief, 'sentinel.completedBrief': brief })
+      else await set(KEYS.brief, brief)
       return brief
     },
     async briefJob() {
@@ -165,7 +183,7 @@ export function createStore(area) {
       return next
     },
     async draftRecord(header) {
-      return get(draftKey(header))
+      return scopedRead(header, draftKey(header), KEYS.draftPrefix)
     },
     async saveDraftRecord(header, record) {
       await set(draftKey(header), record)

@@ -1,0 +1,7 @@
+[{
+  "namespace": "sentinelUpdates",
+  "functions": [
+    {"name":"check","type":"function","async":true,"parameters":[]},
+    {"name":"apply","type":"function","async":true,"parameters":[{"name":"version","type":"string"}]}
+  ]
+}]

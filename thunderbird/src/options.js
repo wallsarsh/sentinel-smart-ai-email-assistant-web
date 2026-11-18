@@ -1,4 +1,5 @@
 import { enhanceActions, clear, el, openDashboard, status  } from './ui.js'
+import { runTextTask } from './ai.js'
 import { checkBaseUrl } from './mail.js'
 import {
   PROVIDER_PRESETS,
@@ -363,6 +364,23 @@ async function loadFormModels() {
   }
 }
 
+async function testDefaultModel() {
+  const route = rowControls.default
+  const provider = settings.providers.find((p) => p.id === route?.providerSelect.value)
+  const model = route?.picker.get()
+  if (!provider || !model) return say($('route-status'), 'Select a default provider and model first.', 'status--error')
+  const button = $('test-default')
+  button.disabled = true
+  try {
+    if (!await ensureOrigins([provider.baseUrl])) throw new Error('Permission denied. Allow access to this provider to test it.')
+    say($('route-status'), 'Testing the selected model…')
+    await runTextTask({ providers: [provider], routes: { test: { providerId: provider.id, model } } },
+      'test', 'Reply with OK.', 'Connection test.', { maxTokens: 64 })
+    say($('route-status'), 'Model responded successfully.', 'status--ok')
+  } catch (e) { say($('route-status'), e.message, 'status--error') }
+  finally { button.disabled = false }
+}
+
 async function refreshAllModels() {
   const usable = settings.providers.filter((p) => p.baseUrl || p.kind === 'anthropic')
   say($('route-status'), 'Loading models…')
@@ -401,6 +419,7 @@ $('preset').addEventListener('change', applyPreset)
 $('provider-form').addEventListener('submit', saveProvider)
 $('cancel-edit').addEventListener('click', resetForm)
 $('save-routes').addEventListener('click', saveRoutes)
+$('test-default').addEventListener('click', testDefaultModel)
 $('apply-default').addEventListener('click', applyDefaultToAll)
 $('load-models').addEventListener('click', () => void loadFormModels())
 $('refresh-models').addEventListener('click', () => void refreshAllModels())
@@ -408,3 +427,48 @@ $('dashboard').onclick = openDashboard
 void init().catch((e) => say($('provider-status'), e?.message ?? 'Could not load settings.', 'status--error'))
 
 enhanceActions()
+
+async function setupUpdates() {
+  const manifest = browser.runtime.getManifest()
+  const feed = manifest.browser_specific_settings?.gecko?.update_url
+  const label = $('update-source')
+  label.textContent = 'Installed version ' + manifest.version
+  if (!feed) {
+    label.textContent += ' · Pinned or unknown update source. Reinstall from your chosen repository branch to enable updates.'
+    $('check-update').disabled = true
+    return
+  }
+  for (const path of ['source.json', 'dist/source.json']) {
+    try {
+      const source = await (await fetch(browser.runtime.getURL(path))).json()
+      label.textContent += ' · ' + source.repo + ' / ' + source.branch
+      break
+    } catch { /* Other packaging layout. */ }
+  }
+  const last = await browser.storage.local.get(['sentinel.expectedVersion', 'sentinel.updateChecked'])
+  if (last['sentinel.expectedVersion'] === manifest.version) {
+    $('update-status').textContent = 'Updated successfully to ' + manifest.version
+    await browser.storage.local.remove('sentinel.expectedVersion')
+  } else if (last['sentinel.updateChecked']) $('update-status').textContent = 'Last checked ' + new Date(last['sentinel.updateChecked']).toLocaleString()
+  let version
+  const run = async (apply) => {
+    const check = $('check-update'), install = $('apply-update'), notes = $('update-notes')
+    check.disabled = install.disabled = true
+    $('update-status').textContent = apply ? 'Applying update…' : 'Checking for updates…'
+    try {
+      const result = await browser.runtime.sendMessage({ type: apply ? 'update-apply' : 'update-check', version })
+      if (!result?.ok) throw new Error(result?.error || 'The update service did not respond.')
+      if (apply) { $('update-status').textContent = 'Restarting Sentinel…'; return }
+      version = result.version
+      install.hidden = !version
+      notes.hidden = !version
+      if (version) notes.href = feed.split('/releases/')[0] + '/releases/tag/sentinel-v' + encodeURIComponent(version)
+      $('update-status').textContent = version ? 'Version ' + version + ' is available.' : 'You have the latest compatible version.'
+      await browser.storage.local.set({ 'sentinel.updateChecked': Date.now() })
+    } catch (error) { $('update-status').textContent = error.message }
+    finally { check.disabled = install.disabled = false }
+  }
+  $('check-update').onclick = () => run(false)
+  $('apply-update').onclick = () => run(true)
+}
+if ($('check-update') && browser.runtime.getManifest) void setupUpdates().catch((error) => { $('update-status').textContent = error.message })

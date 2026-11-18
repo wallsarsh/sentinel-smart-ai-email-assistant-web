@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Downloads Thunderbird (checksum-verified), installs it per-user and installs the Sentinel AI add-on.
 import { spawn, execFileSync } from 'node:child_process'
-import { createWriteStream, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, copyFileSync, chmodSync } from 'node:fs'
+import { createWriteStream, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, copyFileSync, renameSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -91,7 +91,10 @@ function profileLocked(dir) {
 
 function installAddon(profile, xpi) {
   mkdirSync(join(profile, 'extensions'), { recursive: true })
-  copyFileSync(xpi, join(profile, 'extensions', `${ADDON_ID}.xpi`))
+  const target = join(profile, 'extensions', `${ADDON_ID}.xpi`)
+  copyFileSync(xpi, target + '.new')
+  if (existsSync(target)) copyFileSync(target, join(profile, 'sentinel-previous.xpi'))
+  renameSync(target + '.new', target)
   const userJs = join(profile, 'user.js')
   writeFileSync(userJs, mergeUserJs(existsSync(userJs) ? readFileSync(userJs, 'utf8') : ''))
 }
