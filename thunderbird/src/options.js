@@ -432,18 +432,28 @@ async function setupUpdates() {
   const manifest = browser.runtime.getManifest()
   const feed = manifest.browser_specific_settings?.gecko?.update_url
   const label = $('update-source')
+  const releases = $('update-releases')
   label.textContent = 'Installed version ' + manifest.version
+  let source = null
+  for (const path of ['source.json', 'dist/source.json']) {
+    try {
+      source = await (await fetch(browser.runtime.getURL(path))).json()
+      break
+    } catch { /* Other packaging layout. */ }
+  }
+  const repo =
+    source?.repo ?? /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\//.exec(feed || '')?.[1] ?? null
+  if (repo) {
+    label.textContent += ' · ' + repo + (source?.branch ? ' / ' + source.branch : '')
+    if (releases) {
+      releases.href = 'https://github.com/' + repo + '/releases'
+      releases.hidden = false
+    }
+  }
   if (!feed) {
     label.textContent += ' · Pinned or unknown update source. Reinstall from your chosen repository branch to enable updates.'
     $('check-update').disabled = true
     return
-  }
-  for (const path of ['source.json', 'dist/source.json']) {
-    try {
-      const source = await (await fetch(browser.runtime.getURL(path))).json()
-      label.textContent += ' · ' + source.repo + ' / ' + source.branch
-      break
-    } catch { /* Other packaging layout. */ }
   }
   const last = await browser.storage.local.get(['sentinel.expectedVersion', 'sentinel.updateChecked'])
   if (last['sentinel.expectedVersion'] === manifest.version) {
@@ -462,7 +472,10 @@ async function setupUpdates() {
       version = result.version
       install.hidden = !version
       notes.hidden = !version
-      if (version) notes.href = feed.split('/releases/')[0] + '/releases/tag/sentinel-v' + encodeURIComponent(version)
+      if (version)
+        notes.href = repo
+          ? `https://github.com/${repo}/releases/tag/sentinel-v${encodeURIComponent(version)}`
+          : feed.split('/releases/')[0] + '/releases/tag/sentinel-v' + encodeURIComponent(version)
       $('update-status').textContent = version ? 'Version ' + version + ' is available.' : 'You have the latest compatible version.'
       await browser.storage.local.set({ 'sentinel.updateChecked': Date.now() })
     } catch (error) { $('update-status').textContent = error.message }

@@ -3300,6 +3300,7 @@ var BRIEF_ALARM = "sentinel-brief";
 var WAKE_ALARM = "sentinel-wake";
 var NEW_MAIL_ALARM = "sentinel-new-mail";
 var store = createStore(browser.storage.local);
+var UPDATE_API_MISSING = "The add-on update API is not loaded. Reload Sentinel, or reinstall the latest build so its update component is present.";
 var applyingUpdate = false;
 var monitorRunning = null;
 var briefRunning = null;
@@ -3993,14 +3994,21 @@ browser.runtime.onMessage.addListener(async (msg) => {
         throw new Error("Source is outside the monitored folders.");
       return await manualDraft(source.id, { auto: true });
     }
-    if (msg.type === "update-check") return { ok: true, ...await browser.sentinelUpdates.check() };
+    if (msg.type === "update-check") {
+      if (!browser.sentinelUpdates) return { ok: false, error: UPDATE_API_MISSING };
+      const result = await browser.sentinelUpdates.check();
+      if (!result?.ok) return { ok: false, error: result?.error || "The update check failed." };
+      return { ok: true, version: result.version ?? null, notes: result.notes ?? null, source: result.source ?? null };
+    }
     if (msg.type === "update-apply") {
+      if (!browser.sentinelUpdates) return { ok: false, error: UPDATE_API_MISSING };
       applyingUpdate = true;
       try {
         if (monitorRunning || briefRunning || bulkRunning || draftLocks.size || messageJobs.size || [...composeJobs.values()].some((j) => j.state === "running") || (await browser.tabs.query({ type: "messageCompose" })).length)
           throw new Error("Finish the running actions and close compose windows before applying the update.");
         await browser.storage.local.set({ "sentinel.expectedVersion": msg.version });
-        await browser.sentinelUpdates.apply(msg.version);
+        const result = await browser.sentinelUpdates.apply(msg.version);
+        if (!result?.ok) throw new Error(result?.error || "The update could not be applied.");
       } catch (e) {
         await browser.storage.local.remove("sentinel.expectedVersion");
         throw e;
