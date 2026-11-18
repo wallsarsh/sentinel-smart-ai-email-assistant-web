@@ -2,7 +2,7 @@
 
 Regenerate with `python3 tasks/tools/taskctl.py index`. Source of truth: `tasks/items/*.md`.
 
-**Progress:** 129/138 done · ready now: T009, T010, T011, T159, T160, T174
+**Progress:** 129/139 done · ready now: T009, T010, T011, T159, T160, T174
 
 Legend: ⬜ todo · 🔄 in progress · 👀 review · ✅ done · ⛔ blocked
 
@@ -74,6 +74,7 @@ flowchart LR
     T186["T186"]:::done
     T187["T187"]:::done
     T188["T188"]:::rev
+    T189["T189"]:::rev
   end
   subgraph P2
     T040["T040"]:::done
@@ -429,6 +430,8 @@ flowchart LR
   T168 --> T187
   T186 --> T187
   T173 --> T188
+  T168 --> T189
+  T176 --> T189
 ```
 
 ## P0
@@ -499,6 +502,7 @@ flowchart LR
 | ✅ | [T186](items/T186-thunderbird-local-folders-monitoring.md) | Thunderbird monitor Local Folders and demo mailbox | S | code | T165, T185 | opencode-deepseek-v4.1-flash |
 | ✅ | [T187](items/T187-thunderbird-incremental-brief-job.md) | Thunderbird incremental resumable daily brief | L | code | T168, T186 | opencode-deepseek-v4.1-flash |
 | 👀 | [T188](items/T188-thunderbird-addon-updates.md) | Thunderbird in-add-on repository updates | M | code | T173 | opencode-deepseek-v4.1-flash |
+| 👀 | [T189](items/T189-thunderbird-reply-detection.md) | Thunderbird Sent Items reply detection and brief awareness | M | code | T168, T176 | opencode-deepseek-v4.1-flash |
 
 ## P2
 

@@ -60,6 +60,7 @@ Priority: **M** must, **S** should, **C** could.
 | TB-BRF-06 | S | A native notification says only how many new messages are in the brief, never mail text. | Notification body contains no subject/sender. |
 | TB-BRF-07 | M | A brief update sets a count badge on the brief toolbar action; opening the brief or dashboard clears it. | Badge appears after an update and clears on view. |
 | TB-BRF-08 | M | The brief is built one email at a time with durable progress; a provider failure pauses it and a later refresh resumes from the unprocessed emails. | Per-message markers, `briefJob` counters and partial dashboard counts survive failure/restart. |
+| TB-BRF-09 | M | Messages answered by a message in Sent Items are marked replied in the stored analysis; the brief counts them separately and does not list answered mail as needing a reply unless it still has action items. | `replied` appears in stats; answered mail without actions is not listed under needs reply; the marker survives re-analysis. |
 
 ### 4.3 Draft replies (TB-DRF)
 

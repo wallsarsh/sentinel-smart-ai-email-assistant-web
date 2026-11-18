@@ -6,16 +6,16 @@ import { runBulk, selectedHeaders } from './bulk.js'
 import { resolveRoute, userContext, analyze, analyzeBatch, draftReply, runTextTask } from './ai.js'
 import { normalizeAnalysis } from './analysis.js'
 import { monitorBlockedReason } from './config.js'
-import { briefIsCurrent, nextRun, refreshBrief, shouldRefreshBrief } from './brief.js'
+import { briefIsCurrent, nextRun, refreshBrief, selectForBrief, shouldRefreshBrief } from './brief.js'
 import { eventsFromAnalysis, downloadIcs, writeCalendarEvents } from './calendar.js'
 import {
-  buildReplyIndex,
   drainDraftBacklog,
   draftEligibility,
   draftRequest,
   identityForHeader,
   saveDraftWithCompose,
 } from './drafts.js'
+import { buildSentReplyIndex, normalizeMessageId, referencedMessageIds, withReplyMarker } from './replies.js'
 import {
   accountIdOf,
   draftsFolders,
@@ -45,6 +45,7 @@ let applyingUpdate = false
 let monitorRunning = null
 let briefRunning = null
 const replyIndexes = new Map()
+const sentReplyIndexes = new Map()
 const REPLY_TTL = 10 * 60_000
 
 // ---- Thunderbird API seams -------------------------------------------------------------------------------------
@@ -103,6 +104,7 @@ const api = {
   },
   acknowledge: (keys) => keys.length ? browser.storage.local.remove(keys) : Promise.resolve(),
   recent: recentHeaders,
+  repliedMarkers,
   full: (id) => browser.messages.getFull(id),
   accounts: () => browser.accounts.list(true),
   cache: {
@@ -139,21 +141,67 @@ async function foldersForAccount(accountId) {
   return new Set(flattenFolders(selected).map((f) => f.id))
 }
 
+/**
+ * Sent Items index: answered Message-ID → { sentMessageId, sentAt, subject }. Incremental, so a
+ * later run only reads sent mail newer than the previous scan and keeps what it already found.
+ */
+async function sentReplyIndex(accountId, fresh = false) {
+  const key = accountId ?? 'all'
+  const hit = sentReplyIndexes.get(key)
+  const now = Date.now()
+  if (!fresh && hit && now - hit.at < REPLY_TTL) return hit.map
+  const since = new Date(hit ? hit.at - 300000 : now - 90 * 86400000)
+  const allowed = await foldersForAccount(accountId)
+  const folders = (await sentFolders()).filter((f) => !allowed || allowed.has(f.id))
+  const map = new Map(hit?.map ?? [])
+  const seen = hit?.seen ?? new Set()
+  for (const folder of folders) {
+    let headers
+    try {
+      headers = await folderMessages(folder.id, since, Infinity)
+    } catch {
+      continue
+    }
+    for (const header of headers) {
+      if (seen.has(header.id)) continue
+      seen.add(header.id)
+      try {
+        const full = await browser.messages.getFull(header.id)
+        for (const [id, marker] of buildSentReplyIndex([{ header, full }]))
+          if (!map.has(id)) map.set(id, marker)
+      } catch {
+        seen.delete(header.id) // unreadable now: retry on the next scan
+      }
+    }
+  }
+  sentReplyIndexes.set(key, { at: now, map, seen })
+  return map
+}
+
 async function replyIndex(accountId, fresh = false) {
   const key = accountId ?? 'all'
   const hit = replyIndexes.get(key)
   const now = Date.now()
   if (!fresh && hit && now - hit.at < REPLY_TTL) return hit.set
+  // Sent replies count as answered; drafts count too, so Sentinel never drafts twice.
+  const set = new Set((await sentReplyIndex(accountId, fresh)).keys())
   const since = new Date(hit ? hit.at - 300000 : now - 90 * 86400000)
   const allowed = await foldersForAccount(accountId)
-  const folders = [...(await sentFolders()), ...(await draftsFolders())]
-    .filter((f) => !allowed || allowed.has(f.id))
-  const set = new Set(hit?.set)
+  const folders = (await draftsFolders()).filter((f) => !allowed || allowed.has(f.id))
   for (const folder of folders) {
-    const headers = await folderMessages(folder.id, since, Infinity)
+    let headers
+    try {
+      headers = await folderMessages(folder.id, since, Infinity)
+    } catch {
+      continue
+    }
     for (const header of headers) {
-      const full = await browser.messages.getFull(header.id)
-      for (const id of buildReplyIndex([{ full }])) set.add(id)
+      try {
+        const full = await browser.messages.getFull(header.id)
+        for (const id of referencedMessageIds(full)) set.add(id)
+      } catch {
+        /* inaccessible draft: the next scan retries */
+      }
     }
   }
   replyIndexes.set(key, { at: now, set })
@@ -161,10 +209,83 @@ async function replyIndex(accountId, fresh = false) {
 }
 
 async function isReplied(header, fresh = false) {
-  if (!header?.headerMessageId) return false
+  const id = normalizeMessageId(header?.headerMessageId)
+  if (!id) return false
   const set = await replyIndex(accountIdOf(header), fresh)
-  return set.has(header.headerMessageId)
+  return set.has(id)
 }
+
+/** Reply markers for a batch of inbox headers, grouped per account so each Sent folder is read once. */
+async function repliedMarkers(headers = []) {
+  const groups = new Map()
+  for (const header of headers) {
+    const id = normalizeMessageId(header?.headerMessageId)
+    if (!id) continue
+    const key = accountIdOf(header) ?? 'all'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(id)
+  }
+  const out = new Map()
+  for (const [key, ids] of groups) {
+    let map
+    try {
+      map = await sentReplyIndex(key === 'all' ? null : key)
+    } catch {
+      continue
+    }
+    for (const id of ids) {
+      const marker = map.get(id)
+      if (marker) out.set(id, marker)
+    }
+  }
+  return out
+}
+
+const REPLY_MARKER_DAYS = 14 * 86400000
+
+/** Re-checks stored analyses against Sent Items, so the dashboard and brief do not wait for a re-analysis. */
+async function markStoredReplies(now = Date.now()) {
+  const analyses = (await store.allAnalyses()).filter(
+    (a) =>
+      a.headerMessageId &&
+      Number.isFinite(new Date(a.date).getTime()) &&
+      now - new Date(a.date).getTime() < REPLY_MARKER_DAYS,
+  )
+  if (!analyses.length) return 0
+  const headers = analyses.map((a) => ({
+    id: a.messageId,
+    headerMessageId: a.headerMessageId,
+    folder: { accountId: a.accountId },
+    subject: a.subject,
+    date: a.date,
+  }))
+  const markers = await repliedMarkers(headers)
+  let changed = 0
+  for (let i = 0; i < analyses.length; i++) {
+    const marker = markers.get(normalizeMessageId(analyses[i].headerMessageId))
+    if (!marker) continue
+    const updated = withReplyMarker(analyses[i], marker)
+    if (updated === analyses[i]) continue
+    await store.saveAnalysis(headers[i], updated)
+    changed++
+  }
+  return changed
+}
+
+/** Refreshes today's stored brief counts without paying for another summary call. */
+async function updateStoredBriefStats(now = new Date()) {
+  const brief = await store.brief()
+  if (!brief?.windowStart || new Date(brief.windowStart).toDateString() !== now.toDateString()) return false
+  const start = new Date(brief.windowStart).getTime()
+  const rows = (await store.allAnalyses())
+    .filter((a) => Number.isFinite(new Date(a.date).getTime()) && new Date(a.date).getTime() >= start)
+    .map((a) => ({ id: a.messageId ?? a.headerMessageId, at: new Date(a.date), t: a }))
+  const stats = selectForBrief(rows).stats
+  if (JSON.stringify(stats) === JSON.stringify(brief.stats)) return false
+  await store.saveBrief({ ...brief, stats })
+  return true
+}
+
 
 // ---- tagging ---------------------------------------------------------------------------------------------------
 
@@ -414,6 +535,11 @@ function runAssistant({ reason = 'alarm', force = false, forceBrief = false } = 
       reason,
       tag: tagger,
     })
+    await markStoredReplies(now.getTime())
+      .then((changed) => (changed ? updateStoredBriefStats(now) : false))
+      .catch((e) => {
+        monitor.errors.push(safeError(e))
+      })
     const drafts = await createDraftsFor(settings).catch((e) => {
       monitor.errors.push(safeError(e))
       return { created: [], failed: [safeError(e)] }
@@ -827,6 +953,21 @@ browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === 'draft-create') return await manualDraft(msg.messageId, { force: msg.force })
     if (msg.type === 'batch-run') return await startBulk(msg.ids ?? [], msg.action)
     if (msg.type === 'bulk-status') return { running: bulkRunning }
+    if (msg.type === 'replied-status') {
+      const header = await browser.messages.get(msg.messageId)
+      if (!header) return { ok: false, error: 'Open a message first.' }
+      const markers = await repliedMarkers([header])
+      const marker = markers.get(normalizeMessageId(header.headerMessageId)) ?? null
+      let analysis = await store.analysis(header)
+      if (analysis && marker) {
+        const updated = withReplyMarker(analysis, marker)
+        if (updated !== analysis) {
+          analysis = updated
+          await store.saveAnalysis(header, analysis)
+        }
+      }
+      return { ok: true, replied: Boolean(marker), marker }
+    }
     if (msg.type === 'tag-message') {
       const header = await browser.messages.get(msg.messageId)
       const analysis = await store.analysis(header)

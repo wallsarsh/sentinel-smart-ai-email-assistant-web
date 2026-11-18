@@ -24,6 +24,7 @@ const state = { tab: 'brief', filter: 'all', data: null, selected: new Set(), ba
 const FILTERS = [
   ['all', 'All'],
   ['reply', 'Needs reply'],
+  ['replied', 'Replied'],
   ['p1', 'P1'],
   ['important', 'Important'],
   ['bulk', 'Bulk'],
@@ -124,6 +125,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
         ['In summary', brief.includedInSummary ?? '—'],
         ['New mail', stats.total],
         ['Need reply', stats.needsReply],
+        ['Replied', stats.replied ?? 0],
         ['Urgent', stats.p1],
         ['Bulk', (stats.newsletters ?? 0) + (stats.notifications ?? 0)],
       ].map(([label, value]) =>
@@ -180,7 +182,8 @@ function renderBrief({ brief, briefStatus, monitor }) {
 
 const matchesFilter = (a, filter) => {
   if (filter === 'all') return true
-  if (filter === 'reply') return Boolean(a.needsReply)
+  if (filter === 'reply') return Boolean(a.needsReply) && !a.replied
+  if (filter === 'replied') return Boolean(a.replied)
   if (filter === 'p1') return a.priority === 'p1_do_now'
   if (filter === 'important') return a.importance === 'high'
   if (filter === 'bulk') return ['newsletterMarketing', 'notificationAutomated', 'social'].includes(a.category)
@@ -235,7 +238,8 @@ function renderInbox({ analyses }) {
         el('span', { class: 'item__title', text: subject }),
         el('span', { class: 'item__side' },
           priorityChip(a.priority),
-          a.needsReply ? chip('Reply', 'chip--accent') : null,
+          a.replied ? chip('Replied', 'chip--ok') : null,
+          a.needsReply && !a.replied ? chip('Reply', 'chip--accent') : null,
           el('button', {
             class: 'btn btn--small',
             type: 'button',

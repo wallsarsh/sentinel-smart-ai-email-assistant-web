@@ -19,6 +19,8 @@ export type BriefEmail = {
   summary: string
   isVip?: boolean
   needsReply?: boolean
+  /** A reply from the user is already in Sent Items; the model should not ask for one. */
+  replied?: boolean
   actions?: string[]
 }
 
@@ -235,6 +237,7 @@ export class PromptBuilder {
         `from=${field(e.sender, 80).replace(/\|/g, '/')}${e.isVip ? ' (VIP)' : ''}`,
         e.priority,
         ...(e.needsReply ? ['needsReply'] : []),
+        ...(e.replied ? ['replied'] : []),
         `"${field(e.summary, 300)}"`,
         ...(e.actions?.length
           ? [`actions: [${e.actions.map((a) => `"${field(a, 160)}"`).join(', ')}]`]

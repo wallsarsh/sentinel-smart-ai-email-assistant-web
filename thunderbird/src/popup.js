@@ -69,7 +69,19 @@ async function init() {
   renderSenderRule()
   analysis = await store.analysis(header)
   if (analysis) analysis = { ...analysis, ...normalizeAnalysis(analysis) }
-  if (analysis) render()
+  if (analysis) {
+    // Refresh the Sent Items marker so an answer sent since the last scan shows immediately.
+    const marker = await send({ type: 'replied-status', messageId: header.id }).catch(() => null)
+    if (marker?.ok) {
+      analysis = {
+        ...analysis,
+        replied: marker.replied,
+        repliedAt: marker.marker?.sentAt ?? analysis.repliedAt ?? null,
+        repliedMessageId: marker.marker?.sentMessageId ?? analysis.repliedMessageId ?? null,
+      }
+    }
+    render()
+  }
   else {
     $('view').replaceChildren(
       empty(
@@ -179,7 +191,8 @@ function render() {
     priorityChip(a.priority),
     chip(intentLabel(a.intent), 'chip--accent'),
     chip(categoryLabel(a.category)),
-    a.needsReply ? chip('Needs reply', 'chip--ok') : null,
+    a.replied ? chip('Replied', 'chip--ok') : null,
+    a.needsReply && !a.replied ? chip('Needs reply', 'chip--accent') : null,
     a.skipped ? chip('Local rule', 'chip--warn') : null,
     drafts.some((d) => d.messageId === current.header.id && d.status === 'saved')
       ? chip('Draft saved', 'chip--ok')
@@ -200,7 +213,7 @@ function render() {
   const actions = $('actions')
   clear(actions)
   actions.append(
-    a.needsReply && !a.skipped
+    a.needsReply && !a.replied && !a.skipped
       ? el('button', { class: 'btn btn--primary', type: 'button', dataset: { jobAction: 'draft' }, onclick: () => saveDraft(false), text: 'Save AI draft' })
       : null,
     el('button', { class: 'btn', type: 'button', dataset: { jobAction: 'analyze' }, onclick: () => runAnalyze(true), text: 'Analyze again' }),

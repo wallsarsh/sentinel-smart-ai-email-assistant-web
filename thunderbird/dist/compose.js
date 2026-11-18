@@ -247,7 +247,11 @@ function normalizeAnalysis(item2 = {}) {
     intent,
     replyIntent: oneOf(item2.replyIntent, REPLY_INTENTS, "acknowledge"),
     replyInstruction: clip(item2.replyInstruction, 300),
-    calendarEvents: Array.isArray(item2.calendarEvents) ? item2.calendarEvents.slice(0, 5) : []
+    calendarEvents: Array.isArray(item2.calendarEvents) ? item2.calendarEvents.slice(0, 5) : [],
+    // Reply markers are added after analysis from Sent Items; keep them when a stored record is normalised.
+    replied: Boolean(item2.replied),
+    repliedAt: typeof item2.repliedAt === "string" && item2.repliedAt ? item2.repliedAt : null,
+    repliedMessageId: item2.repliedMessageId ?? null
   };
 }
 

@@ -947,6 +947,7 @@ var PromptBuilder = class {
         `from=${field(e.sender, 80).replace(/\|/g, "/")}${e.isVip ? " (VIP)" : ""}`,
         e.priority,
         ...e.needsReply ? ["needsReply"] : [],
+        ...e.replied ? ["replied"] : [],
         `"${field(e.summary, 300)}"`,
         ...e.actions?.length ? [`actions: [${e.actions.map((a) => `"${field(a, 160)}"`).join(", ")}]`] : []
       ];
@@ -1640,7 +1641,11 @@ function normalizeAnalysis(item2 = {}) {
     intent,
     replyIntent: oneOf(item2.replyIntent, REPLY_INTENTS, "acknowledge"),
     replyInstruction: clip2(item2.replyInstruction, 300),
-    calendarEvents: Array.isArray(item2.calendarEvents) ? item2.calendarEvents.slice(0, 5) : []
+    calendarEvents: Array.isArray(item2.calendarEvents) ? item2.calendarEvents.slice(0, 5) : [],
+    // Reply markers are added after analysis from Sent Items; keep them when a stored record is normalised.
+    replied: Boolean(item2.replied),
+    repliedAt: typeof item2.repliedAt === "string" && item2.repliedAt ? item2.repliedAt : null,
+    repliedMessageId: item2.repliedMessageId ?? null
   };
 }
 
@@ -2176,6 +2181,50 @@ function monitorBlockedReason(settings) {
 // thunderbird/src/brief.js
 init_brief();
 init_rules();
+
+// thunderbird/src/replies.js
+var normalizeMessageId = (id) => String(id ?? "").trim().replace(/^</, "").replace(/>$/, "").trim();
+function referencedMessageIds(full) {
+  const header = full?.headers ?? {};
+  const list = (v) => Array.isArray(v) ? v : typeof v === "string" ? [v] : [];
+  const raw = [
+    ...list(header["in-reply-to"] ?? header["In-Reply-To"]),
+    ...list(header["references"] ?? header["References"])
+  ].join(" ");
+  const out = /* @__PURE__ */ new Set();
+  for (const m of raw.matchAll(/<([^<>@\s]+@[^<>\s]+)>/g)) out.add(m[1]);
+  return out;
+}
+function buildSentReplyIndex(items = []) {
+  const map = /* @__PURE__ */ new Map();
+  for (const item2 of items) {
+    const header = item2?.header ?? {};
+    const at = new Date(header.date ?? 0);
+    const sentAt = Number.isFinite(at.getTime()) ? at.toISOString() : null;
+    for (const id of referencedMessageIds(item2?.full)) {
+      if (map.has(id)) continue;
+      map.set(id, {
+        sentMessageId: header.id ?? null,
+        sentHeaderMessageId: header.headerMessageId ?? null,
+        sentAt,
+        subject: header.subject ?? ""
+      });
+    }
+  }
+  return map;
+}
+function withReplyMarker(analysis, marker) {
+  if (!analysis || !marker) return analysis;
+  if (analysis.replied && analysis.repliedMessageId === marker.sentMessageId) return analysis;
+  return {
+    ...analysis,
+    replied: true,
+    repliedAt: marker.sentAt ?? null,
+    repliedMessageId: marker.sentMessageId ?? null
+  };
+}
+
+// thunderbird/src/brief.js
 var DAY = 24 * 36e5;
 var KEEP_MS = 14 * DAY;
 function briefWindow(now = /* @__PURE__ */ new Date()) {
@@ -2187,6 +2236,7 @@ function selectForBrief(rows, { max = 60 } = {}) {
   const stats = {
     total: rows.length,
     needsReply: 0,
+    replied: 0,
     p1: 0,
     p2: 0,
     newsletters: 0,
@@ -2195,23 +2245,28 @@ function selectForBrief(rows, { max = 60 } = {}) {
   const picked = [];
   for (const { id, at, t } of rows) {
     const priority = priorityOf(t.importance, t.urgency);
-    if (t.needsReply) stats.needsReply++;
+    const replied = Boolean(t.replied);
+    const unanswered = Boolean(t.needsReply) && !replied;
+    if (replied) stats.replied++;
+    if (unanswered) stats.needsReply++;
     if (priority === "p1_do_now") stats.p1++;
     if (priority === "p2_today") stats.p2++;
     if (t.category === "newsletterMarketing") stats.newsletters++;
     if (t.category === "notificationAutomated") stats.notifications++;
     const bulk = t.category === "newsletterMarketing" || t.category === "notificationAutomated";
-    const rank = briefRank(priority, !!t.needsReply, bulk);
+    const rank = briefRank(priority, unanswered, bulk);
     if (rank === null) continue;
-    picked.push({ rank, at, id, priority, t });
+    if (replied && !(t.actionItems ?? []).length) continue;
+    picked.push({ rank, at, id, priority, t, replied });
   }
-  picked.sort((a, b) => a.rank - b.rank || b.at - a.at);
-  const emails = picked.slice(0, max).map(({ id, priority, t, ...rest }) => ({
+  picked.sort((a, b) => a.rank - b.rank || Number(a.replied) - Number(b.replied) || b.at - a.at);
+  const emails = picked.slice(0, max).map(({ id, priority, t, replied, ...rest }) => ({
     messageId: String(id),
     sender: t.sender || "",
     priority: PRIORITY_LABEL[priority],
     summary: t.summary,
-    needsReply: !!t.needsReply,
+    needsReply: Boolean(t.needsReply) && !replied,
+    replied,
     actions: (t.actionItems ?? []).map(
       (a) => a.dueText || a.dueDate ? `${a.text} (due ${a.dueText || a.dueDate})` : a.text
     ),
@@ -2300,6 +2355,7 @@ async function refreshBrief({
     return saveFailure(String(e?.message ?? e).slice(0, 180));
   }
   job.total = headers.length;
+  const markers = api2.repliedMarkers ? await api2.repliedMarkers(headers).catch(() => /* @__PURE__ */ new Map()) : /* @__PURE__ */ new Map();
   const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]));
   const rows = [];
   const lastComplete = await store2.brief();
@@ -2361,6 +2417,14 @@ async function refreshBrief({
           analysis.promptVersion = "assistant.v1";
           await store2.saveAnalysis(header, analysis);
           job.analyzed++;
+        }
+      }
+      const marker = markers.get(normalizeMessageId(header.headerMessageId));
+      if (marker) {
+        const updated = withReplyMarker(analysis, marker);
+        if (updated !== analysis) {
+          analysis = updated;
+          await store2.saveAnalysis(header, analysis);
         }
       }
       rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } });
@@ -2636,22 +2700,6 @@ var BLOCKED_CATEGORIES = /* @__PURE__ */ new Set([
   "social",
   "securityAccount"
 ]);
-function referencedMessageIds(full) {
-  const header = full?.headers ?? {};
-  const list = (v) => Array.isArray(v) ? v : typeof v === "string" ? [v] : [];
-  const raw = [
-    ...list(header["in-reply-to"] ?? header["In-Reply-To"]),
-    ...list(header["references"] ?? header["References"])
-  ].join(" ");
-  const out = /* @__PURE__ */ new Set();
-  for (const m of raw.matchAll(/<([^<>@\s]+@[^<>\s]+)>/g)) out.add(m[1]);
-  return out;
-}
-function buildReplyIndex(items = []) {
-  const index = /* @__PURE__ */ new Set();
-  for (const item2 of items) for (const id of referencedMessageIds(item2?.full)) index.add(id);
-  return index;
-}
 function draftEligibility({ analysis, header, settings, replied = false, draftRecord = null, now = /* @__PURE__ */ new Date(), manual = false }) {
   if (!manual && !settings?.monitor?.autoDraft) return { ok: false, reason: "Auto-draft is off." };
   if (!analysis || analysis.skipped) return { ok: false, reason: "The message was filtered locally." };
@@ -2661,7 +2709,7 @@ function draftEligibility({ analysis, header, settings, replied = false, draftRe
   const min = DRAFT_PRIORITY_RANK[settings.monitor.draftMinPriority] ?? 1;
   const rank = DRAFT_PRIORITY_RANK[analysis.priority] ?? 3;
   if (!manual && rank > min) return { ok: false, reason: "Below the draft priority threshold." };
-  if (replied) return { ok: false, reason: "A reply or draft already exists." };
+  if (replied || analysis?.replied) return { ok: false, reason: "A reply or draft already exists." };
   if (draftRecord?.status === "saved" && now.getTime() - Number(draftRecord.at ?? 0) < 14 * DAY3)
     return { ok: false, reason: "Sentinel already saved a draft." };
   const date = new Date(header?.date ?? now);
@@ -3305,6 +3353,7 @@ var applyingUpdate = false;
 var monitorRunning = null;
 var briefRunning = null;
 var replyIndexes = /* @__PURE__ */ new Map();
+var sentReplyIndexes = /* @__PURE__ */ new Map();
 var REPLY_TTL = 10 * 6e4;
 async function folderMessages(folderId, since, max) {
   const out = [];
@@ -3363,6 +3412,7 @@ var api = {
   },
   acknowledge: (keys) => keys.length ? browser.storage.local.remove(keys) : Promise.resolve(),
   recent: recentHeaders,
+  repliedMarkers,
   full: (id) => browser.messages.getFull(id),
   accounts: () => browser.accounts.list(true),
   cache: {
@@ -3394,29 +3444,129 @@ async function foldersForAccount(accountId) {
   const selected = accounts.filter((a) => String(a.id) === String(accountId));
   return new Set(flattenFolders(selected).map((f) => f.id));
 }
+async function sentReplyIndex(accountId, fresh = false) {
+  const key = accountId ?? "all";
+  const hit = sentReplyIndexes.get(key);
+  const now = Date.now();
+  if (!fresh && hit && now - hit.at < REPLY_TTL) return hit.map;
+  const since = new Date(hit ? hit.at - 3e5 : now - 90 * 864e5);
+  const allowed = await foldersForAccount(accountId);
+  const folders = (await sentFolders()).filter((f) => !allowed || allowed.has(f.id));
+  const map = new Map(hit?.map ?? []);
+  const seen = hit?.seen ?? /* @__PURE__ */ new Set();
+  for (const folder of folders) {
+    let headers;
+    try {
+      headers = await folderMessages(folder.id, since, Infinity);
+    } catch {
+      continue;
+    }
+    for (const header of headers) {
+      if (seen.has(header.id)) continue;
+      seen.add(header.id);
+      try {
+        const full = await browser.messages.getFull(header.id);
+        for (const [id, marker] of buildSentReplyIndex([{ header, full }]))
+          if (!map.has(id)) map.set(id, marker);
+      } catch {
+        seen.delete(header.id);
+      }
+    }
+  }
+  sentReplyIndexes.set(key, { at: now, map, seen });
+  return map;
+}
 async function replyIndex(accountId, fresh = false) {
   const key = accountId ?? "all";
   const hit = replyIndexes.get(key);
   const now = Date.now();
   if (!fresh && hit && now - hit.at < REPLY_TTL) return hit.set;
+  const set = new Set((await sentReplyIndex(accountId, fresh)).keys());
   const since = new Date(hit ? hit.at - 3e5 : now - 90 * 864e5);
   const allowed = await foldersForAccount(accountId);
-  const folders = [...await sentFolders(), ...await draftsFolders()].filter((f) => !allowed || allowed.has(f.id));
-  const set = new Set(hit?.set);
+  const folders = (await draftsFolders()).filter((f) => !allowed || allowed.has(f.id));
   for (const folder of folders) {
-    const headers = await folderMessages(folder.id, since, Infinity);
+    let headers;
+    try {
+      headers = await folderMessages(folder.id, since, Infinity);
+    } catch {
+      continue;
+    }
     for (const header of headers) {
-      const full = await browser.messages.getFull(header.id);
-      for (const id of buildReplyIndex([{ full }])) set.add(id);
+      try {
+        const full = await browser.messages.getFull(header.id);
+        for (const id of referencedMessageIds(full)) set.add(id);
+      } catch {
+      }
     }
   }
   replyIndexes.set(key, { at: now, set });
   return set;
 }
 async function isReplied(header, fresh = false) {
-  if (!header?.headerMessageId) return false;
+  const id = normalizeMessageId(header?.headerMessageId);
+  if (!id) return false;
   const set = await replyIndex(accountIdOf(header), fresh);
-  return set.has(header.headerMessageId);
+  return set.has(id);
+}
+async function repliedMarkers(headers = []) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const header of headers) {
+    const id = normalizeMessageId(header?.headerMessageId);
+    if (!id) continue;
+    const key = accountIdOf(header) ?? "all";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(id);
+  }
+  const out = /* @__PURE__ */ new Map();
+  for (const [key, ids] of groups) {
+    let map;
+    try {
+      map = await sentReplyIndex(key === "all" ? null : key);
+    } catch {
+      continue;
+    }
+    for (const id of ids) {
+      const marker = map.get(id);
+      if (marker) out.set(id, marker);
+    }
+  }
+  return out;
+}
+var REPLY_MARKER_DAYS = 14 * 864e5;
+async function markStoredReplies(now = Date.now()) {
+  const analyses = (await store.allAnalyses()).filter(
+    (a) => a.headerMessageId && Number.isFinite(new Date(a.date).getTime()) && now - new Date(a.date).getTime() < REPLY_MARKER_DAYS
+  );
+  if (!analyses.length) return 0;
+  const headers = analyses.map((a) => ({
+    id: a.messageId,
+    headerMessageId: a.headerMessageId,
+    folder: { accountId: a.accountId },
+    subject: a.subject,
+    date: a.date
+  }));
+  const markers = await repliedMarkers(headers);
+  let changed = 0;
+  for (let i = 0; i < analyses.length; i++) {
+    const marker = markers.get(normalizeMessageId(analyses[i].headerMessageId));
+    if (!marker) continue;
+    const updated = withReplyMarker(analyses[i], marker);
+    if (updated === analyses[i]) continue;
+    await store.saveAnalysis(headers[i], updated);
+    changed++;
+  }
+  return changed;
+}
+async function updateStoredBriefStats(now = /* @__PURE__ */ new Date()) {
+  const brief = await store.brief();
+  if (!brief?.windowStart || new Date(brief.windowStart).toDateString() !== now.toDateString()) return false;
+  const start = new Date(brief.windowStart).getTime();
+  const rows = (await store.allAnalyses()).filter((a) => Number.isFinite(new Date(a.date).getTime()) && new Date(a.date).getTime() >= start).map((a) => ({ id: a.messageId ?? a.headerMessageId, at: new Date(a.date), t: a }));
+  const stats = selectForBrief(rows).stats;
+  if (JSON.stringify(stats) === JSON.stringify(brief.stats)) return false;
+  await store.saveBrief({ ...brief, stats });
+  return true;
 }
 var tagApi = () => {
   const tags = browser.messages?.tags;
@@ -3642,6 +3792,9 @@ function runAssistant({ reason = "alarm", force = false, forceBrief = false } = 
       force,
       reason,
       tag: tagger
+    });
+    await markStoredReplies(now.getTime()).then((changed) => changed ? updateStoredBriefStats(now) : false).catch((e) => {
+      monitor.errors.push(safeError(e));
     });
     const drafts = await createDraftsFor(settings).catch((e) => {
       monitor.errors.push(safeError(e));
@@ -4037,6 +4190,21 @@ browser.runtime.onMessage.addListener(async (msg) => {
     if (msg.type === "draft-create") return await manualDraft(msg.messageId, { force: msg.force });
     if (msg.type === "batch-run") return await startBulk(msg.ids ?? [], msg.action);
     if (msg.type === "bulk-status") return { running: bulkRunning };
+    if (msg.type === "replied-status") {
+      const header = await browser.messages.get(msg.messageId);
+      if (!header) return { ok: false, error: "Open a message first." };
+      const markers = await repliedMarkers([header]);
+      const marker = markers.get(normalizeMessageId(header.headerMessageId)) ?? null;
+      let analysis = await store.analysis(header);
+      if (analysis && marker) {
+        const updated = withReplyMarker(analysis, marker);
+        if (updated !== analysis) {
+          analysis = updated;
+          await store.saveAnalysis(header, analysis);
+        }
+      }
+      return { ok: true, replied: Boolean(marker), marker };
+    }
     if (msg.type === "tag-message") {
       const header = await browser.messages.get(msg.messageId);
       const analysis = await store.analysis(header);

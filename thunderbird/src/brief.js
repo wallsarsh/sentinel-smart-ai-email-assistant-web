@@ -4,6 +4,7 @@ import { analyze, analyzeBatch, briefAsk, describe } from './ai.js'
 import { toMailMessage } from './mail.js'
 import { applyAnalysisPolicy, preFilter, withSender } from './rules.js'
 import { TRIAGE_PREFIX, triageKey } from './cache.js'
+import { normalizeMessageId, withReplyMarker } from './replies.js'
 
 const DAY = 24 * 3600_000
 const KEEP_MS = 14 * DAY
@@ -21,6 +22,7 @@ export function selectForBrief(rows, { max = 60 } = {}) {
   const stats = {
     total: rows.length,
     needsReply: 0,
+    replied: 0,
     p1: 0,
     p2: 0,
     newsletters: 0,
@@ -29,23 +31,29 @@ export function selectForBrief(rows, { max = 60 } = {}) {
   const picked = []
   for (const { id, at, t } of rows) {
     const priority = priorityOf(t.importance, t.urgency)
-    if (t.needsReply) stats.needsReply++
+    const replied = Boolean(t.replied)
+    const unanswered = Boolean(t.needsReply) && !replied
+    if (replied) stats.replied++
+    if (unanswered) stats.needsReply++
     if (priority === 'p1_do_now') stats.p1++
     if (priority === 'p2_today') stats.p2++
     if (t.category === 'newsletterMarketing') stats.newsletters++
     if (t.category === 'notificationAutomated') stats.notifications++
     const bulk = t.category === 'newsletterMarketing' || t.category === 'notificationAutomated'
-    const rank = briefRank(priority, !!t.needsReply, bulk)
+    const rank = briefRank(priority, unanswered, bulk)
     if (rank === null) continue
-    picked.push({ rank, at, id, priority, t })
+    // Replied mail is counted but no longer wants attention unless it still has actions to do.
+    if (replied && !(t.actionItems ?? []).length) continue
+    picked.push({ rank, at, id, priority, t, replied })
   }
-  picked.sort((a, b) => a.rank - b.rank || b.at - a.at)
-  const emails = picked.slice(0, max).map(({ id, priority, t, ...rest }) => ({
+  picked.sort((a, b) => a.rank - b.rank || Number(a.replied) - Number(b.replied) || b.at - a.at)
+  const emails = picked.slice(0, max).map(({ id, priority, t, replied, ...rest }) => ({
     messageId: String(id),
     sender: t.sender || '',
     priority: PRIORITY_LABEL[priority],
     summary: t.summary,
-    needsReply: !!t.needsReply,
+    needsReply: Boolean(t.needsReply) && !replied,
+    replied,
     actions: (t.actionItems ?? []).map((a) =>
       a.dueText || a.dueDate ? `${a.text} (due ${a.dueText || a.dueDate})` : a.text,
     ),
@@ -76,13 +84,17 @@ export async function generateBrief({
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, maxMessages)
 
+  const markers = api.repliedMarkers
+    ? await api.repliedMarkers(headers).catch(() => new Map())
+    : new Map()
+  const marked = (h, t) => withReplyMarker(t, markers.get(normalizeMessageId(h.headerMessageId))) ?? t
   const rows = []
   const todo = []
   for (const h of headers) {
     const key = triageKey(h)
     const hit = await api.cache.get(key)
     if (hit)
-      rows.push({ id: h.id, at: new Date(h.date), t: { ...hit, sender: hit.sender || h.author } })
+      rows.push({ id: h.id, at: new Date(h.date), t: marked(h, { ...hit, sender: hit.sender || h.author }) })
     else todo.push({ h, key })
   }
 
@@ -92,7 +104,7 @@ export async function generateBrief({
     const m = toMailMessage(h, await api.full(h.id))
     const plan = preFilter(m, rules, settings, now)
     if (plan.action === 'local') {
-      const t = withSender(applyAnalysisPolicy(plan.analysis, plan), h, now.getTime())
+      const t = marked(h, withSender(applyAnalysisPolicy(plan.analysis, plan), h, now.getTime()))
       await api.cache.set(key, t)
       rows.push({ id: h.id, at: new Date(h.date), t })
     } else pending.push({ h, key, m })
@@ -108,7 +120,7 @@ export async function generateBrief({
     for (const c of chunk) {
       const r = out.get(String(c.m.providerMessageId))
       if (!r) continue // the next run tries again
-      const t = withSender(applyAnalysisPolicy(r, { rule: null }), c.h, now.getTime())
+      const t = marked(c.h, withSender(applyAnalysisPolicy(r, { rule: null }), c.h, now.getTime()))
       await api.cache.set(c.key, t)
       rows.push({ id: c.h.id, at: new Date(c.h.date), t })
     }
@@ -246,6 +258,9 @@ export async function refreshBrief({
   }
 
   job.total = headers.length
+  const markers = api.repliedMarkers
+    ? await api.repliedMarkers(headers).catch(() => new Map())
+    : new Map()
   const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]))
   const rows = []
   const lastComplete = await store.brief()
@@ -310,6 +325,14 @@ export async function refreshBrief({
           analysis.promptVersion = 'assistant.v1'
           await store.saveAnalysis(header, analysis)
           job.analyzed++
+        }
+      }
+      const marker = markers.get(normalizeMessageId(header.headerMessageId))
+      if (marker) {
+        const updated = withReplyMarker(analysis, marker)
+        if (updated !== analysis) {
+          analysis = updated
+          await store.saveAnalysis(header, analysis)
         }
       }
       rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } })

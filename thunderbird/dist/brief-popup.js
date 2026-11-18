@@ -67,6 +67,7 @@ var TITLES = {
 var STATS = [
   ["total", (n) => `${n} new`],
   ["needsReply", (n) => `${n} need a reply`],
+  ["replied", (n) => `${n} replied`],
   ["p1", (n) => `${n} urgent`],
   ["newsletters", (n) => `${n} newsletters`]
 ];

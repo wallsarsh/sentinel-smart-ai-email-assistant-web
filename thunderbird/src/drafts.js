@@ -11,25 +11,8 @@ const BLOCKED_CATEGORIES = new Set([
   'securityAccount',
 ])
 
-/** Extracts Message-IDs from In-Reply-To/References headers of a full message. */
-export function referencedMessageIds(full) {
-  const header = full?.headers ?? {}
-  const list = (v) => (Array.isArray(v) ? v : typeof v === 'string' ? [v] : [])
-  const raw = [
-    ...list(header['in-reply-to'] ?? header['In-Reply-To']),
-    ...list(header['references'] ?? header['References']),
-  ].join(' ')
-  const out = new Set()
-  for (const m of raw.matchAll(/<([^<>@\s]+@[^<>\s]+)>/g)) out.add(m[1])
-  return out
-}
-
-/** Set of Message-IDs already answered or drafted, from [{full}] items. */
-export function buildReplyIndex(items = []) {
-  const index = new Set()
-  for (const item of items) for (const id of referencedMessageIds(item?.full)) index.add(id)
-  return index
-}
+// Detection lives in replies.js and is re-exported here for the draft paths that use it.
+export { buildReplyIndex, referencedMessageIds } from './replies.js'
 
 /** Pure eligibility check. Returns {ok, reason}; reasons are shown in the dashboard. */
 export function draftEligibility({ analysis, header, settings, replied = false, draftRecord = null, now = new Date(), manual = false }) {
@@ -41,7 +24,7 @@ export function draftEligibility({ analysis, header, settings, replied = false, 
   const min = DRAFT_PRIORITY_RANK[settings.monitor.draftMinPriority] ?? 1
   const rank = DRAFT_PRIORITY_RANK[analysis.priority] ?? 3
   if (!manual && rank > min) return { ok: false, reason: 'Below the draft priority threshold.' }
-  if (replied) return { ok: false, reason: 'A reply or draft already exists.' }
+  if (replied || analysis?.replied) return { ok: false, reason: 'A reply or draft already exists.' }
   if (
     draftRecord?.status === 'saved' &&
     now.getTime() - Number(draftRecord.at ?? 0) < 14 * DAY

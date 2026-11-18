@@ -61,6 +61,13 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 2. Select two Needs-reply rows and run Create drafts; confirm at most the batch limit and the draft folder.
 3. Right-click selected messages in Thunderbird's message list; run Analyze, Create draft, Add to calendar and each sender rule.
 
+## 4a. Reply detection
+
+1. Analyse a message that needs a reply, then reply to it from Thunderbird (or another device, after the account syncs).
+2. Reopen Sentinel: the popup shows **Replied**, no **Save AI draft** button, and the dashboard row/filter shows it under Replied rather than Needs reply.
+3. Delete the sent reply and check again after the next monitor run: the stored marker is durable; confirm a new reply can be drafted only after the Sent item is really gone.
+4. Rebuild the brief: `replied` is counted separately, `needsReply` excludes answered mail, and an answered message with a dated action item still appears.
+
 ## 5. Calendar
 
 1. Open a message with a concrete meeting date/time. Confirm a calendar candidate appears.
