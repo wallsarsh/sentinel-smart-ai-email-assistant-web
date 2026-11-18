@@ -186,6 +186,8 @@ var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
 var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
 var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var unquote = (v) => v.replace(/^["']+|["']+$/g, "").trim();
+var cleanKey = (v) => unquote(unquote(str(v)).replace(/^Bearer\s+/i, ""));
 var isLocal = (baseUrl) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl);
 function normalizeProvider(raw = {}) {
   const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
@@ -194,7 +196,7 @@ function normalizeProvider(raw = {}) {
     name: str(raw.name) || "AI provider",
     kind,
     baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
-    apiKey: str(raw.apiKey),
+    apiKey: cleanKey(raw.apiKey),
     model: str(raw.model),
     ...raw.presetId ? { presetId: raw.presetId } : {}
   };
@@ -301,6 +303,7 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     customRoutes,
     routes,
     monitor: {
+      accountIds: Array.isArray(monitor.accountIds) ? monitor.accountIds.filter((id) => typeof id === "string") : null,
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
         monitor.intervalMinutes,
@@ -465,8 +468,9 @@ var KEYS = {
   replyPrefix: "sentinel.replied:"
 };
 var TRIAGE_PREFIX = KEYS.triagePrefix;
-var triageKey = (header) => `${TRIAGE_PREFIX}${header?.headerMessageId ?? header?.id}`;
-var draftKey = (header) => `${KEYS.draftPrefix}${header?.headerMessageId ?? header?.id}`;
+var messageKey = (header) => header?.folder?.accountId ? JSON.stringify([header.folder.accountId, header.headerMessageId ?? header.id]) : String(header?.headerMessageId ?? header?.id);
+var triageKey = (header) => TRIAGE_PREFIX + messageKey(header);
+var draftKey = (header) => KEYS.draftPrefix + messageKey(header);
 var replyKey = (accountId, header) => `${KEYS.replyPrefix}${accountId ?? "account"}:${header?.headerMessageId ?? header?.id}`;
 var DAY = 24 * 36e5;
 function createStore(area) {
@@ -474,6 +478,16 @@ function createStore(area) {
   const set = (key, value) => area.set({ [key]: value });
   const remove = (key) => area.remove(key);
   const all = async () => await area.get(null) ?? {};
+  const scopedRead = async (header, key, prefix) => {
+    const value = await get(key);
+    if (value || !header?.folder?.accountId) return value;
+    const legacyKey = prefix + (header.headerMessageId ?? header.id);
+    const legacy = await get(legacyKey);
+    if (!legacy || legacy.messageId !== header.id || legacy.accountId && legacy.accountId !== header.folder.accountId) return null;
+    await set(key, { ...legacy, accountId: header.folder.accountId });
+    await remove(legacyKey);
+    return legacy;
+  };
   const drafts = async () => {
     const list = await get(KEYS.drafts);
     return Array.isArray(list) ? list : [];
@@ -491,7 +505,7 @@ function createStore(area) {
   const pruneAnalyses = (now = Date.now(), days = 14) => prunePrefix(TRIAGE_PREFIX, now - days * DAY);
   const readSettings = async () => {
     const [saved, legacy] = await Promise.all([get(KEYS.settings), get(KEYS.legacyBrief)]);
-    return normalizeSettings(saved ?? {}, legacy ?? {});
+    return { ...normalizeSettings(saved ?? {}, legacy ?? {}), revision: saved?.revision ?? 0 };
   };
   return {
     area,
@@ -499,6 +513,7 @@ function createStore(area) {
     async saveSettings(settings) {
       const current = await readSettings();
       const next = normalizeSettings(mergeSettings(current, settings));
+      next.revision = Date.now();
       await set(KEYS.settings, next);
       await remove(KEYS.legacyBrief);
       return next;
@@ -527,10 +542,10 @@ function createStore(area) {
       return out;
     },
     async analysis(header) {
-      return get(triageKey(header));
+      return scopedRead(header, triageKey(header), TRIAGE_PREFIX);
     },
     async saveAnalysis(header, analysis) {
-      await set(triageKey(header), analysis);
+      await set(triageKey(header), { ...analysis, accountId: header.folder?.accountId, messageId: header.id, headerMessageId: header.headerMessageId, subject: header.subject, date: header.date });
       return analysis;
     },
     async allAnalyses() {
@@ -541,8 +556,12 @@ function createStore(area) {
     async brief() {
       return get(KEYS.brief);
     },
+    async displayedBrief() {
+      return await get("sentinel.completedBrief") ?? get(KEYS.brief);
+    },
     async saveBrief(brief) {
-      await set(KEYS.brief, brief);
+      if (brief.partial === false) await area.set({ [KEYS.brief]: brief, "sentinel.completedBrief": brief });
+      else await set(KEYS.brief, brief);
       return brief;
     },
     async briefJob() {
@@ -574,7 +593,7 @@ function createStore(area) {
       return next;
     },
     async draftRecord(header) {
-      return get(draftKey(header));
+      return scopedRead(header, draftKey(header), KEYS.draftPrefix);
     },
     async saveDraftRecord(header, record) {
       await set(draftKey(header), record);
@@ -631,7 +650,7 @@ async function load() {
   const [settings, rules, brief, briefStatus, monitor, analyses, drafts] = await Promise.all([
     store.settings(),
     store.rules(),
-    store.brief(),
+    store.displayedBrief(),
     store.briefStatus(),
     store.monitor(),
     store.allAnalyses(),
@@ -647,8 +666,9 @@ function pill(message, kind = "") {
 }
 function renderStatus({ settings, monitor, briefStatus }) {
   if (!settings.providers?.some(providerUsable))
-    return pill("Setup needed", "pill--warn");
+    return pill("Open Provider settings to connect a provider and select a model", "pill--warn");
   if (monitor?.state === "running" || briefStatus?.state === "running") return pill("Checking\u2026", "pill--warn");
+  if (monitor?.state === "partial") return pill("Inbox check incomplete", "pill--warn");
   if (briefStatus?.state === "partial") return pill("Brief paused", "pill--warn");
   if (monitor?.state === "error" || briefStatus?.state === "error")
     return pill("Needs attention", "pill--error");
@@ -658,11 +678,11 @@ function renderStatus({ settings, monitor, briefStatus }) {
 function renderBrief({ brief, briefStatus, monitor }) {
   const root = $("brief");
   clear(root);
-  if (monitor?.state === "error" && monitor.error) {
+  if (["error", "partial"].includes(monitor?.state) && monitor.error) {
     root.append(el("div", { class: "error", text: `Last check: ${monitor.error}` }));
   }
   if (briefStatus?.state === "running") {
-    root.append(el("div", { class: "notice", text: "Updating the brief\u2026" }));
+    root.append(el("div", { class: "notice", text: "Updating the brief\u2026 " + (briefStatus.progress ? briefStatus.progress.processed + "/" + briefStatus.progress.total + " processed" : "") }));
   }
   if (briefStatus?.state === "error") {
     root.append(el("div", { class: "warning", text: briefStatus.message ?? "The brief could not be updated." }));
@@ -679,6 +699,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
     return;
   }
   const stats = brief.stats ?? {};
+  const schedule = monitor?.nextRunAt ? " \xB7 Next check " + formatDateTime(monitor.nextRunAt) : "";
   const checkText = monitor?.at ? `Last check ${relativeTime(monitor.at)} \xB7 ${monitor.processed ?? 0} checked \xB7 ${monitor.analysed ?? 0} analysed${monitor.pending ? ` \xB7 ${monitor.pending} pending` : ""}` : "No check has run yet.";
   const head = el(
     "section",
@@ -689,7 +710,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
       el("span", { class: "chip chip--accent", text: "Daily brief" }),
       el("span", { class: "brief-generated", text: `Generated ${formatDateTime(brief.createdAt)}` })
     ),
-    el("p", { class: "meta", text: checkText }),
+    el("p", { class: "meta", text: checkText + schedule }),
     brief.partial && brief.progress ? el("p", { class: "meta", text: `Brief progress: ${brief.progress.processed}/${brief.progress.total} processed \xB7 ${brief.progress.failed} failed` }) : null,
     el("p", {
       class: "brief-headline",
@@ -699,6 +720,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
       "div",
       { class: "grid grid--stats" },
       ...[
+        ["In summary", brief.includedInSummary ?? "\u2014"],
         ["New mail", stats.total],
         ["Need reply", stats.needsReply],
         ["Urgent", stats.p1],
@@ -868,6 +890,11 @@ function renderDrafts({ drafts }) {
     root.append(empty("No drafts yet. Sentinel creates them for messages that need a reply."));
     return;
   }
+  const totals = drafts.reduce((counts, draft) => {
+    counts[draft.status] = (counts[draft.status] || 0) + 1;
+    return counts;
+  }, {});
+  root.append(el("p", { text: `${totals.saved || 0} ready \xB7 ${totals.queued || 0} queued \xB7 ${totals.skipped || 0} skipped \xB7 ${(totals.failed || 0) + (totals.review || 0)} need attention` }));
   const list = el("div", { class: "list" });
   for (const d of drafts) {
     list.append(
@@ -878,15 +905,28 @@ function renderDrafts({ drafts }) {
           "div",
           { class: "item__top" },
           el("span", { class: "item__title", text: d.subject || "(no subject)" }),
-          chip(d.status === "saved" ? "Saved draft" : "Save failed", d.status === "saved" ? "chip--ok" : "chip--warn")
+          chip({ saved: "Ready to review", queued: "Queued", skipped: "Skipped", failed: "Needs attention", review: "Review Drafts before retrying", saving: "Checking save" }[d.status] || d.status, d.status === "saved" ? "chip--ok" : "chip--warn")
         ),
         el("div", { class: "item__meta", text: `${d.sender || "Unknown sender"} \xB7 ${formatDateTime(d.at)}${d.draftFolder ? ` \xB7 ${d.draftFolder}` : ""}` }),
         el(
           "div",
           { class: "actions" },
+          d.status === "failed" && d.headerMessageId ? el("button", { class: "btn btn--small", type: "button", text: "Retry draft", onclick: async (event) => {
+            const button = event.currentTarget;
+            button.disabled = true;
+            button.textContent = "Retrying\u2026";
+            try {
+              await send({ type: "retry-auto-draft", messageId: d.messageId, accountId: d.accountId }, 12e4);
+              await reload();
+            } catch (error) {
+              button.textContent = error.message;
+              button.disabled = false;
+            }
+          } }) : null,
           d.draftId ? el("button", { class: "btn btn--small", type: "button", onclick: () => openMessage(d.draftId), text: "Open draft" }) : null,
           d.messageId ? el("button", { class: "btn btn--small", type: "button", onclick: () => openMessage(d.messageId), text: "Open source" }) : null
         ),
+        d.retryAt ? el("span", { class: "meta", text: "Next eligible check: " + formatDateTime(d.retryAt) }) : null,
         d.error ? el("div", { class: "error", text: d.error }) : null
       )
     );
@@ -927,7 +967,9 @@ function renderSenders({ rules }) {
   }
   root.append(list);
 }
+var settingsDirty = false;
 function renderSettings({ settings }) {
+  for (const box of $("account-scope").querySelectorAll("input")) box.checked = !settings.monitor.accountIds || settings.monitor.accountIds.includes(box.value);
   $("monitor-enabled").checked = settings.monitor.enabled;
   const interval = $("monitor-interval");
   if (![...interval.options].some((o) => o.value === String(settings.monitor.intervalMinutes)))
@@ -962,13 +1004,13 @@ function render() {
   renderInbox(data);
   renderDrafts(data);
   renderSenders(data);
-  renderSettings(data);
+  if (!settingsDirty) renderSettings(data);
 }
 async function refresh(what = "all") {
   $("refresh").disabled = true;
   status($("settings-status"), "Working\u2026");
   try {
-    await send({ type: what === "brief" ? "brief-run" : "monitor-run", brief: true });
+    await send({ type: what === "brief" ? "brief-run" : "monitor-run", brief: what === "brief" });
     status($("settings-status"), "Started in the background.");
   } catch (e) {
     status($("settings-status"), e.message, "status--error");
@@ -1003,6 +1045,7 @@ function saveSettings(event) {
       maxAiMessagesPerRun: Number($("monitor-ai").value),
       lookbackDays: Number($("monitor-lookback").value),
       tagging: $("monitor-tagging").checked,
+      accountIds: $("account-scope").querySelector("input") ? [...$("account-scope").querySelectorAll("input:checked")].map((box) => box.value) : current.monitor.accountIds,
       includeLocalFolders: $("monitor-local").checked,
       autoDraft: $("draft-auto").checked,
       maxDraftsPerRun: Number($("draft-max").value),
@@ -1022,6 +1065,7 @@ function saveSettings(event) {
   };
   const next = normalizeSettings(mergeSettings(current, patch));
   store.saveSettings(next).then(async () => {
+    settingsDirty = false;
     status($("settings-status"), "Saved.", "status--ok");
     await reload();
   }).catch((e) => status($("settings-status"), e?.message ?? "Could not save settings.", "status--error"));
@@ -1035,6 +1079,9 @@ $("batch-clear").onclick = () => {
   state.selected.clear();
   renderInbox(state.data);
 };
+$("settings-form").addEventListener("input", () => {
+  settingsDirty = true;
+});
 $("settings-form").addEventListener("submit", saveSettings);
 $("rule-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -1087,3 +1134,11 @@ browser.storage.onChanged.addListener((changes, area) => {
   if (area === "local" && changes["sentinel.bulkJob"]) void renderBulk().catch(() => void 0);
 });
 void renderBulk().catch(() => void 0);
+void browser.accounts.list(false).then((accounts) => {
+  for (const account of accounts) $("account-scope").append(el(
+    "label",
+    { class: "check" },
+    el("input", { type: "checkbox", value: account.id, checked: !state.data?.settings.monitor.accountIds || state.data.settings.monitor.accountIds.includes(account.id) }),
+    account.name
+  ));
+}).catch(() => void 0);

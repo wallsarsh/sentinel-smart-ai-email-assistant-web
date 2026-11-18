@@ -193,3 +193,61 @@ export async function saveDraftWithCompose(header, body, { identityId = null } =
   await browser.tabs.remove(tab.id).catch(() => undefined)
   return saved
 }
+
+export async function drainDraftBacklog({ settings, store, folders, resolveSource, manualDraft, reconcileSave, isLocked }) {
+  const created = [], failed = []
+  let queued = 0
+  if (!settings.monitor.enabled || !settings.monitor.autoDraft) return { created, failed, queued }
+  const rows = (await store.allAnalyses()).sort((a, b) => new Date(a.date) - new Date(b.date))
+  for (const analysis of rows) {
+    const header = { id: analysis.messageId, headerMessageId: analysis.headerMessageId, date: analysis.date,
+      subject: analysis.subject, folder: { accountId: analysis.accountId } }
+    const record = await store.draftRecord(header)
+    if (record?.needsSetup && record.revision === settings.revision) continue
+    if (['saved', 'review'].includes(record?.status) || record?.retryAt > Date.now()) continue
+    const eligibility = draftEligibility({ analysis, settings, header, draftRecord: record })
+    const entry = { subject: analysis.subject, messageId: header.id, headerMessageId: header.headerMessageId,
+      sender: analysis.sender, accountId: analysis.accountId, at: Date.now() }
+    const disposition = async (status, error, retryAt) => {
+      const needsSetup = /rejected the API key|permission denied|blocks calls from browser/i.test(error || '')
+      const value = { ...entry, status, error, retryAt: needsSetup ? null : retryAt, needsSetup, revision: settings.revision }
+      await store.saveDraftRecord(header, value)
+      await store.appendDraft(value)
+    }
+    if (record?.status === 'saving') {
+      if (isLocked(header.id)) continue
+      const source = await resolveSource(analysis).catch(() => null)
+      if (source && await reconcileSave(source).catch(() => false)) {
+        await disposition('skipped', 'A draft or reply exists for this source.')
+        continue
+      }
+      await disposition('review', 'Saving was interrupted. Check the account Drafts folder before retrying.')
+      continue
+    }
+    if (!eligibility.ok) {
+      if (record?.status !== 'skipped' || record.error !== eligibility.reason) await disposition('skipped', eligibility.reason)
+      continue
+    }
+    if (created.length + failed.length >= settings.monitor.maxDraftsPerRun) {
+      queued++
+      if (record?.status !== 'queued') await disposition('queued')
+      continue
+    }
+    try {
+      const source = await resolveSource(analysis)
+      if (!source || !folders.has(source.folder?.id)) {
+        if (record?.error !== 'Source moved or outside monitored folders.') await disposition('skipped', 'Source moved or outside monitored folders.')
+        continue
+      }
+      const result = await manualDraft(source.id, { auto: true, expected: header })
+      if (result.ok) created.push(result.draft)
+      else if (!result.busy) await disposition('skipped', result.error)
+    } catch (error) {
+      failed.push(String(error.message || error).slice(0, 180))
+      const saving = (await store.draftRecord(header))?.status === 'saving'
+      const delay = Math.min(3600000, Math.max(300000, 2 * ((record?.retryAt || 0) - (record?.at || 0))))
+      await disposition(saving ? 'review' : 'failed', String(error.message || error).slice(0, 180), saving ? null : Date.now() + delay)
+    }
+  }
+  return { created, failed, queued }
+}

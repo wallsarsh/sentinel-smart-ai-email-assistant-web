@@ -85,7 +85,7 @@ function renderBrief(root, brief, open2) {
       el("span", { class: "chip chip--accent", text: "Daily brief" }),
       el("span", { class: "brief-generated", text: `Updated ${relativeTime(brief.createdAt)}` })
     ),
-    el("p", { class: "brief-headline", text: brief.headline || "Nothing needs your attention." })
+    el("p", { class: "brief-headline", text: brief.headline || (brief.partial ? "Building today\u2019s brief\u2026" : "Nothing needs your attention.") })
   );
   const chips = el("div", { class: "chips" });
   for (const [key, fmt] of STATS) if (brief.stats?.[key] > 0) chips.append(chip(fmt(brief.stats[key])));
@@ -127,6 +127,8 @@ var TASKS = ["triage", "brief", "draft", "proofread", "rewrite"];
 var PROVIDER_KINDS = ["openai", "anthropic", "openai_compatible"];
 var newId = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 var str = (v, fallback = "") => typeof v === "string" ? v.trim() : fallback;
+var unquote = (v) => v.replace(/^["']+|["']+$/g, "").trim();
+var cleanKey = (v) => unquote(unquote(str(v)).replace(/^Bearer\s+/i, ""));
 function normalizeProvider(raw = {}) {
   const kind = PROVIDER_KINDS.includes(raw.kind) ? raw.kind : "openai_compatible";
   return {
@@ -134,7 +136,7 @@ function normalizeProvider(raw = {}) {
     name: str(raw.name) || "AI provider",
     kind,
     baseUrl: str(raw.baseUrl).replace(/\/+$/, ""),
-    apiKey: str(raw.apiKey),
+    apiKey: cleanKey(raw.apiKey),
     model: str(raw.model),
     ...raw.presetId ? { presetId: raw.presetId } : {}
   };
@@ -240,6 +242,7 @@ function normalizeSettings(raw = {}, legacyBrief = {}) {
     customRoutes,
     routes,
     monitor: {
+      accountIds: Array.isArray(monitor.accountIds) ? monitor.accountIds.filter((id) => typeof id === "string") : null,
       enabled: bool(monitor.enabled, DEFAULT_SETTINGS.monitor.enabled),
       intervalMinutes: int(
         monitor.intervalMinutes,
@@ -404,8 +407,9 @@ var KEYS = {
   replyPrefix: "sentinel.replied:"
 };
 var TRIAGE_PREFIX = KEYS.triagePrefix;
-var triageKey = (header) => `${TRIAGE_PREFIX}${header?.headerMessageId ?? header?.id}`;
-var draftKey = (header) => `${KEYS.draftPrefix}${header?.headerMessageId ?? header?.id}`;
+var messageKey = (header) => header?.folder?.accountId ? JSON.stringify([header.folder.accountId, header.headerMessageId ?? header.id]) : String(header?.headerMessageId ?? header?.id);
+var triageKey = (header) => TRIAGE_PREFIX + messageKey(header);
+var draftKey = (header) => KEYS.draftPrefix + messageKey(header);
 var replyKey = (accountId, header) => `${KEYS.replyPrefix}${accountId ?? "account"}:${header?.headerMessageId ?? header?.id}`;
 var DAY = 24 * 36e5;
 function createStore(area) {
@@ -413,6 +417,16 @@ function createStore(area) {
   const set = (key, value) => area.set({ [key]: value });
   const remove = (key) => area.remove(key);
   const all = async () => await area.get(null) ?? {};
+  const scopedRead = async (header, key, prefix) => {
+    const value = await get(key);
+    if (value || !header?.folder?.accountId) return value;
+    const legacyKey = prefix + (header.headerMessageId ?? header.id);
+    const legacy = await get(legacyKey);
+    if (!legacy || legacy.messageId !== header.id || legacy.accountId && legacy.accountId !== header.folder.accountId) return null;
+    await set(key, { ...legacy, accountId: header.folder.accountId });
+    await remove(legacyKey);
+    return legacy;
+  };
   const drafts = async () => {
     const list = await get(KEYS.drafts);
     return Array.isArray(list) ? list : [];
@@ -430,7 +444,7 @@ function createStore(area) {
   const pruneAnalyses = (now = Date.now(), days = 14) => prunePrefix(TRIAGE_PREFIX, now - days * DAY);
   const readSettings = async () => {
     const [saved, legacy] = await Promise.all([get(KEYS.settings), get(KEYS.legacyBrief)]);
-    return normalizeSettings(saved ?? {}, legacy ?? {});
+    return { ...normalizeSettings(saved ?? {}, legacy ?? {}), revision: saved?.revision ?? 0 };
   };
   return {
     area,
@@ -438,6 +452,7 @@ function createStore(area) {
     async saveSettings(settings) {
       const current = await readSettings();
       const next = normalizeSettings(mergeSettings(current, settings));
+      next.revision = Date.now();
       await set(KEYS.settings, next);
       await remove(KEYS.legacyBrief);
       return next;
@@ -466,10 +481,10 @@ function createStore(area) {
       return out;
     },
     async analysis(header) {
-      return get(triageKey(header));
+      return scopedRead(header, triageKey(header), TRIAGE_PREFIX);
     },
     async saveAnalysis(header, analysis) {
-      await set(triageKey(header), analysis);
+      await set(triageKey(header), { ...analysis, accountId: header.folder?.accountId, messageId: header.id, headerMessageId: header.headerMessageId, subject: header.subject, date: header.date });
       return analysis;
     },
     async allAnalyses() {
@@ -480,8 +495,12 @@ function createStore(area) {
     async brief() {
       return get(KEYS.brief);
     },
+    async displayedBrief() {
+      return await get("sentinel.completedBrief") ?? get(KEYS.brief);
+    },
     async saveBrief(brief) {
-      await set(KEYS.brief, brief);
+      if (brief.partial === false) await area.set({ [KEYS.brief]: brief, "sentinel.completedBrief": brief });
+      else await set(KEYS.brief, brief);
       return brief;
     },
     async briefJob() {
@@ -513,7 +532,7 @@ function createStore(area) {
       return next;
     },
     async draftRecord(header) {
-      return get(draftKey(header));
+      return scopedRead(header, draftKey(header), KEYS.draftPrefix);
     },
     async saveDraftRecord(header, record) {
       await set(draftKey(header), record);
@@ -553,14 +572,15 @@ async function show() {
     return;
   }
   const [brief, briefStatus, settings] = await Promise.all([
-    store.brief(),
+    store.displayedBrief(),
     store.briefStatus(),
     store.settings()
   ]);
   renderBrief($("brief"), brief, open);
   const running = briefStatus?.state === "running";
   $("refresh").disabled = running;
-  if (running) status($("status"), "Updating\u2026");
+  $("refresh").textContent = ["partial", "error"].includes(briefStatus?.state) ? "Resume brief" : "Rebuild today\u2019s brief";
+  if (running) status($("status"), "Updating\u2026 " + (briefStatus.progress ? briefStatus.progress.processed + "/" + briefStatus.progress.total + " processed" : ""));
   else if (briefStatus?.state === "error") status($("status"), briefStatus.message, "status--error");
   else if (briefStatus?.state === "partial") status($("status"), briefStatus.message ?? "Paused; press Refresh brief to resume.", "status--error");
   else if (!settings.baseUrl) status($("status"), "Add a provider in settings first.", "status--error");

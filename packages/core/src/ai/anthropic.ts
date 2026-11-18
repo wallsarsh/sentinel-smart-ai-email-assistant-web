@@ -12,8 +12,14 @@ import {
   type StreamEvent,
 } from './types'
 
-const VERSION = '2023-06-01'
+const VERSION = '2026-10-21'
 export const ANTHROPIC_BASE = 'https://api.anthropic.com'
+
+/**
+ * The Messages API rejects browser-origin calls unless this header is present.
+ * Thunderbird add-ons are a browser origin, so the extension sends it; servers do not need it.
+ */
+export const BROWSER_ACCESS_HEADER = 'anthropic-dangerous-direct-browser-access'
 
 type Body = {
   content?: { type: string; text?: string }[]
@@ -38,11 +44,15 @@ const STOP: Record<string, StopReason> = {
   refusal: 'refusal',
 }
 
-export const anthropicHeaders = (apiKey: string) => ({
+export const anthropicHeaders = (apiKey: string, { browser = false } = {}) => ({
   'x-api-key': apiKey,
   'anthropic-version': VERSION,
   'content-type': 'application/json',
+  ...(browser ? { [BROWSER_ACCESS_HEADER]: 'true' } : {}),
 })
+
+/** Distinguishes "this organization forbids browser calls" from a bad key: both are HTTP 401. */
+const BROWSER_BLOCKED = /CORS requests are not allowed/i
 
 /** The JSON body for a Messages call. No tools are offered; structured replies use JSON-schema output. */
 export function anthropicBody(req: AiRequest, stream = false) {
@@ -79,6 +89,8 @@ export function anthropicProvider(o: {
   apiKey: string
   baseUrl?: string
   http?: AiHttp
+  /** Set for add-on/browser callers; adds Anthropic's required browser-access header. */
+  browser?: boolean
 }): AiProvider {
   const base = (o.baseUrl ?? ANTHROPIC_BASE).replace(/\/$/, '')
   const http = o.http ?? fetchHttp()
@@ -97,8 +109,13 @@ export function anthropicProvider(o: {
           : { kind: 'network' },
       )
     }
-    if (res.status < 200 || res.status >= 300)
+    if (res.status < 200 || res.status >= 300) {
+      // Anthropic returns 401 for an organization that forbids browser-origin calls, even
+      // with a valid key. Report it separately so the UI does not blame the key.
+      if ((res.status === 401 || res.status === 403) && BROWSER_BLOCKED.test(res.text))
+        return err({ kind: 'auth', problem: 'invalid_credentials', code: 'browser_blocked' })
       return err(failureForStatus(res.status, res.headers.get('retry-after')))
+    }
     try {
       return ok(JSON.parse(res.text) as Body)
     } catch {
@@ -110,7 +127,7 @@ export function anthropicProvider(o: {
     kind: 'anthropic',
     async complete(req) {
       const r = await call(`${base}/v1/messages`, {
-        headers: anthropicHeaders(o.apiKey),
+        headers: anthropicHeaders(o.apiKey, { browser: o.browser }),
         body: JSON.stringify(anthropicBody(req)),
         signal: req.signal,
       })
@@ -120,7 +137,7 @@ export function anthropicProvider(o: {
       let res
       try {
         res = await http.stream(`${base}/v1/messages`, {
-          headers: anthropicHeaders(o.apiKey),
+          headers: anthropicHeaders(o.apiKey, { browser: o.browser }),
           body: JSON.stringify(anthropicBody(req, true)),
           signal: req.signal,
         })
@@ -172,7 +189,7 @@ export function anthropicProvider(o: {
     async listModels() {
       const r = await call(`${base}/v1/models?limit=100`, {
         method: 'GET',
-        headers: anthropicHeaders(o.apiKey),
+        headers: anthropicHeaders(o.apiKey, { browser: o.browser }),
       })
       return r.ok ? ok((r.value.data ?? []).map((m) => m.id)) : r
     },

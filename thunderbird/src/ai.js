@@ -70,6 +70,8 @@ export function providerFor(provider, fetchImpl) {
     return anthropicProvider({
       apiKey: provider.apiKey,
       baseUrl: (provider.baseUrl || 'https://api.anthropic.com').replace(/\/v1\/?$/, ''),
+      // Add-ons are a browser origin; Anthropic needs its explicit browser-access header.
+      browser: true,
       http,
     })
   if (provider.kind === 'openai')
@@ -228,7 +230,9 @@ export async function runTextTask(
 export function describe(f) {
   switch (f.kind) {
     case 'auth':
-      return 'The provider rejected the API key.'
+      return f.code === 'browser_blocked'
+        ? 'Anthropic blocks calls from browser add-ons for this organization, even with a valid key (for example with zero data retention or the Compliance API). Use an OpenAI-compatible provider such as OpenRouter for this account.'
+        : 'The provider rejected the API key.'
     case 'rate_limited':
       return 'The provider is rate limiting requests. Try again shortly.'
     case 'network':

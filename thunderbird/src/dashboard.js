@@ -46,7 +46,7 @@ async function load() {
   const [settings, rules, brief, briefStatus, monitor, analyses, drafts] = await Promise.all([
     store.settings(),
     store.rules(),
-    store.brief(),
+    store.displayedBrief(),
     store.briefStatus(),
     store.monitor(),
     store.allAnalyses(),
@@ -64,8 +64,9 @@ function pill(message, kind = '') {
 
 function renderStatus({ settings, monitor, briefStatus }) {
   if (!settings.providers?.some(providerUsable))
-    return pill('Setup needed', 'pill--warn')
+    return pill('Open Provider settings to connect a provider and select a model', 'pill--warn')
   if (monitor?.state === 'running' || briefStatus?.state === 'running') return pill('Checking…', 'pill--warn')
+  if (monitor?.state === 'partial') return pill('Inbox check incomplete', 'pill--warn')
   if (briefStatus?.state === 'partial') return pill('Brief paused', 'pill--warn')
   if (monitor?.state === 'error' || briefStatus?.state === 'error')
     return pill('Needs attention', 'pill--error')
@@ -76,11 +77,11 @@ function renderStatus({ settings, monitor, briefStatus }) {
 function renderBrief({ brief, briefStatus, monitor }) {
   const root = $('brief')
   clear(root)
-  if (monitor?.state === 'error' && monitor.error) {
+  if (['error', 'partial'].includes(monitor?.state) && monitor.error) {
     root.append(el('div', { class: 'error', text: `Last check: ${monitor.error}` }))
   }
   if (briefStatus?.state === 'running') {
-    root.append(el('div', { class: 'notice', text: 'Updating the brief…' }))
+    root.append(el('div', { class: 'notice', text: 'Updating the brief… ' + (briefStatus.progress ? briefStatus.progress.processed + '/' + briefStatus.progress.total + ' processed' : '') }))
   }
   if (briefStatus?.state === 'error') {
     root.append(el('div', { class: 'warning', text: briefStatus.message ?? 'The brief could not be updated.' }))
@@ -97,6 +98,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
     return
   }
   const stats = brief.stats ?? {}
+  const schedule = monitor?.nextRunAt ? ' · Next check ' + formatDateTime(monitor.nextRunAt) : ''
   const checkText = monitor?.at
     ? `Last check ${relativeTime(monitor.at)} · ${monitor.processed ?? 0} checked · ${monitor.analysed ?? 0} analysed${monitor.pending ? ` · ${monitor.pending} pending` : ''}`
     : 'No check has run yet.'
@@ -107,7 +109,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
       el('span', { class: 'chip chip--accent', text: 'Daily brief' }),
       el('span', { class: 'brief-generated', text: `Generated ${formatDateTime(brief.createdAt)}` }),
     ),
-    el('p', { class: 'meta', text: checkText }),
+    el('p', { class: 'meta', text: checkText + schedule }),
     brief.partial && brief.progress
       ? el('p', { class: 'meta', text: `Brief progress: ${brief.progress.processed}/${brief.progress.total} processed · ${brief.progress.failed} failed` })
       : null,
@@ -119,6 +121,7 @@ function renderBrief({ brief, briefStatus, monitor }) {
       'div',
       { class: 'grid grid--stats' },
       ...[
+        ['In summary', brief.includedInSummary ?? '—'],
         ['New mail', stats.total],
         ['Need reply', stats.needsReply],
         ['Urgent', stats.p1],
@@ -283,19 +286,29 @@ function renderDrafts({ drafts }) {
     root.append(empty('No drafts yet. Sentinel creates them for messages that need a reply.'))
     return
   }
+  const totals = drafts.reduce((counts, draft) => { counts[draft.status] = (counts[draft.status] || 0) + 1; return counts }, {})
+  root.append(el('p', { text: `${totals.saved || 0} ready · ${totals.queued || 0} queued · ${totals.skipped || 0} skipped · ${(totals.failed || 0) + (totals.review || 0)} need attention` }))
   const list = el('div', { class: 'list' })
   for (const d of drafts) {
     list.append(
       el('div', { class: 'item' },
         el('div', { class: 'item__top' },
           el('span', { class: 'item__title', text: d.subject || '(no subject)' }),
-          chip(d.status === 'saved' ? 'Saved draft' : 'Save failed', d.status === 'saved' ? 'chip--ok' : 'chip--warn'),
+          chip(({saved:'Ready to review', queued:'Queued', skipped:'Skipped', failed:'Needs attention', review:'Review Drafts before retrying', saving:'Checking save'})[d.status] || d.status, d.status === 'saved' ? 'chip--ok' : 'chip--warn'),
         ),
         el('div', { class: 'item__meta', text: `${d.sender || 'Unknown sender'} · ${formatDateTime(d.at)}${d.draftFolder ? ` · ${d.draftFolder}` : ''}` }),
         el('div', { class: 'actions' },
+          d.status === 'failed' && d.headerMessageId ? el('button', { class: 'btn btn--small', type: 'button', text: 'Retry draft', onclick: async (event) => {
+            const button = event.currentTarget
+            button.disabled = true
+            button.textContent = 'Retrying…'
+            try { await send({ type: 'retry-auto-draft', messageId: d.messageId, accountId: d.accountId }, 120000); await reload() }
+            catch (error) { button.textContent = error.message; button.disabled = false }
+          } }) : null,
           d.draftId ? el('button', { class: 'btn btn--small', type: 'button', onclick: () => openMessage(d.draftId), text: 'Open draft' }) : null,
           d.messageId ? el('button', { class: 'btn btn--small', type: 'button', onclick: () => openMessage(d.messageId), text: 'Open source' }) : null,
         ),
+        d.retryAt ? el('span', { class: 'meta', text: 'Next eligible check: ' + formatDateTime(d.retryAt) }) : null,
         d.error ? el('div', { class: 'error', text: d.error }) : null,
       ),
     )
@@ -332,7 +345,9 @@ function renderSenders({ rules }) {
   root.append(list)
 }
 
+let settingsDirty = false
 function renderSettings({ settings }) {
+  for (const box of $('account-scope').querySelectorAll('input')) box.checked = !settings.monitor.accountIds || settings.monitor.accountIds.includes(box.value)
   $('monitor-enabled').checked = settings.monitor.enabled
   const interval = $('monitor-interval')
   if (![...interval.options].some((o) => o.value === String(settings.monitor.intervalMinutes)))
@@ -368,14 +383,14 @@ function render() {
   renderInbox(data)
   renderDrafts(data)
   renderSenders(data)
-  renderSettings(data)
+  if (!settingsDirty) renderSettings(data)
 }
 
 async function refresh(what = 'all') {
   $('refresh').disabled = true
   status($('settings-status'), 'Working…')
   try {
-    await send({ type: what === 'brief' ? 'brief-run' : 'monitor-run', brief: true })
+    await send({ type: what === 'brief' ? 'brief-run' : 'monitor-run', brief: what === 'brief' })
     status($('settings-status'), 'Started in the background.')
   } catch (e) { status($('settings-status'), e.message, 'status--error') }
   finally { $('refresh').disabled = false }
@@ -410,6 +425,7 @@ function saveSettings(event) {
       maxAiMessagesPerRun: Number($('monitor-ai').value),
       lookbackDays: Number($('monitor-lookback').value),
       tagging: $('monitor-tagging').checked,
+      accountIds: $('account-scope').querySelector('input') ? [...$('account-scope').querySelectorAll('input:checked')].map((box) => box.value) : current.monitor.accountIds,
       includeLocalFolders: $('monitor-local').checked,
       autoDraft: $('draft-auto').checked,
       maxDraftsPerRun: Number($('draft-max').value),
@@ -431,6 +447,7 @@ function saveSettings(event) {
   store
     .saveSettings(next)
     .then(async () => {
+      settingsDirty = false
       status($('settings-status'), 'Saved.', 'status--ok')
       await reload()
     })
@@ -446,6 +463,7 @@ $('batch-clear').onclick = () => {
   state.selected.clear()
   renderInbox(state.data)
 }
+$('settings-form').addEventListener('input', () => { settingsDirty = true })
 $('settings-form').addEventListener('submit', saveSettings)
 $('rule-form').addEventListener('submit', async (e) => {
   e.preventDefault()
@@ -500,3 +518,8 @@ browser.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes['sentinel.bulkJob']) void renderBulk().catch(() => undefined)
 })
 void renderBulk().catch(() => undefined)
+
+void browser.accounts.list(false).then((accounts) => {
+  for (const account of accounts) $('account-scope').append(el('label', { class: 'check' },
+    el('input', { type: 'checkbox', value: account.id, checked: !state.data?.settings.monitor.accountIds || state.data.settings.monitor.accountIds.includes(account.id) }), account.name))
+}).catch(() => undefined)

@@ -89,6 +89,9 @@ export const presetById = (id) => PROVIDER_PRESETS.find((p) => p.id === id) ?? n
 const newId = () =>
   globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const str = (v, fallback = '') => (typeof v === 'string' ? v.trim() : fallback)
+// Pasted keys often carry quotes or a "Bearer " prefix; neither belongs in the header.
+const unquote = (v) => v.replace(/^["']+|["']+$/g, '').trim()
+const cleanKey = (v) => unquote(unquote(str(v)).replace(/^Bearer\s+/i, ''))
 const isLocal = (baseUrl) =>
   /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(baseUrl)
 
@@ -99,7 +102,7 @@ export function normalizeProvider(raw = {}) {
     name: str(raw.name) || 'AI provider',
     kind,
     baseUrl: str(raw.baseUrl).replace(/\/+$/, ''),
-    apiKey: str(raw.apiKey),
+    apiKey: cleanKey(raw.apiKey),
     model: str(raw.model),
     ...(raw.presetId ? { presetId: raw.presetId } : {}),
   }

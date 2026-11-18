@@ -35,7 +35,7 @@
     "default_popup": "dist/popup.html"
   },
   "compose_action": {
-    "default_title": "Sentinel AI — draft this reply",
+    "default_title": "Sentinel AI \u2014 draft this reply",
     "default_label": "Sentinel",
     "default_area": "maintoolbar",
     "default_popup": "dist/compose.html"
@@ -48,9 +48,29 @@
     "sentinelCalendar": {
       "schema": "experiments/sentinel-calendar/schema.json",
       "parent": {
-        "scopes": ["addon_parent"],
+        "scopes": [
+          "addon_parent"
+        ],
         "script": "experiments/sentinel-calendar/implementation.js",
-        "paths": [["sentinelCalendar"]]
+        "paths": [
+          [
+            "sentinelCalendar"
+          ]
+        ]
+      }
+    },
+    "sentinelUpdates": {
+      "schema": "experiments/sentinel-updates/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "script": "experiments/sentinel-updates/implementation.js",
+        "paths": [
+          [
+            "sentinelUpdates"
+          ]
+        ]
       }
     }
   },

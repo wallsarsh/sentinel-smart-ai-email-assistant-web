@@ -1,4 +1,5 @@
 import { enhanceActions, clear, el, openDashboard, status  } from './ui.js'
+import { runTextTask } from './ai.js'
 import { checkBaseUrl } from './mail.js'
 import {
   PROVIDER_PRESETS,
@@ -58,13 +59,14 @@ async function rememberModels(id, models) {
   await browser.storage.local.set({ [MODELS_KEY]: modelCache })
 }
 
-/** Ask for host access for the origins that do not have it yet (needs a click), in one prompt. */
-async function ensureOrigins(urls) {
+/**
+ * Asks for host access in one prompt. Must be called synchronously from a click: Thunderbird only
+ * allows permissions.request() inside the user-input handler, so do not await anything first.
+ * Requesting an already-granted origin resolves true without a prompt.
+ */
+function ensureOrigins(urls) {
   const origins = [...new Set(urls.filter(Boolean).map((u) => `${new URL(u).origin}/*`))]
-  const missing = []
-  for (const o of origins) if (!(await browser.permissions.contains({ origins: [o] }))) missing.push(o)
-  if (!missing.length) return true
-  return browser.permissions.request({ origins: missing })
+  return browser.permissions.request({ origins })
 }
 
 const say = (node, message, kind = '') => status(node, message, kind)
@@ -159,6 +161,16 @@ function renderRoutes() {
   }
   const def = settings.defaultRoute
   const d = routeControls('Default', def)
+  const syncDefaultRows = () => {
+    for (const task of TASKS) {
+      const r = rowControls[task]
+      if (!r?.toggle.checked) continue
+      r.providerSelect.value = d.providerSelect.value
+      r.picker.set(cachedModels(d.providerSelect.value), d.picker.get())
+    }
+  }
+  d.providerSelect.addEventListener('change', syncDefaultRows)
+  d.picker.onChange(syncDefaultRows)
   rowControls.default = d
   defaultRoot.append(
     el('div', { class: 'item__top' }, el('span', { class: 'item__title', text: 'Default for all features' })),
@@ -205,6 +217,7 @@ function editProvider(id) {
   const p = settings.providers.find((x) => x.id === id)
   if (!p) return
   editingId = id
+  if (p.presetId && [...$('preset').options].some((o) => o.value === p.presetId)) $('preset').value = p.presetId
   $('pname').value = p.name
   $('pkind').value = p.kind
   $('pbase').value = p.baseUrl
@@ -262,10 +275,10 @@ async function saveProvider(event) {
     const defaultProviderId = settings.defaultProviderId || provider.id
     settings = await store.saveSettings({ providers, defaultProviderId })
     if (formModels.length) await rememberModels(provider.id, formModels)
-    resetForm()
     renderProviders()
     renderRoutes()
-    say($('provider-status'), 'Provider saved.', 'status--ok')
+    editProvider(provider.id)
+    say($('provider-status'), existing ? 'Provider saved.' : 'Provider added.', 'status--ok')
   } catch (err) {
     say($('provider-status'), err?.message ?? 'Could not save the provider.', 'status--error')
   }
@@ -299,6 +312,24 @@ async function saveRoutes() {
   }
 }
 
+/** Copies the default provider and model to every feature and saves it. */
+function applyDefaultToAll() {
+  const d = rowControls.default
+  if (!d) return
+  const providerId = d.providerSelect.value
+  const model = d.picker.get()
+  if (!model) return say($('route-status'), 'Choose a default model first.', 'status--error')
+  for (const task of TASKS) {
+    const r = rowControls[task]
+    r.toggle.checked = true
+    r.providerSelect.value = providerId
+    r.picker.set(cachedModels(providerId), model)
+    r.providerSelect.disabled = true
+    r.picker.setDisabled(true)
+  }
+  void saveRoutes()
+}
+
 async function loadFormModels() {
   const baseUrl = $('pbase').value.trim()
   const existing = settings.providers.find((p) => p.id === editingId)
@@ -317,13 +348,37 @@ async function loadFormModels() {
     return say($('model-status'), e.message, 'status--error')
   }
   say($('model-status'), 'Loading models…')
-  $('load-models').disabled = true
-  const res = await listModels(provider)
-  $('load-models').disabled = false
-  if (!res.ok) return say($('model-status'), res.error, 'status--error')
-  formModels = res.models
-  formPicker.set(res.models, formPicker.get())
-  say($('model-status'), `${res.models.length} models loaded.`, 'status--ok')
+  const button = $('load-models')
+  const label = button.textContent
+  button.disabled = true
+  button.textContent = 'Loading…'
+  try {
+    const res = await listModels(provider)
+    if (!res.ok) return say($('model-status'), res.error, 'status--error')
+    formModels = res.models
+    formPicker.set(res.models, formPicker.get())
+    say($('model-status'), `${res.models.length} models loaded.`, 'status--ok')
+  } finally {
+    button.disabled = false
+    button.textContent = label
+  }
+}
+
+async function testDefaultModel() {
+  const route = rowControls.default
+  const provider = settings.providers.find((p) => p.id === route?.providerSelect.value)
+  const model = route?.picker.get()
+  if (!provider || !model) return say($('route-status'), 'Select a default provider and model first.', 'status--error')
+  const button = $('test-default')
+  button.disabled = true
+  try {
+    if (!await ensureOrigins([provider.baseUrl])) throw new Error('Permission denied. Allow access to this provider to test it.')
+    say($('route-status'), 'Testing the selected model…')
+    await runTextTask({ providers: [provider], routes: { test: { providerId: provider.id, model } } },
+      'test', 'Reply with OK.', 'Connection test.', { maxTokens: 64 })
+    say($('route-status'), 'Model responded successfully.', 'status--ok')
+  } catch (e) { say($('route-status'), e.message, 'status--error') }
+  finally { button.disabled = false }
 }
 
 async function refreshAllModels() {
@@ -364,9 +419,56 @@ $('preset').addEventListener('change', applyPreset)
 $('provider-form').addEventListener('submit', saveProvider)
 $('cancel-edit').addEventListener('click', resetForm)
 $('save-routes').addEventListener('click', saveRoutes)
+$('test-default').addEventListener('click', testDefaultModel)
+$('apply-default').addEventListener('click', applyDefaultToAll)
 $('load-models').addEventListener('click', () => void loadFormModels())
 $('refresh-models').addEventListener('click', () => void refreshAllModels())
 $('dashboard').onclick = openDashboard
 void init().catch((e) => say($('provider-status'), e?.message ?? 'Could not load settings.', 'status--error'))
 
 enhanceActions()
+
+async function setupUpdates() {
+  const manifest = browser.runtime.getManifest()
+  const feed = manifest.browser_specific_settings?.gecko?.update_url
+  const label = $('update-source')
+  label.textContent = 'Installed version ' + manifest.version
+  if (!feed) {
+    label.textContent += ' · Pinned or unknown update source. Reinstall from your chosen repository branch to enable updates.'
+    $('check-update').disabled = true
+    return
+  }
+  for (const path of ['source.json', 'dist/source.json']) {
+    try {
+      const source = await (await fetch(browser.runtime.getURL(path))).json()
+      label.textContent += ' · ' + source.repo + ' / ' + source.branch
+      break
+    } catch { /* Other packaging layout. */ }
+  }
+  const last = await browser.storage.local.get(['sentinel.expectedVersion', 'sentinel.updateChecked'])
+  if (last['sentinel.expectedVersion'] === manifest.version) {
+    $('update-status').textContent = 'Updated successfully to ' + manifest.version
+    await browser.storage.local.remove('sentinel.expectedVersion')
+  } else if (last['sentinel.updateChecked']) $('update-status').textContent = 'Last checked ' + new Date(last['sentinel.updateChecked']).toLocaleString()
+  let version
+  const run = async (apply) => {
+    const check = $('check-update'), install = $('apply-update'), notes = $('update-notes')
+    check.disabled = install.disabled = true
+    $('update-status').textContent = apply ? 'Applying update…' : 'Checking for updates…'
+    try {
+      const result = await browser.runtime.sendMessage({ type: apply ? 'update-apply' : 'update-check', version })
+      if (!result?.ok) throw new Error(result?.error || 'The update service did not respond.')
+      if (apply) { $('update-status').textContent = 'Restarting Sentinel…'; return }
+      version = result.version
+      install.hidden = !version
+      notes.hidden = !version
+      if (version) notes.href = feed.split('/releases/')[0] + '/releases/tag/sentinel-v' + encodeURIComponent(version)
+      $('update-status').textContent = version ? 'Version ' + version + ' is available.' : 'You have the latest compatible version.'
+      await browser.storage.local.set({ 'sentinel.updateChecked': Date.now() })
+    } catch (error) { $('update-status').textContent = error.message }
+    finally { check.disabled = install.disabled = false }
+  }
+  $('check-update').onclick = () => run(false)
+  $('apply-update').onclick = () => run(true)
+}
+if ($('check-update') && browser.runtime.getManifest) void setupUpdates().catch((error) => { $('update-status').textContent = error.message })

@@ -80,9 +80,11 @@ Thunderbird 140+ → **Tools → Developer Tools → Debug Add-ons → Load Temp
 Then:
 
 1. Open **Provider settings** and add one or more providers: OpenAI, Anthropic, an OpenAI-compatible endpoint, or a preset for Ollama, LM Studio, Groq, Mistral, OpenRouter or Gemini-compatible. Each key stays in this Thunderbird profile. Press **Load models from provider** to pick the model from a dropdown (fetched from the provider's models endpoint); *Other…* lets you type a name the provider does not list.
-2. In **Task routing** choose one **default provider and model for every feature**. Any feature (analysis, brief, drafts, proofreading, rewrite) can untick *Use default* to have its own model. Changing the default updates all features that still use it.
+2. In **Task routing** choose one **default provider and model for every feature**. Any feature (analysis, brief, drafts, proofreading, rewrite) can untick *Use default* to have its own model. Changing the default updates all features that still use it, and **Use default for all features** applies the default model everywhere in one click.
 3. Grant the provider origin permission when Thunderbird asks.
 4. Open **Dashboard** from the toolbar popup and press **Refresh now** for the first run.
+
+**Anthropic:** Thunderbird is a browser origin, so Sentinel sends Anthropic's required `anthropic-dangerous-direct-browser-access` header. Organizations that forbid direct browser calls (zero data retention, the Compliance API or a linked Enterprise parent) cannot call Anthropic from any add-on, even with a valid key; Sentinel names that case instead of blaming the key. Use an OpenAI-compatible provider such as OpenRouter for those accounts. Pasted keys are cleaned of quotes and a stray `Bearer ` prefix.
 
 No hosted Sentinel account or server is involved. Mail goes only to the mailbox provider and the AI provider you configured.
 
@@ -208,3 +210,13 @@ Research: Thunderbird documents calendar items as `calIEvent` and `calICalendar`
 (https://source-docs.thunderbird.net/en/latest/calendar/item_model.html); calendar extensions
 remain an experiment integration (https://github.com/thunderbird/webext-experiments).
 The existing bundled experiment is used rather than assuming a stable browser.calendar API.
+
+### Inbox coverage and draft activity
+
+In Dashboard → Settings, choose the accounts to monitor. **Check inbox now** discovers new mail and drains pending work within the configured limits. The Drafts tab shows saved replies, queued work, eligibility skips and failures. An interrupted save can require checking the account’s Drafts folder before retrying. The last completed brief remains readable during processing. **Rebuild today’s brief** resumes pending analyses and summary generation.
+
+### Repository updates
+
+Open **Provider settings → Add-on updates**, check the displayed repository and branch, then select **Check for updates**. Review the release notes and select **Apply update** after closing compose windows. The same add-on ID preserves settings and local job records. Unknown, pinned, custom archive and temporary installations can move to branch updates by reinstalling from a known repository branch. Installer replacements keep the prior installed XPI in the profile as `sentinel-previous.xpi`. Close Thunderbird before using the installer with that local package for recovery.
+
+Maintainers publish a compatible version with the **Release Thunderbird add-on** workflow on the intended branch. Provide a new numeric major.minor.patch version unique to the repository. The workflow publishes a versioned XPI and then its branch-specific HTTPS Gecko feed. Existing installations without that feed need the installer once. The update check shows an error until the first release for the branch is published.

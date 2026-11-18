@@ -154,6 +154,18 @@ function New-Xpi($out) {
   Add-Type -AssemblyName System.IO.Compression
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   if (Test-Path $out) { Remove-Item -Force $out }
+  $repo = $env:SENTINEL_BUILD_REPO
+  $branch = $env:SENTINEL_BUILD_BRANCH
+  $commit = $env:SENTINEL_BUILD_COMMIT
+  if (-not $repo -and (Test-Path (Join-Path $RepoRoot '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+    $remote = (git -C $RepoRoot remote get-url origin 2>$null) -replace '\.git$', ''
+    if ($remote -match '^(?:https://github\.com/|git@github\.com:)([\w.-]+/[\w.-]+)$') {
+      $repo = $Matches[1]
+      $branch = git -C $RepoRoot symbolic-ref --short HEAD 2>$null
+      $commit = git -C $RepoRoot rev-parse HEAD 2>$null
+    }
+  }
+  $tracked = $repo -match '^[\w.-]+/[\w.-]+$' -and $branch -and $commit -match '^[0-9a-f]{40}$'
   $zip = [IO.Compression.ZipFile]::Open($out, 'Create')
   try {
     $files = @(Get-Item (Join-Path $base 'manifest.json')) +
@@ -161,6 +173,16 @@ function New-Xpi($out) {
              @(Get-ChildItem (Join-Path $base 'experiments') -Recurse -File)
     foreach ($f in $files) {
       $name = $f.FullName.Substring($base.Length).TrimStart('\', '/') -replace '\\', '/'
+      if ($tracked -and $name -eq 'manifest.json') {
+        $channel = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($branch))).Replace('-', '').Substring(0,16).ToLowerInvariant()
+        $manifest = Get-Content $f.FullName -Raw | ConvertFrom-Json
+        $manifest.browser_specific_settings.gecko | Add-Member -Force -NotePropertyName update_url -NotePropertyValue "https://github.com/$repo/releases/download/sentinel-channel-$channel/updates.json"
+        $writer = [IO.StreamWriter]::new($zip.CreateEntry('manifest.json').Open())
+        try { $writer.Write(($manifest | ConvertTo-Json -Depth 20)) } finally { $writer.Dispose() }
+        $writer = [IO.StreamWriter]::new($zip.CreateEntry('source.json').Open())
+        try { $writer.Write((@{repo=$repo; branch=$branch; commit=$commit} | ConvertTo-Json)) } finally { $writer.Dispose() }
+        continue
+      }
       [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $f.FullName, $name, [IO.Compression.CompressionLevel]::Optimal)
     }
   } finally { $zip.Dispose() }
@@ -428,6 +450,7 @@ try {
     # Write beside the target, then rename, so a crash never leaves a half-written add-on behind.
     $tmp = "$target.new"
     Copy-Item -Force -LiteralPath $xpi -Destination $tmp
+    if (Test-Path -LiteralPath $target) { Copy-Item -Force -LiteralPath $target -Destination (Join-Path $profile 'sentinel-previous.xpi') }
     Move-Item -Force -LiteralPath $tmp -Destination $target
     Say 'Sentinel AI add-on updated.'
     $changes++

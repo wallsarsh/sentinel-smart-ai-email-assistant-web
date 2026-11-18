@@ -79,7 +79,9 @@
           <div id="default-route" class="item stack"></div>
           <div id="routes" class="stack"></div>
           <div class="actions">
+            <button id="test-default" class="btn" type="button" title="Send a connection test to this provider. No email content is included.">Test default model</button>
             <button id="save-routes" class="btn btn--primary" type="button">Save routing</button>
+            <button id="apply-default" class="btn" type="button">Use default for all features</button>
             <button id="refresh-models" class="btn" type="button">Refresh model lists</button>
             <span id="route-status" class="status" role="status"></span>
           </div>
@@ -92,6 +94,14 @@
             provider selected for the task. Attachments are never read. Security mail is classified locally.
           </p>
           <p class="muted">Sentinel cannot send mail. It only writes drafts into your own Drafts folder.</p>
+        </section>
+        <section class="card stack" aria-labelledby="updates-title">
+          <h2 id="updates-title">Add-on updates</h2>
+          <p id="update-source" class="meta"></p>
+          <div class="actions"><button id="check-update" type="button" class="btn">Check for updates</button>
+            <button id="apply-update" type="button" class="btn btn--primary" hidden>Apply update</button>
+            <a id="update-notes" hidden target="_blank" rel="noopener">Release notes</a></div>
+          <p id="update-status" role="status"></p>
         </section>
       </main>
       <p class="footer">Sentinel AI for Thunderbird · local profile only</p>

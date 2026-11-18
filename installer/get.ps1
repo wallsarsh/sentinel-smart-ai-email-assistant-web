@@ -60,8 +60,16 @@
   $work = Join-Path ([IO.Path]::GetTempPath()) ('sentinel-get-' + [Guid]::NewGuid().ToString('N'))
   New-Item -ItemType Directory -Path $work | Out-Null
   try {
+    $branchInfo = $null
+    $archiveRef = $ref
+    if (-not $env:SENTINEL_ZIP_URL) {
+      try {
+        $item = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$repo/branches/$([Uri]::EscapeDataString($ref))" -ErrorAction Stop
+        if ($item.name -ceq $ref -and $item.commit.sha -match '^[0-9a-f]{40}$') { $branchInfo = $item; $archiveRef = $item.commit.sha }
+      } catch { Write-Host '* Branch metadata unavailable. Installing as a pinned package.' }
+    }
     $zip = Join-Path $work 'repo.zip'
-    $url = if ($env:SENTINEL_ZIP_URL) { $env:SENTINEL_ZIP_URL } else { "https://codeload.github.com/$repo/zip/$ref" }
+    $url = if ($env:SENTINEL_ZIP_URL) { $env:SENTINEL_ZIP_URL } else { "https://codeload.github.com/$repo/zip/$archiveRef" }
     Write-Host "* Downloading $repo@$ref ..."
     try { Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $zip }
     catch { throw "Could not download $url ($($_.Exception.Message)). The repository must be public and the branch/tag must exist." }
@@ -74,7 +82,15 @@
     $script = if ($root) { Join-Path $root.FullName 'installer\install.ps1' } else { $null }
     if (-not $script -or -not (Test-Path -LiteralPath $script)) { throw 'installer\install.ps1 was not found in the downloaded repository.' }
 
-    & $script @opts
+    if ($branchInfo) {
+      $env:SENTINEL_BUILD_REPO = $repo
+      $env:SENTINEL_BUILD_BRANCH = $branchInfo.name
+      $env:SENTINEL_BUILD_COMMIT = $branchInfo.commit.sha
+    }
+    try { & $script @opts }
+    finally {
+      Remove-Item Env:SENTINEL_BUILD_REPO, Env:SENTINEL_BUILD_BRANCH, Env:SENTINEL_BUILD_COMMIT -ErrorAction SilentlyContinue
+    }
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "The installer failed (exit code $LASTEXITCODE)." }
   } finally {
     Remove-Item -Recurse -Force -LiteralPath $work -ErrorAction SilentlyContinue
