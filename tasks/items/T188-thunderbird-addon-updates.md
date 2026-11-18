@@ -30,3 +30,4 @@ Let the installed add-on check and apply compatible releases from the repository
 ## Log
 - 2026-11-18 claimed by opencode-deepseek-v4.1-flash
 - 2026-11-18 update-check showed "An unexpected error occurred": the experiment threw across the compartment boundary; entry points now return structured results, feed/status errors are readable, and the panel links to repository releases. Real release publication remains manual.
+- 2026-11-18 09:37Z parent-process experiments have no DOM globals: setTimeout/clearTimeout now come from resource://gre/modules/Timer.sys.mjs. The VM test no longer injects host timers, so this cannot regress.

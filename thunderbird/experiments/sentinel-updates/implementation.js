@@ -1,6 +1,8 @@
 /* global ChromeUtils */
 var { ExtensionCommon } = ChromeUtils.importESModule('resource://gre/modules/ExtensionCommon.sys.mjs')
 var { AddonManager } = ChromeUtils.importESModule('resource://gre/modules/AddonManager.sys.mjs')
+// Parent-process scopes have no DOM window, so setTimeout comes from the platform module.
+var { setTimeout, clearTimeout } = ChromeUtils.importESModule('resource://gre/modules/Timer.sys.mjs')
 
 // Errors thrown here cross into the extension's scope; Thunderbird replaces any non-ExtensionError
 // with "An unexpected error occurred". Every entry point therefore returns { ok, error } instead.

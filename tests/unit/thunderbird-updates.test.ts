@@ -38,12 +38,12 @@ function load(
         if (url.includes('ExtensionCommon'))
           return { ExtensionCommon: { ExtensionAPI: class StubApi { getAPI() { return null } } } }
         if (url.includes('AddonManager')) return { AddonManager: manager }
+        if (url.includes('Timer.sys.mjs')) return { setTimeout, clearTimeout }
         if (url.includes('Extension.sys.mjs')) return { Extension: { comparePermissions: () => ({}) } }
         throw new Error(`unexpected import ${url}`)
       },
     },
-    setTimeout,
-    clearTimeout,
+    // Deliberately no setTimeout/clearTimeout: a parent-process experiment has no DOM globals.
     console,
   }
   createContext(sandbox)
