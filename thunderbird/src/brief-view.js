@@ -31,7 +31,7 @@ export function renderBrief(root, brief, open) {
       el('span', { class: 'chip chip--accent', text: 'Daily brief' }),
       el('span', { class: 'brief-generated', text: `Updated ${relativeTime(brief.createdAt)}` }),
     ),
-    el('p', { class: 'brief-headline', text: brief.headline || 'Nothing needs your attention.' }),
+    el('p', { class: 'brief-headline', text: brief.headline || (brief.partial ? 'Building today’s brief…' : 'Nothing needs your attention.') }),
   )
   const chips = el('div', { class: 'chips' })
   for (const [key, fmt] of STATS) if (brief.stats?.[key] > 0) chips.append(chip(fmt(brief.stats[key])))

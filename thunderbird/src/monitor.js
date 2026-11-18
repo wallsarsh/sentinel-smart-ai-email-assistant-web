@@ -15,7 +15,7 @@ const safeError = (e) => {
   return text.length <= 180 ? text : `${text.slice(0, 179)}…`
 }
 
-const headerKey = (h) => String(h?.headerMessageId ?? h?.id ?? '')
+const headerKey = (h) => String(h?.pendingKey ?? h?.headerMessageId ?? h?.id ?? '')
 const headerDate = (h) => new Date(h?.date ?? 0)
 const isSelf = (author, self) => {
   const m = /<([^>\s]+)>$/.exec(String(author ?? ''))
@@ -60,8 +60,8 @@ export async function runMonitor({
   const previous = (await store.monitor()) ?? {}
   const since = force
     ? new Date(now.getTime() - (settings.monitor.lookbackDays ?? 3) * DAY)
-    : previous.lastScanAt
-      ? new Date(previous.lastScanAt - 5 * 60_000)
+    : Number.isFinite(new Date(previous.lastScanAt ?? NaN).getTime())
+      ? new Date(new Date(previous.lastScanAt).getTime() - 5 * 60_000)
       : new Date(now.getTime() - (settings.monitor.lookbackDays ?? 3) * DAY)
   const nextRunAt = new Date(now.getTime() + settings.monitor.intervalMinutes * 60_000).toISOString()
   await store.saveMonitor({
@@ -78,19 +78,39 @@ export async function runMonitor({
   let cached = 0
   let local = 0
   let headers
+  let deferred = 0
   let rawHeaders
   try {
-    rawHeaders = await api.recent(
+    const discovered = api.discover && await api.discover(since, now, settings)
+    if (discovered?.failures.length) errors.push('Could not read folders: ' + discovered.failures.join(', '))
+    rawHeaders = discovered?.headers ?? await api.recent(
       since,
       settings.monitor.maxMessagesPerRun * 2,
       settings,
     )
     headers = pickHeaders(rawHeaders, {
       self: ctx?.selfAddresses,
-      since,
-      max: settings.monitor.maxMessagesPerRun,
+      since: discovered ? new Date(0) : since,
+      max: discovered ? Infinity : settings.monitor.maxMessagesPerRun,
       now,
     })
+    if (discovered) {
+      const keep = new Set(headers.map((h) => h.pendingKey))
+      await api.acknowledge(rawHeaders.filter((h) => !keep.has(h.pendingKey)).map((h) => h.pendingKey))
+      const fresh = []
+      const completed = []
+      for (const h of headers) {
+        if (!force && await store.analysis(h)) completed.push(h.pendingKey)
+        else if (h.retryAt > now.getTime()) deferred++
+        else fresh.push(h)
+      }
+      await api.acknowledge(completed)
+      cached += completed.length
+      headers = fresh
+      headers.sort((a, b) => headerDate(a) - headerDate(b))
+      deferred += Math.max(0, headers.length - settings.monitor.maxMessagesPerRun)
+      headers = headers.slice(0, settings.monitor.maxMessagesPerRun)
+    }
   } catch (e) {
     const status = {
       state: 'error',
@@ -111,9 +131,16 @@ export async function runMonitor({
   }
 
   const queue = []
-  for (const header of headers) {
+  for (let header of headers) {
+    if (header.pendingKey && api.resolvePending) {
+      const key = header.pendingKey
+      try { header = await api.resolvePending(header) }
+      catch (e) { await api.defer?.(header); errors.push(safeError(e)); continue }
+      if (!header) { await api.acknowledge([key]); skipped++; continue }
+    }
     const hit = force ? null : await store.analysis(header)
     if (hit) {
+      if (header.pendingKey) await api.acknowledge([header.pendingKey])
       cached++
       continue
     }
@@ -121,6 +148,7 @@ export async function runMonitor({
     try {
       message = toMailMessage(header, await api.full(header.id))
     } catch (e) {
+      await api.defer?.(header)
       errors.push(`Message ${header.id}: ${safeError(e)}`)
       skipped++
       continue
@@ -135,6 +163,7 @@ export async function runMonitor({
       analysis.promptVersion = null
       await store.saveAnalysis(header, analysis)
       analyses.push({ header, message, analysis })
+      if (header.pendingKey) await api.acknowledge([header.pendingKey])
       local++
       continue
     }
@@ -145,7 +174,7 @@ export async function runMonitor({
   queue.sort((a, b) => Number(b.plan.boostImportance) - Number(a.plan.boostImportance) || headerDate(b.header) - headerDate(a.header))
   const budget = settings.monitor.maxAiMessagesPerRun ?? 0
   const runnable = queue.slice(0, budget)
-  const pending = queue.length - runnable.length
+  const pending = deferred + queue.length - runnable.length
 
   let tagWarning = null
   let knownTags = await store.tagKeys()
@@ -171,13 +200,14 @@ export async function runMonitor({
         fetchImpl,
       )
     } catch (e) {
-      // Keep earlier batches; the next run retries this one.
+      for (const item of chunk) await api.defer?.(item.header)
       errors.push(safeError(e))
       continue
     }
     for (const c of chunk) {
       const raw = result.get(String(c.message.providerMessageId))
       if (!raw) {
+        await api.defer?.(c.header)
         errors.push(`No result for message ${c.header.id}`)
         continue
       }
@@ -189,6 +219,7 @@ export async function runMonitor({
       analysis.promptVersion = assistantPrompt.version
       await store.saveAnalysis(c.header, analysis)
       analyses.push({ header: c.header, message: c.message, analysis })
+      if (c.header.pendingKey) await api.acknowledge([c.header.pendingKey])
       await maybeTag(c.header, analysis)
     }
   }

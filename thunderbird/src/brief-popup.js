@@ -13,14 +13,15 @@ async function show() {
     return
   }
   const [brief, briefStatus, settings] = await Promise.all([
-    store.brief(),
+    store.displayedBrief(),
     store.briefStatus(),
     store.settings(),
   ])
   renderBrief($('brief'), brief, open)
   const running = briefStatus?.state === 'running'
   $('refresh').disabled = running
-  if (running) status($('status'), 'Updating…')
+  $('refresh').textContent = ['partial', 'error'].includes(briefStatus?.state) ? 'Resume brief' : 'Rebuild today’s brief'
+  if (running) status($('status'), 'Updating… ' + (briefStatus.progress ? briefStatus.progress.processed + '/' + briefStatus.progress.total + ' processed' : ''))
   else if (briefStatus?.state === 'error') status($('status'), briefStatus.message, 'status--error')
   else if (briefStatus?.state === 'partial') status($('status'), briefStatus.message ?? 'Paused; press Refresh brief to resume.', 'status--error')
   else if (!settings.baseUrl) status($('status'), 'Add a provider in settings first.', 'status--error')

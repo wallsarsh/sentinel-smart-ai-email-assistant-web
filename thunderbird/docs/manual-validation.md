@@ -99,3 +99,9 @@ Run this after `npm run ext:build`, with a disposable test profile and team-owne
 - [ ] Provider usage confirms skipped/marketing/security mail was not sent to the model.
 - [ ] No send request observed in the provider or mail server logs from background runs.
 - [ ] T174 status can move to `review` / `done` with the log filled in.
+
+## Repository update verification, 18 November 2026
+
+A disposable Linux profile installed Sentinel A (0.1.0), checked a branch-specific HTTPS fixture feed, installed B (0.2.0), and retained a marker in extension storage after activation. Exercised Thunderbird 140.0 and 160.0 with a container-local repository fixture and test CA. On 160.0 the extension-page probe also used the Settings background message handlers for check and apply. Production release publication, Windows installation and user-operated accessibility checks require separate validation.
+
+For repeat testing, use two versioned test XPIs with the same Sentinel ID and the same fork's update URL. Seed storage in A, confirm the displayed ref, check for B and apply it. Reopen Settings to confirm the running version and retained settings. Repeat with a changed digest and an open compose window. Both must leave A active.

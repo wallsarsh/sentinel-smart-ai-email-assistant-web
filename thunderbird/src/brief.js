@@ -160,7 +160,7 @@ export const briefIsCurrent = (brief, now = new Date()) =>
 /** Refresh policy: explicit request, new analyses, a new day, or no brief yet. */
 export function shouldRefreshBrief({ brief, analyses = [], now = new Date(), force = false, enabled = true }) {
   if (!enabled && !force) return false
-  if (force) return true
+  if (force || brief?.partial) return true
   if (analyses.length) return true
   return !briefIsCurrent(brief, now)
 }
@@ -180,6 +180,12 @@ export async function refreshBrief({
   analyzeOne = analyze,
   summarize = runBrief,
 }) {
+  const previousStatus = await store.briefStatus()
+  const retry = (message) => {
+    const attempts = (previousStatus?.attempts || 0) + 1
+    const delay = Math.min(60, 5 * 2 ** Math.min(attempts - 1, 4))
+    return { attempts, nextRetryAt: Date.now() + delay * 60000, needsSetup: /rejected the API key|ermission denied|blocks calls from browser/i.test(message || '') }
+  }
   const startedAt = now.toISOString()
   const windowStart = briefWindow(now)
   const windowKey = windowStart.toISOString()
@@ -214,6 +220,7 @@ export async function refreshBrief({
     await store.saveBriefJob(job)
     await store.saveBriefStatus({
       state: 'error',
+      ...retry(message),
       at: job.updatedAt,
       windowStart: windowKey,
       windowEnd: windowEnd.toISOString(),
@@ -225,10 +232,15 @@ export async function refreshBrief({
 
   let headers
   try {
-    headers = (await api.recent(windowStart, Math.max(60, settings.monitor.maxMessagesPerRun), settings))
+    const found = await api.recent(windowStart, Infinity, settings)
+    if (found.folderErrors?.length) {
+      job.failed++
+      job.error = 'Could not read folders: ' + found.folderErrors.join(', ')
+    }
+    headers = found
       .filter((h) => !ctx.selfAddresses.has(String(h.author).replace(/^.*<|>$/g, '').toLowerCase()))
       .sort((a, b) => new Date(b.date) - new Date(a.date))
-      .slice(0, Math.max(60, settings.monitor.maxMessagesPerRun))
+
   } catch (e) {
     return saveFailure(String(e?.message ?? e).slice(0, 180))
   }
@@ -236,6 +248,8 @@ export async function refreshBrief({
   job.total = headers.length
   const heads = Object.fromEntries(headers.map((h) => [String(h.id), { subject: h.subject, from: h.author }]))
   const rows = []
+  const lastComplete = await store.brief()
+  if (lastComplete && !lastComplete.partial && lastComplete.createdAt) await store.saveBrief({ ...lastComplete, partial: false })
   const base = () => ({
     createdAt: startedAt,
     windowStart: windowKey,
@@ -243,7 +257,8 @@ export async function refreshBrief({
     stats: selectForBrief(rows).stats,
     heads,
     headline: '',
-    sections: [],
+    sections: [{ type: 'topPriorities', items: rows.flatMap(({ id, t }) =>
+      (t.actionItems || []).map((a) => ({ text: a.text, messageIds: [String(id)] }))).slice(0, 8) }],
     model: null,
     partial: job.failed > 0 || job.processed < job.total,
     progress: progressOf(job),
@@ -251,7 +266,7 @@ export async function refreshBrief({
   const savePartial = async () => {
     job.updatedAt = new Date().toISOString()
     await store.saveBriefJob(job)
-    await store.saveBrief(base())
+    await store.saveBrief({ ...base(), partial: true })
     await store.saveBriefStatus({
       state: 'running',
       at: job.updatedAt,
@@ -280,6 +295,7 @@ export async function refreshBrief({
         await store.saveAnalysis(header, analysis)
         job.cached++
       } else {
+        if (job.analyzed + job.local >= (settings.monitor.maxMessagesPerRun || 60)) continue
         const message = toMailMessage(header, await api.full(header.id))
         const plan = preFilter(message, rules, settings, now)
         if (plan.action === 'local') {
@@ -299,7 +315,7 @@ export async function refreshBrief({
       rows.push({ id: header.id, at: new Date(header.date), t: { ...analysis, sender: analysis.sender || header.author } })
       job.processed++
       consecutiveFailures = 0
-      job.error = null
+      if (!job.failed) job.error = null
     } catch (e) {
       job.failed++
       consecutiveFailures++
@@ -313,7 +329,7 @@ export async function refreshBrief({
   }
 
   // Do not make a second, monolithic provider call while individual messages are still failing.
-  if (job.failed > 0) {
+  if (job.failed > 0 || job.processed < job.total) {
     const brief = base()
     job.state = 'partial'
     job.updatedAt = new Date().toISOString()
@@ -321,10 +337,11 @@ export async function refreshBrief({
     await store.saveBrief(brief)
     const status = {
       state: 'partial',
+      ...(job.failed ? retry(job.error) : {}),
       at: job.updatedAt,
       windowStart: windowKey,
       windowEnd: windowEnd.toISOString(),
-      message: job.error,
+      message: job.error || `Processed ${job.processed}/${job.total}. Remaining messages are queued.`,
       progress: progressOf(job),
     }
     await store.saveBriefStatus(status)
@@ -332,9 +349,9 @@ export async function refreshBrief({
   }
 
   const { stats, emails } = selectForBrief(rows)
-  const baseBrief = { ...base(), stats }
+  const baseBrief = { ...base(), stats, includedInSummary: emails.length }
   if (!emails.length) {
-    const brief = { ...baseBrief, partial: false, progress: progressOf(job) }
+    const brief = { ...baseBrief, sections: [], partial: false, progress: progressOf(job) }
     job.state = 'done'
     job.updatedAt = new Date().toISOString()
     await store.saveBriefJob(job)
@@ -385,6 +402,7 @@ export async function refreshBrief({
     await store.saveBrief(brief)
     const status = {
       state: 'error',
+      ...retry(message),
       at: job.updatedAt,
       windowStart: windowKey,
       windowEnd: windowEnd.toISOString(),
